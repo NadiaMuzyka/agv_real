@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  # --- 1. MEMORIA E COMUNICAZIONE (Redis) ---
+  redis:
+    image: redis:alpine
+    container_name: agv_redis
+    ports:
+      - "6379:6379"  # Esposto per debug da PC (Redis Insight o script test)
+    networks:
+      - agv_net
+    restart: always
+
+  # --- 2. IL CERVELLO (Logic & AI) ---
+  brain:
+    build: ./src/brain
+    container_name: agv_brain
+    depends_on:
+      - redis
+    environment:
+      - REDIS_HOST=agv_redis  # Nome del servizio Redis nella rete Docker
+      - DISPLAY=${DISPLAY}    # Necessario se vuoi vedere finestre OpenCV (su Linux)
+    volumes:
+      - ./src/brain:/app      # Hot-reload: modifica il codice e si aggiorna subito
+      - /tmp/.X11-unix:/tmp/.X11-unix # Per GUI (opzionale)
+    networks:
+      - agv_net
+    command: python -u main_brain.py # -u forza l'output non bufferizzato
+
+  # --- 3. IL CORPO (Hardware & Sim Bridge) ---
+  body:
+    build: ./src/body
+    container_name: agv_body
+    depends_on:
+      - redis
+    environment:
+      - REDIS_HOST=agv_redis
+    volumes:
+      - ./src/body:/app       # Hot-reload
+    networks:
+      - agv_net
+    command: python -u main_body.py
+
+networks:
+  agv_net:
+    driver: bridge

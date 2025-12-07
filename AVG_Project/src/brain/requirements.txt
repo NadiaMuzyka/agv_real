@@ -1,0 +1,5 @@
+redis
+py_trees
+ultralytics
+numpy
+opencv-python-headless
