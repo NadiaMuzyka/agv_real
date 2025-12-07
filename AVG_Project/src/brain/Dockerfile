@@ -1,23 +1,25 @@
-# Usa Python leggero
-FROM python:3.9-slim
+# USIAMO PYTHON 3.10
+FROM python:3.10
 
-# Variabili d'ambiente per vedere i log subito
 ENV PYTHONUNBUFFERED=1
-
 WORKDIR /app
 
-# Installa librerie di sistema per OpenCV (necessarie per YOLO/Visione)
+# 1. Installiamo strumenti di compilazione (per YOLO/OpenCV) e librerie grafiche
 RUN apt-get update && apt-get install -y \
-    libgl1-mesa-glx \
+    git \
+    build-essential \
+    libgl1 \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copia e installa i requisiti Python
+# 2. Aggiorniamo pip
+RUN pip install --upgrade pip
+
+# 3. Installiamo le dipendenze Python
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copia il codice (anche se il volume lo sovrascrive, è buona pratica per il deploy)
+# 4. Copia il codice Brain
 COPY . .
 
-# Il comando CMD è definito nel docker-compose, ma lo mettiamo qui come default
 CMD ["python", "main_brain.py"]

@@ -1,4 +1,2 @@
 redis
-coppeliasim-zmq-remote-api-client
-cbor
 numpy
