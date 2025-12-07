@@ -1,0 +1,50 @@
+AGV_Project/
+│
+├── docker-compose.yml             # Orchestratore: Definisce i servizi (brain, body, redis)
+├── README.md                      # Istruzioni per installazione e avvio
+├── .gitignore                     # File per ignorare cache e file inutili su git
+│
+├── docs/                          # Documentazione di Design
+│   ├── architecture.png           # Il tuo schema Mermaid definitivo
+│   └── project_design.pdf         # Documento da approvare dal prof
+│
+└── src/                           # Codice Sorgente
+    │
+    ├── brain/                     # CONTAINER BRAIN (Intelligence Layer)
+    │   ├── Dockerfile             # Costruisce l'ambiente Brain
+    │   ├── requirements.txt       # Dipendenze: redis, py_trees, ultralytics
+    │   ├── main_brain.py          # Entry Point: Avvia BT e Logica
+    │   │
+    │   └── modules/               # Logica di Alto Livello
+    │       ├── __init__.py
+    │       ├── bt_manager.py      # Gestione Behavior Tree (py_trees)
+    │       ├── logic_controller.py # Logica decisionale e Path Planning (Controllore di alto livello)
+    │       └── vision_system.py   # [SENSE-High] Elaborazione YOLO (se gira qui)
+    │
+    └── body/                      # CONTAINER BODY (Hardware Abstraction Layer)
+        ├── Dockerfile             # Costruisce l'ambiente Body
+        ├── requirements.txt       # Dipendenze: redis, coppeliasim-zmq-remote-api-client
+        ├── main_body.py           # Entry Point: Loop Sensori/Attuatori
+        │
+        └── modules/               # Interfaccia Fisica (Simulata)
+            ├── __init__.py
+            │
+            ├── connection/        # Ponte con CoppeliaSim
+            │   ├── __init__.py
+            │   └── coppelia_connector.py  # [BRIDGE] Singleton ZMQ
+            │
+            ├── sensors/           # [SENSORS] Classi lettura dati
+            │   ├── __init__.py
+            │   ├── generic_sensor.py      # Classe Astratta
+            │   ├── camera.py              # Implementazione Camera
+            │   └── proximity.py           # Implementazione Proximity
+            │
+            ├── actuators/         # [ACTUATORS] Classi invio comandi
+            │   ├── __init__.py
+            │   ├── generic_actuator.py    # Classe Astratta
+            │   ├── wheels.py              # Controllo Ruote (Mecanum)
+            │   └── lift.py                # Controllo Sollevatore (Muletto)
+            │
+            └── controllers/       # [LOW_CTR] Controllo Reattivo
+                ├── __init__.py
+                └── low_level_manager.py   # Safety Layer + Smistamento comandi
