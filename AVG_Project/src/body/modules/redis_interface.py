@@ -1,5 +1,4 @@
-# FILE: src/brain/modules/redis_interface.py
-
+# FILE: src/body/modules/redis_interface.py
 import os
 import redis
 import json
@@ -13,19 +12,19 @@ class RedisInterface:
         try:
             self.db = redis.Redis(host=redis_host, port=6379, decode_responses=True)
             self.db.ping()
-            print(f"[{self.__class__.__name__}] Connessione a Redis stabilita con successo.")
         except redis.exceptions.ConnectionError:
+            self.db = None
             print(f"[{self.__class__.__name__}] ERRORE: Impossibile connettersi a Redis.")
-            
-    def set_command(self, key: str, data: dict):
-        """ Scrive il comando V/W (Message Broker, tipo di comunicazione: key-value). """
-        if self.db:
-            self.db.set(key, json.dumps(data))
 
-    def get_sensor_data(self, key: str) -> dict:
-        """ Legge lo stato (Belief State futuro). """
+    def get_command(self, key: str) -> dict:
+        """ Legge i comandi V/W scritti dal Brain (Message Broker). """
         if self.db:
             data = self.db.get(key)
             if data:
                 return json.loads(data)
-        return {}
+        return {"v": 0.0, "w": 0.0}
+
+    def set_sensor_data(self, key: str, data: dict):
+        """ Metodo placeholder per scrivere i dati dei sensori (Belief State futuro). """
+        if self.db:
+            self.db.set(key, json.dumps(data))
