@@ -5,6 +5,7 @@ import json
 
 class RedisInterface:
     COMMAND_CHANNEL = "agv_command_channel"
+    RESET_CHANNEL = "agv_reset"
     
     def __init__(self):
         redis_host = os.getenv('REDIS_HOST', 'localhost')
@@ -18,13 +19,14 @@ class RedisInterface:
             print(f"[{self.__class__.__name__}] ERRORE: Impossibile connettersi a Redis.")
 
     def subscribe_to_commands(self):
-        """ Crea un oggetto PubSub e si iscrive al canale dei comandi. """
+        """ Crea un oggetto PubSub e si iscrive al canale dei comandi e del reset. """
         if not self.db:
             return None
 
         pubsub = self.db.pubsub()
         pubsub.subscribe(self.COMMAND_CHANNEL)
-        print(f"[{self.__class__.__name__}] Iscritto al canale {self.COMMAND_CHANNEL}. In attesa di comandi...")
+        pubsub.subscribe(self.RESET_CHANNEL)
+        print(f"[{self.__class__.__name__}] Iscritto ai canali {self.COMMAND_CHANNEL} e {self.RESET_CHANNEL}.")
         return pubsub
         
     def set_sensor_data(self, key: str, data: dict):
