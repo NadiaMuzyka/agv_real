@@ -29,8 +29,17 @@ def main():
     tree_executor = py_trees.trees.BehaviourTree(behavior_tree)
     tree_executor.setup(timeout=15) 
 
+    SENSORS_KEY = "agv_sensors"
+
     try:
         while True:
+            # --- LETTURA SENSORI REALI ---
+            sensor_data = redis_manager.get_sensor_data(SENSORS_KEY)
+            if sensor_data:
+                blackboard.emergency_state = sensor_data.get("emergency", False)
+                if blackboard.emergency_state:
+                    print(f"[BRAIN] 🚨 RILEVATA EMERGENZA DA BODY! (Bumper: {sensor_data.get('bumper')})")
+
             # --- AGGIORNAMENTO SIMULATO (SOLO PER IL TEST) ---
             # Diamo al BT dati sufficienti per iniziare a lavorare e generare un comando V/W
             blackboard.battery_level = 90.0 # Batteria OK

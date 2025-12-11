@@ -9,8 +9,14 @@ flowchart TD
     classDef safety fill:#ff6666,stroke:#300,stroke-width:2px,color:#000,stroke-dasharray: 5 5;
     classDef planner fill:#cce5ff,stroke:#003366,stroke-width:2px,color:#000;
 
+    %% FASE 0: SICUREZZA (PRIORITÀ MASSIMA)
+    Root[Start: Ricezione Input]:::start --> Emergency{Bumper Premuto /<br>Emergenza?}:::warning
+    
+    Emergency -->|Sì| StopEmergenza[STOP IMMEDIATO<br>Attesa Reset Manuale]:::warning
+    StopEmergenza --> Emergency
+
     %% FASE 1: AVVIO E CHECK INIZIALE
-    Root[Start: Ricezione Input]:::start --> InitBat{Batteria > 50%?}:::decision
+    Emergency -->|No| InitBat{Batteria > 50%?}:::decision
     
     InitBat -->|No| Charge1[Ricarica Iniziale]:::warning
     Charge1 --> InitBat

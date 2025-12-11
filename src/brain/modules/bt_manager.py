@@ -13,6 +13,29 @@ class RobotBlackboard:
         self.line_error = 0.0
         self.arrived_at_target = False
         self.is_recharging = False
+        self.emergency_state = False
+
+# --- 2. NODI DI CONTROLLO E UTILITY ---
+class CheckEmergency(py_trees.behaviour.Behaviour):
+    def __init__(self, name, blackboard):
+        super().__init__(name)
+        self.bb = blackboard
+
+    def update(self):
+        if self.bb.emergency_state:
+            return py_trees.common.Status.SUCCESS
+        return py_trees.common.Status.FAILURE
+
+class StopAction(py_trees.behaviour.Behaviour):
+    def __init__(self, name, logic_controller):
+        super().__init__(name)
+        self.lc = logic_controller
+
+    def update(self):
+        self.lc.execute_stop()
+        return py_trees.common.Status.RUNNING
+
+class CheckBattery(py_trees.behaviour.Behaviour):
 
 # --- 2. NODI DI CONTROLLO E UTILITY ---
 # (Classi CheckBattery, CheckBatteryLow, StopAndWait rimangono INVARIATE)
@@ -66,6 +89,12 @@ def create_agv_tree(blackboard, logic_controller):
     # ROOT: Selector (Fallback)
     root = py_trees.composites.Selector("RootSelector", memory=False)
 
+    # --- RAMO 0: EMERGENZA (Priorità Massima) ---
+    emergency_sequence = py_trees.composites.Sequence("EmergencySequence", memory=False)
+    check_emergency = CheckEmergency("IsEmergency", blackboard)
+    stop_action = StopAction("EmergencyStop", logic_controller)
+    emergency_sequence.add_children([check_emergency, stop_action])
+
     # --- RAMO 1: RICARICA (Priorità Alta) ---
     recharge_sequence = py_trees.composites.Sequence("RechargeSequence", memory=True)
     check_low = CheckBatteryLow("IsBatteryLow", blackboard, threshold=20)
@@ -95,5 +124,5 @@ def create_agv_tree(blackboard, logic_controller):
     action = PerformAction("LoadUnload", blackboard)
     work_sequence.add_children([check_bat_ok, planner, nav_work_seq, action])
 
-    root.add_children([recharge_sequence, work_sequence])
+    root.add_children([emergency_sequence, recharge_sequence, work_sequence])
     return root
