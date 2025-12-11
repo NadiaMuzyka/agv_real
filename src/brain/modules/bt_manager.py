@@ -1,4 +1,4 @@
-# FILE: src/brain/modules/bt_manager.py (VERSIONE COMPLETA E DEFINITIVA)
+# FILE: src/brain/modules/bt_manager.py (CORREZIONE IndentationError)
 
 import py_trees
 import time
@@ -17,6 +17,7 @@ class RobotBlackboard:
         self.emergency_state = False
 
 # --- 2. NODI DI CONTROLLO E UTILITY ---
+
 class CheckEmergency(py_trees.behaviour.Behaviour):
     def __init__(self, name, blackboard):
         super().__init__(name)
@@ -35,10 +36,6 @@ class StopAction(py_trees.behaviour.Behaviour):
     def update(self):
         self.lc.execute_stop()
         return py_trees.common.Status.RUNNING
-
-class CheckBattery(py_trees.behaviour.Behaviour):
-
-# --- 2. NODI DI CONTROLLO E UTILITY ---
 
 class CheckBattery(py_trees.behaviour.Behaviour):
     """ Restituisce SUCCESS se la batteria è CARICA (> soglia) """
@@ -87,7 +84,7 @@ class StopAndWait(py_trees.behaviour.Behaviour):
 
 class GoToCharger(py_trees.behaviour.Behaviour):
     """ Imposta il target verso la stazione di ricarica. Modificato per LogicController. """
-    def __init__(self, name, blackboard, logic_controller): # ACCETTA logic_controller
+    def __init__(self, name, blackboard, logic_controller):
         super().__init__(name)
         self.bb = blackboard
         self.lc = logic_controller
@@ -101,7 +98,7 @@ class GoToCharger(py_trees.behaviour.Behaviour):
             self.bb.current_target = {'id': 'CHARGER'}
             self.bb.arrived_at_target = False
         
-        self.lc.execute_stop() # Comanda lo stop per pulizia
+        self.lc.execute_stop()
         return py_trees.common.Status.RUNNING
 
 class WaitForRecharge(py_trees.behaviour.Behaviour):
@@ -154,8 +151,8 @@ class SafetyCheck(py_trees.behaviour.Behaviour):
         return py_trees.common.Status.SUCCESS
 
 class LineFollowerAction(py_trees.behaviour.Behaviour):
-    """ Esegue il calcolo e l'invio del comando V/W. Modificato per LogicController. """
-    def __init__(self, name, blackboard, logic_controller): # ACCETTA logic_controller
+    """ Esegue il calcolo e l'invio del comando V/W. """
+    def __init__(self, name, blackboard, logic_controller):
         super().__init__(name)
         self.bb = blackboard
         self.lc = logic_controller
@@ -163,10 +160,9 @@ class LineFollowerAction(py_trees.behaviour.Behaviour):
     def update(self):
         if not self.bb.current_target: return py_trees.common.Status.FAILURE
         if self.bb.arrived_at_target: 
-             self.lc.execute_stop() # Chiama lo STOP al Body
+             self.lc.execute_stop()
              return py_trees.common.Status.SUCCESS
         
-        # Chiama il Logic Controller, che pubblica su Redis (Pub/Sub)
         self.lc.execute_line_follow(self.bb.line_error) 
         
         return py_trees.common.Status.RUNNING
