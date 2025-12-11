@@ -3,7 +3,7 @@
 class LowLevelManager:
     """
     Controllore di Basso Livello.
-    Simula l'esecuzione dei comandi V/W tramite stampa (obiettivo odierno).
+    Simula l'esecuzione dei comandi V/W tramite stampa.
     """
     def __init__(self):
         print("[LOW-LEVEL] Controllore Inizializzato (Modalità Debug/Stampa)")
