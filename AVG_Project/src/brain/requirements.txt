@@ -1,7 +1,0 @@
-redis
-py_trees
-ultralytics
-numpy
-opencv-python
-# Rimuoviamo la dipendenza generica da torch e installiamo la versione CPU
-torch==2.9.1+cpu
