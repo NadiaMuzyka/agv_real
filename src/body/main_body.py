@@ -96,6 +96,8 @@ def main():
             manager.execute_command(final_v, final_w)
             last_command["v"] = final_v
             last_command["w"] = final_w
+            
+        time.sleep(0.05)  # Loop a 20HzS
 
 if __name__ == "__main__":
     main()

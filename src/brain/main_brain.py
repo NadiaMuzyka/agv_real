@@ -26,7 +26,7 @@ def main():
     tree_executor.setup(timeout=15) 
 
     SENSORS_KEY = "agv_sensors"
-
+    print("[BRAIN] Ingresso nel ciclo principale...")
     try:
         while True:
             # --- LETTURA SENSORI REALI ---
