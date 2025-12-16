@@ -16,8 +16,9 @@ graph TD
         DB[(<b>REDIS SERVER</b><br/>Key-Value & Pub/Sub)]:::redis
     end
 
+    subgraph BODY_CONTAINER [Container BODY - Actuators & Sensors]
         subgraph SENSORS [SENSORS MODULE]
-            GEN_SENS[<b>GENERIC SENSOR</b><br/>Class SensorObj<br/>Legge Sim -> Scrive Redis]:::body
+            GEN_SENS[<b>GENERIC SENSOR</b><br/>Class SensorObj<br/>Legge dai sensori e rielabora i dati, fa da <b>Perseption</b>]:::body
         end
 
         subgraph ACTUATORS [ACTUATORS MODULE]
@@ -30,7 +31,7 @@ graph TD
         
         BRIDGE[<b>Coppelia Connector</b><br/>Singleton ZMQ]:::body
     
-
+    end
 
     subgraph HOST_OS [CoppeliaSim]
         SIM_SENSOR(<b>Simulated Sensor</b><br/>Vision/Proximity/Laser):::sim
@@ -57,4 +58,6 @@ graph TD
     GEN_ACT --> BRIDGE
     ACT_CINGOLO --> BRIDGE
     BRIDGE -- "6. setTargetPosition (ZMQ)" --> SIM_ACTUATOR
+    GEN_ACT -.-> |"Conferma dell'attuatore"|DB -.->BT
+    ACT_CINGOLO -.-> |"Conferma dell'attuatore"|DB -.->BT
 
