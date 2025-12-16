@@ -36,14 +36,116 @@ class StopAction(py_trees.behaviour.Behaviour):
         return py_trees.common.Status.RUNNING
 
 class CheckBattery(py_trees.behaviour.Behaviour):
+    def __init__(self, name, blackboard, threshold=30):
+        super().__init__(name)
+        self.bb = blackboard
+        self.threshold = threshold
 
-# --- 2. NODI DI CONTROLLO E UTILITY ---
-# (Classi CheckBattery, CheckBatteryLow, StopAndWait rimangono INVARIATE)
-# ...
+    def update(self):
+        if self.bb.battery_level > self.threshold:
+            return py_trees.common.Status.SUCCESS
+        return py_trees.common.Status.FAILURE
+
+class CheckBatteryLow(py_trees.behaviour.Behaviour):
+    def __init__(self, name, blackboard, threshold=30):
+        super().__init__(name)
+        self.bb = blackboard
+        self.threshold = threshold
+
+    def update(self):
+        if self.bb.battery_level < self.threshold:
+            return py_trees.common.Status.SUCCESS
+        return py_trees.common.Status.FAILURE
+
+class StopAndWait(py_trees.behaviour.Behaviour):
+    def __init__(self, name):
+        super().__init__(name)
+
+    def update(self):
+        print(f"[{self.name}] Ostacolo rilevato o attesa...")
+        return py_trees.common.Status.RUNNING
 
 # --- 3. NODI AZIONE SPECIFICI ---
-# (Classi WaitForRecharge, PlanMission, GetNextTask, SafetyCheck, PerformAction rimangono INVARIATE)
-# ...
+
+class WaitForRecharge(py_trees.behaviour.Behaviour):
+    def __init__(self, name, blackboard):
+        super().__init__(name)
+        self.bb = blackboard
+
+    def update(self):
+        if self.bb.battery_level < 100:
+            self.bb.battery_level += 10  # Simula ricarica veloce
+            self.bb.is_recharging = True
+            print(f"[{self.name}] Ricarica in corso... {self.bb.battery_level}%")
+            return py_trees.common.Status.RUNNING
+        else:
+            self.bb.is_recharging = False
+            print(f"[{self.name}] Ricarica completata.")
+            return py_trees.common.Status.SUCCESS
+
+class PlanMission(py_trees.behaviour.Behaviour):
+    def __init__(self, name, blackboard):
+        super().__init__(name)
+        self.bb = blackboard
+
+    def update(self):
+        if not self.bb.mission_queue and not self.bb.current_target:
+            print(f"[{self.name}] Pianifico nuove missioni...")
+            # Esempio di missioni
+            self.bb.mission_queue = [
+                {'id': 'PALLET_A', 'prio': 1},
+                {'id': 'PALLET_B', 'prio': 2}
+            ]
+            return py_trees.common.Status.SUCCESS
+        return py_trees.common.Status.FAILURE
+
+class GetNextTask(py_trees.behaviour.Behaviour):
+    def __init__(self, name, blackboard):
+        super().__init__(name)
+        self.bb = blackboard
+
+    def update(self):
+        if not self.bb.current_target and self.bb.mission_queue:
+            self.bb.current_target = self.bb.mission_queue.pop(0)
+            print(f"[{self.name}] Nuovo target: {self.bb.current_target['id']}")
+            self.bb.arrived_at_target = False
+            return py_trees.common.Status.SUCCESS
+        elif self.bb.current_target:
+            return py_trees.common.Status.SUCCESS
+        return py_trees.common.Status.FAILURE
+
+class SafetyCheck(py_trees.behaviour.Behaviour):
+    def __init__(self, name, blackboard):
+        super().__init__(name)
+        self.bb = blackboard
+
+    def update(self):
+        if self.bb.person_detected:
+            print(f"[{self.name}] PERICOLO: Persona rilevata!")
+            return py_trees.common.Status.FAILURE
+        return py_trees.common.Status.SUCCESS
+
+class PerformAction(py_trees.behaviour.Behaviour):
+    def __init__(self, name, blackboard):
+        super().__init__(name)
+        self.bb = blackboard
+        self.timer = 0
+
+    def initialise(self):
+        self.timer = 0
+
+    def update(self):
+        if self.bb.arrived_at_target:
+            self.timer += 1
+            if self.timer < 5:
+                print(f"[{self.name}] Esecuzione azione su {self.bb.current_target['id']}...")
+                return py_trees.common.Status.RUNNING
+            else:
+                print(f"[{self.name}] Azione completata.")
+                self.bb.current_target = None # Reset target
+                self.bb.arrived_at_target = False
+                return py_trees.common.Status.SUCCESS
+        return py_trees.common.Status.FAILURE
 
 # --- LineFollowerAction: Modificata per usare LogicController ---
 class LineFollowerAction(py_trees.behaviour.Behaviour):
