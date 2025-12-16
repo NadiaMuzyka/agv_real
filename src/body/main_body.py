@@ -35,12 +35,11 @@ def main():
         print("[BODY] Errore nell'iscrizione al canale Pub/Sub.")
         return
 
-    last_command = {"v": -1.0, "w": -1.0} 
+    last_command_data = {}
     emergency_state = False
     
     # Variabili per memorizzare l'ultimo comando ricevuto via Pub/Sub
-    current_v = 0.0
-    current_w = 0.0
+    current_command_data = {"type": "STOP"}
 
     # Ciclo di esecuzione principale
     while True:
@@ -74,28 +73,23 @@ def main():
                         print("[BODY] ✅ RESET: Emergency state cleared manually.")
                         emergency_state = False
                 
-                # Gestione Comandi di Velocità
+                # Gestione Comandi (Generico)
                 elif channel == RedisInterface.COMMAND_CHANNEL:
-                    current_v = data.get("v", 0.0)
-                    current_w = data.get("w", 0.0)
+                    current_command_data = data
 
             except json.JSONDecodeError:
                 print(f"[BODY] Errore nella decodifica del messaggio su {channel}.")
 
         # --- 2. APPLY SAFETY & ACT ---
-        final_v = current_v
-        final_w = current_w
+        final_command = current_command_data.copy()
         
         # SAFETY OVERRIDE
         if emergency_state:
-            final_v = 0.0
-            final_w = 0.0
+            final_command = {"type": "STOP"}
         
-        # ACT (Invia al Controllore di Basso Livello solo se il comando è cambiato)
-        if final_v != last_command["v"] or final_w != last_command["w"]:
-            manager.execute_command(final_v, final_w)
-            last_command["v"] = final_v
-            last_command["w"] = final_w
+        # ACT (Invia al Controllore di Basso Livello)
+        # Nota: Passiamo sempre il comando al manager, lui gestirà se è cambiato o meno o se deve ricalcolare il PID
+        manager.execute_command(final_command)
             
         time.sleep(0.05)  # Loop a 20HzS
 
