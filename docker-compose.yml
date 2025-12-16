@@ -5,6 +5,8 @@ services:
     container_name: agv_redis
     ports:
       - "6379:6379"
+    volumes:
+      - redis_data:/data
     networks:
       - agv_net
     restart: always
@@ -46,3 +48,6 @@ services:
 networks:
   agv_net:
     driver: bridge
+
+volumes:
+  redis_data:
