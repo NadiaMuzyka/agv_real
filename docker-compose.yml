@@ -22,6 +22,7 @@ services:
       - ./external_libs:/usr/local/lib/python3.10/dist-packages/
     environment:
       - REDIS_HOST=agv_redis
+      - PYTHONPATH=/app
     networks:
       - agv_net
     command: python -u main_brain.py
