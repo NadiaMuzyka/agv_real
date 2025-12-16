@@ -21,6 +21,7 @@ def main():
     blackboard = RobotBlackboard()
     logic_controller = LogicController(redis_manager) 
     
+    # Creazione e setup del Behavior Tree  (blackboard e logic controller)
     behavior_tree = create_agv_tree(blackboard, logic_controller) 
     tree_executor = py_trees.trees.BehaviourTree(behavior_tree)
     tree_executor.setup(timeout=15) 
