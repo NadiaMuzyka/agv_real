@@ -22,7 +22,10 @@ graph TD
 
         subgraph ACTUATORS [ACTUATORS MODULE]
             LOW_CTR[<b>Controllore di basso livello</b>]:::body
-            GEN_ACT[<b>GENERIC ACTUATOR</b><br/>Class ActuatorObj<br/>Legge Redis -> Scrive Sim]:::body
+            LOW_CTR_LL[<b>Sotto-controllore</b><br/>PID/Velocity/Position]:::body
+            CTR_CINGOLO[<b>Controllore Cingoli</b><br/>Class TrackController]:::body
+            ACT_CINGOLO[<b>Attuatore Cingoli</b><br/>Class TrackActuator<br/>]:::body
+            GEN_ACT[<b>GENERIC ACTUATOR</b><br/>Class ActuatorObj<br/>]:::body
         end
         
         BRIDGE[<b>Coppelia Connector</b><br/>Singleton ZMQ]:::body
@@ -47,7 +50,11 @@ graph TD
     %% --- FLUSSO DATI (ACT) ---
     LOGIC -- "4. PUBLISH 'cmd_action'" --> DB
     DB -.-> |"5. SUBSCRIBE 'cmd_action'"| LOW_CTR
-    LOW_CTR -->GEN_ACT
+    DB -.-> |"5. SUBSCRIBE 'cmd_track'"| CTR_CINGOLO
+    CTR_CINGOLO -->ACT_CINGOLO
+    LOW_CTR -->LOW_CTR_LL
+    LOW_CTR_LL -->GEN_ACT
     GEN_ACT --> BRIDGE
+    ACT_CINGOLO --> BRIDGE
     BRIDGE -- "6. setTargetPosition (ZMQ)" --> SIM_ACTUATOR
 
