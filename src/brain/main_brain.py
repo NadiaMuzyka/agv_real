@@ -2,7 +2,6 @@
 import time
 import sys
 import os
-import random
 import py_trees
 
 sys.path.append(os.path.join(os.path.dirname(__file__), 'modules'))
@@ -12,19 +11,16 @@ from modules.redis_interface import RedisInterface
 from modules.logic_controller import LogicController 
 
 def main():
-    print("🧠 Avvio BRAIN. Integrazione Logic Controller su Redis Message Broker...")
+    print("🧠 Avvio BRAIN. Implementazione Logic Controller su Redis Pub/Sub...")
     
-    # 1. Connessione a Redis
     redis_manager = RedisInterface() 
     if not redis_manager.db:
         print("[BRAIN] Errore critico: Uscita per mancata connessione a Redis.")
         return 
         
     blackboard = RobotBlackboard()
-    # 2. Connettiamo il Logic Controller a Redis
     logic_controller = LogicController(redis_manager) 
     
-    # 3. Inizializzazione Behavior Tree: Passiamo il Logic Controller
     behavior_tree = create_agv_tree(blackboard, logic_controller) 
     tree_executor = py_trees.trees.BehaviourTree(behavior_tree)
     tree_executor.setup(timeout=15) 
@@ -46,16 +42,12 @@ def main():
             blackboard.person_detected = False
             blackboard.line_error = 0.1 # Simula un errore di linea per innescare il LineFollower
             
-            # Placeholder per forzare un target iniziale (per iniziare il ramo WorkSequence)
             if not blackboard.current_target and not blackboard.mission_queue:
-                # Questo innesca PlanMission e GetNextTask
                 blackboard.current_target = {'id': 'HOME', 'prio': 100} 
             
-            # --- 4. ESEGUI BT ---
             tree_executor.tick()
             
-            # Il LogicController scrive su Redis (Message Broker) quando chiamato dal BT
-            
+            # Il Brain invia comandi solo quando il BT fa un tick e ne ha bisogno.
             time.sleep(0.1) 
 
     except KeyboardInterrupt:

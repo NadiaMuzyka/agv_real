@@ -5,7 +5,8 @@ import redis
 import json
 
 class RedisInterface:
-    """ Gestisce la connessione e la comunicazione con Redis (agv_redis). """
+    COMMAND_CHANNEL = "agv_command_channel" # Canale Pub/Sub
+    
     def __init__(self):
         redis_host = os.getenv('REDIS_HOST', 'localhost')
         self.db = None
@@ -18,9 +19,10 @@ class RedisInterface:
             print(f"[{self.__class__.__name__}] ERRORE: Impossibile connettersi a Redis.")
             
     def set_command(self, key: str, data: dict):
-        """ Scrive il comando V/W (Message Broker, tipo di comunicazione: key-value). """
+        """ Message Broker: Pubblica il comando V/W sul canale Pub/Sub. """
         if self.db:
-            self.db.set(key, json.dumps(data))
+            json_data = json.dumps(data)
+            self.db.publish(self.COMMAND_CHANNEL, json_data)
 
     def get_sensor_data(self, key: str) -> dict:
         """ Legge lo stato (Belief State futuro). """

@@ -4,7 +4,9 @@ import redis
 import json
 
 class RedisInterface:
-    """ Gestisce la connessione e la comunicazione con Redis (agv_redis). """
+    COMMAND_CHANNEL = "agv_command_channel"
+    RESET_CHANNEL = "agv_reset"
+    
     def __init__(self):
         redis_host = os.getenv('REDIS_HOST', 'localhost')
         self.db = None
@@ -16,14 +18,17 @@ class RedisInterface:
             self.db = None
             print(f"[{self.__class__.__name__}] ERRORE: Impossibile connettersi a Redis.")
 
-    def get_command(self, key: str) -> dict:
-        """ Legge i comandi V/W scritti dal Brain (Message Broker). """
-        if self.db:
-            data = self.db.get(key)
-            if data:
-                return json.loads(data)
-        return {"v": 0.0, "w": 0.0}
+    def subscribe_to_commands(self):
+        """ Crea un oggetto PubSub e si iscrive al canale dei comandi e del reset. """
+        if not self.db:
+            return None
 
+        pubsub = self.db.pubsub()
+        pubsub.subscribe(self.COMMAND_CHANNEL)
+        pubsub.subscribe(self.RESET_CHANNEL)
+        print(f"[{self.__class__.__name__}] Iscritto ai canali {self.COMMAND_CHANNEL} e {self.RESET_CHANNEL}.")
+        return pubsub
+        
     def set_sensor_data(self, key: str, data: dict):
         """ Metodo placeholder per scrivere i dati dei sensori (Belief State futuro). """
         if self.db:
