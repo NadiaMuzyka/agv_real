@@ -1,0 +1,55 @@
+graph TD
+    %% Definizione degli Stili
+    classDef Selector fill:#ffddcc,stroke:#ff6600,stroke-width:2px;
+    classDef Sequence fill:#ccffcc,stroke:#009900,stroke-width:2px;
+    classDef Action fill:#ccccff,stroke:#0000cc,stroke-width:2px;
+    classDef ProbCheck fill:#fff59d,stroke:#ffc107,stroke-width:2px;
+
+    %% Nodi Principali
+    ROOT("RootSelector (Fallback)"):::Selector
+    
+    %% Ramo 1: Sicurezza (Massima Priorità)
+    SEC_SEQ[Sequence: Safety & People]:::Sequence
+    
+    %% Ramo 2: Ricarica (Alta Priorità)
+    CHARGE_SEQ[Sequence: Recharge]:::Sequence
+    CHARGE_SEL[Selector: Nav Charger]:::Selector
+    
+    %% Ramo 3: Lavoro (Bassa Priorità)
+    WORK_SEQ[Sequence: Work]:::Sequence
+    PLAN_SEL[Selector: Planning Phase]:::Selector
+
+    %% Gerarchia Principale
+    ROOT --> SEC_SEQ
+    ROOT --> CHARGE_SEQ
+    ROOT --> WORK_SEQ
+    
+    %% -------------------- RAMO 1: SICUREZZA --------------------
+    SEC_SEQ --> CHECK_PERSON[ProbabilisticCheck: PersonDetected_TEST 15 percent]:::ProbCheck
+    SEC_SEQ --> SLOW_DOWN[Action: SafetySlowDown_RUNNING_RUNNING]:::Action
+
+    %% -------------------- RAMO 2: RICARICA --------------------
+    CHARGE_SEQ --> CHECK_LOW[ProbabilisticCheck: IsBatteryLow_TEST 30 percent]:::ProbCheck
+    CHARGE_SEQ --> CHARGE_SEL
+    CHARGE_SEQ --> WAIT_CHARGE[Action: ChargingProcess_WaitForRecharge]:::Action
+
+    %% Sequenza Navigazione Ricarica
+    CHARGE_SEL --> MOVE_CHARGER[Sequence: MoveToCharger]:::Sequence
+    CHARGE_SEL --> WAIT_OBSTACLE[Action: ObstacleWaitCharger_RUNNING]:::Action
+    
+    MOVE_CHARGER --> SET_TARGET[Action: SetChargerTarget_GoToCharger]:::Action
+    MOVE_CHARGER --> MOVE_ACTION_CHARGE[Action: LineFollowerAction_MoveToCharger]:::Action
+    
+    %% -------------------- RAMO 3: LAVORO --------------------
+    WORK_SEQ --> CHECK_OK[ProbabilisticCheck: CheckBatOK_TEST 70 percent]:::ProbCheck
+    WORK_SEQ --> PLAN_SEL
+    WORK_SEQ --> NAV_WORK_SEQ[Sequence: NavWorkSequence]:::Sequence
+    WORK_SEQ --> PERFORM_ACTION[Action: LoadUnload_PerformAction]:::Action
+
+    %% Sequenza Pianificazione
+    PLAN_SEL --> PLAN_MISSION[ProbabilisticCheck: PlanMission_TEST 10 percent]:::ProbCheck
+    PLAN_SEL --> GET_TASK[Action: TaskDispatcher_GetNextTask]:::Action
+
+    %% Sequenza Navigazione Lavoro
+    NAV_WORK_SEQ --> SAFE_MOVE[ProbabilisticCheck: SafetyMove_TEST 95 percent]:::ProbCheck
+    NAV_WORK_SEQ --> MOVE_ACTION_WORK[Action: LineFollowerAction_Work]:::Action
