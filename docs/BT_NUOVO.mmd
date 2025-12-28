@@ -1,55 +1,64 @@
 graph TD
-    %% Definizione degli Stili
-    classDef Selector fill:#ffddcc,stroke:#ff6600,stroke-width:2px;
-    classDef Sequence fill:#ccffcc,stroke:#009900,stroke-width:2px;
-    classDef Action fill:#ccccff,stroke:#0000cc,stroke-width:2px;
-    classDef ProbCheck fill:#fff59d,stroke:#ffc107,stroke-width:2px;
+    %% Stile dei nodi
+    classDef selector fill:#f96,stroke:#333,stroke-width:2px,color:black;
+    classDef sequence fill:#69f,stroke:#333,stroke-width:2px,color:white;
+    classDef condition fill:#ff9,stroke:#333,stroke-width:1px,color:black,stroke-dasharray: 5 5;
+    classDef action fill:#9f9,stroke:#333,stroke-width:1px,color:black;
+    classDef wait fill:#f9f,stroke:#333,stroke-width:1px,color:black;
 
-    %% Nodi Principali
-    ROOT("RootSelector (Fallback)"):::Selector
-    
-    %% Ramo 1: Sicurezza (Massima Priorità)
-    SEC_SEQ[Sequence: Safety & People]:::Sequence
-    
-    %% Ramo 2: Ricarica (Alta Priorità)
-    CHARGE_SEQ[Sequence: Recharge]:::Sequence
-    CHARGE_SEL[Selector: Nav Charger]:::Selector
-    
-    %% Ramo 3: Lavoro (Bassa Priorità)
-    WORK_SEQ[Sequence: Work]:::Sequence
-    PLAN_SEL[Selector: Planning Phase]:::Selector
+    %% ROOT
+    Root[<h1><b>?</b></h1> Root Selector]:::selector
+    Root --> SafetySeq
+    Root --> BatterySeq
+    Root --> MissionSel
 
-    %% Gerarchia Principale
-    ROOT --> SEC_SEQ
-    ROOT --> CHARGE_SEQ
-    ROOT --> WORK_SEQ
+
+    %% RAMO 1: SICUREZZA (Safety) - Aggiornato con Wait
+    SafetySeq[<h1><b>--></b></h1><b>Sequenza</b>: Sicurezza Persona]:::sequence
+    SafetySeq --> IsPerson{Cond: Persona Rilevata?}:::condition
+    SafetySeq --> Stop[Az: STOP Motori]:::action
+    SafetySeq --> Wait5[Az: Wait 5 seconds]:::action
     
-    %% -------------------- RAMO 1: SICUREZZA --------------------
-    SEC_SEQ --> CHECK_PERSON[ProbabilisticCheck: PersonDetected_TEST 15 percent]:::ProbCheck
-    SEC_SEQ --> SLOW_DOWN[Action: SafetySlowDown_RUNNING_RUNNING]:::Action
+    %% RAMO 2: ENERGIA (Energy) - Aggiornato con Navigazione
+    BatterySeq[<h1><b>--></b></h1><b>Sequenza</b>: Gestione Energia]:::sequence
+    BatterySeq --> IsLowBat{Cond: Batteria < 20%?}:::condition
+    BatterySeq --> PlanCharge[Az: Calcola Percorso Ricarica]:::action
+    BatterySeq --> MoveToCharge[Az: Vai al Punto di Ricarica]:::action
+    BatterySeq --> Dock[Az: Ricarica]:::action
 
-    %% -------------------- RAMO 2: RICARICA --------------------
-    CHARGE_SEQ --> CHECK_LOW[ProbabilisticCheck: IsBatteryLow_TEST 30 percent]:::ProbCheck
-    CHARGE_SEQ --> CHARGE_SEL
-    CHARGE_SEQ --> WAIT_CHARGE[Action: ChargingProcess_WaitForRecharge]:::Action
-
-    %% Sequenza Navigazione Ricarica
-    CHARGE_SEL --> MOVE_CHARGER[Sequence: MoveToCharger]:::Sequence
-    CHARGE_SEL --> WAIT_OBSTACLE[Action: ObstacleWaitCharger_RUNNING]:::Action
+    %% RAMO 3: MISSIONE (Mission) - NUOVA LOGICA GRAFO
+    MissionSel[<h1><b>?</b></h1><b>Selector</b>: Gestione Missione]:::selector
     
-    MOVE_CHARGER --> SET_TARGET[Action: SetChargerTarget_GoToCharger]:::Action
-    MOVE_CHARGER --> MOVE_ACTION_CHARGE[Action: LineFollowerAction_MoveToCharger]:::Action
+    %% 3.1 Missione Finita -> Torna a casa
+    MissionSel --> FinishedSeq[<h1><b>--></b></h1><b>Seq</b>: Missione Conclusa]:::sequence
+    FinishedSeq --> IsMissionDone{Cond: Lista Pallet Vuota?}:::condition
+    FinishedSeq --> PlanChargeFinish[Az: Calcola Percorso Ricarica]:::action
+    FinishedSeq --> GoHome[Az: Vai a Base Ricarica]:::action
+
+    %% 3.2 Pianificazione (Se manca il piano)
+    MissionSel --> PlanningSeq[<h1><b>--></b></h1><b>Seq</b>: Generazione Piano]:::sequence
+    PlanningSeq --> IsPlanMissing{Cond: Piano Non Calcolato?}:::condition
+    PlanningSeq --> GetMissionData[Az: Ricevi Lista & Priorità]:::action
+    PlanningSeq --> ComputeGraph[Az: Calcola Percorso Ottimizzato]:::action
+
+    %% 3.3 Esecuzione (Se ho il piano)
+    MissionSel --> ExecuteSeq[<h1><b>--></b></h1><b>Seq</b>: Esecuzione Step]:::sequence
     
-    %% -------------------- RAMO 3: LAVORO --------------------
-    WORK_SEQ --> CHECK_OK[ProbabilisticCheck: CheckBatOK_TEST 70 percent]:::ProbCheck
-    WORK_SEQ --> PLAN_SEL
-    WORK_SEQ --> NAV_WORK_SEQ[Sequence: NavWorkSequence]:::Sequence
-    WORK_SEQ --> PERFORM_ACTION[Action: LoadUnload_PerformAction]:::Action
+    %% A. Navigazione verso il prossimo nodo
+    ExecuteSeq --> NavSeq[<h1><b>--></b></h1><b>Seq</b>: Navigazione Grafo]:::sequence
+    NavSeq --> GetNextNode[Az: Estrai Prossimo Nodo]:::action
+    NavSeq --> MoveNode[Az: Muovi a Nodo]:::action
+    
+    %% B. Operazione sul Nodo (Picking o Delivery)
+    ExecuteSeq --> ActionSel[<h1><b>?</b></h1><b>Selector</b>: Operazione Nodo]:::selector
+    
+    %% Ritiro
+    ActionSel --> PickupSeq[<h1><b>--></b></h1><b>Seq</b>: Ritiro]:::sequence
+    PickupSeq --> IsPickupNode{Cond: È Nodo Ritiro?}:::condition
+    PickupSeq --> ExecPick[Az: Esegui Picking]:::action
+    
+    %% Consegna
+    ActionSel --> DropSeq[<h1><b>--></b></h1><b>Seq</b>: Consegna]:::sequence
+    DropSeq --> IsDropNode{Cond: È Nodo Consegna?}:::condition
+    DropSeq --> ExecDrop[Az: Esegui Rilascio]:::action
 
-    %% Sequenza Pianificazione
-    PLAN_SEL --> PLAN_MISSION[ProbabilisticCheck: PlanMission_TEST 10 percent]:::ProbCheck
-    PLAN_SEL --> GET_TASK[Action: TaskDispatcher_GetNextTask]:::Action
-
-    %% Sequenza Navigazione Lavoro
-    NAV_WORK_SEQ --> SAFE_MOVE[ProbabilisticCheck: SafetyMove_TEST 95 percent]:::ProbCheck
-    NAV_WORK_SEQ --> MOVE_ACTION_WORK[Action: LineFollowerAction_Work]:::Action
