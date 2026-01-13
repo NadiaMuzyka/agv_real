@@ -16,18 +16,22 @@ graph TD
         DB[(<b>REDIS SERVER</b><br/>Key-Value & Pub/Sub)]:::redis
     end
 
+    subgraph BODY_CONTAINER [Container BODY - Actuators & Sensors]
         subgraph SENSORS [SENSORS MODULE]
-            GEN_SENS[<b>GENERIC SENSOR</b><br/>Class SensorObj<br/>Legge Sim -> Scrive Redis]:::body
+            GEN_SENS[<b>GENERIC SENSOR</b><br/>Class SensorObj<br/>Legge dai sensori e rielabora i dati, fa da <b>Perseption</b>]:::body
         end
 
         subgraph ACTUATORS [ACTUATORS MODULE]
             LOW_CTR[<b>Controllore di basso livello</b>]:::body
-            GEN_ACT[<b>GENERIC ACTUATOR</b><br/>Class ActuatorObj<br/>Legge Redis -> Scrive Sim]:::body
+            LOW_CTR_LL[<b>Sotto-controllore</b><br/>PID/Velocity/Position]:::body
+            CTR_CINGOLO[<b>Controllore Cingoli</b><br/>Class TrackController]:::body
+            ACT_CINGOLO[<b>Attuatore Cingoli</b><br/>Class TrackActuator<br/>]:::body
+            GEN_ACT[<b>GENERIC ACTUATOR</b><br/>Class ActuatorObj<br/>]:::body
         end
         
         BRIDGE[<b>Coppelia Connector</b><br/>Singleton ZMQ]:::body
     
-
+    end
 
     subgraph HOST_OS [CoppeliaSim]
         SIM_SENSOR(<b>Simulated Sensor</b><br/>Vision/Proximity/Laser):::sim
@@ -47,7 +51,13 @@ graph TD
     %% --- FLUSSO DATI (ACT) ---
     LOGIC -- "4. PUBLISH 'cmd_action'" --> DB
     DB -.-> |"5. SUBSCRIBE 'cmd_action'"| LOW_CTR
-    LOW_CTR -->GEN_ACT
+    DB -.-> |"5. SUBSCRIBE 'cmd_track'"| CTR_CINGOLO
+    CTR_CINGOLO -->ACT_CINGOLO
+    LOW_CTR -->LOW_CTR_LL
+    LOW_CTR_LL -->GEN_ACT
     GEN_ACT --> BRIDGE
+    ACT_CINGOLO --> BRIDGE
     BRIDGE -- "6. setTargetPosition (ZMQ)" --> SIM_ACTUATOR
+    GEN_ACT -.-> |"Conferma dell'attuatore"|DB -.->BT
+    ACT_CINGOLO -.-> |"Conferma dell'attuatore"|DB -.->BT
 
