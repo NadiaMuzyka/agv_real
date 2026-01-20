@@ -17,7 +17,21 @@ def main():
     if not redis_manager.db:
         print("[BRAIN] Errore critico: Uscita per mancata connessione a Redis.")
         return 
-        
+   
+    # --- INIZIALIZZAZIONE BLACKBOARD ---
+    # Creiamo un client per scrivere i dati nella memoria del BT
+    blackboard_client = py_trees.blackboard.Client(name="ClientBrain")
+    
+    # Registriamo le chiavi che i nodi dovranno leggere
+    blackboard_client.register_key(key="battery_level", access=py_trees.common.Access.WRITE)
+    blackboard_client.register_key(key="person_detected", access=py_trees.common.Access.WRITE)
+    blackboard_client.register_key(key="pallet_list_empty", access=py_trees.common.Access.WRITE)
+    
+    # Valori iniziali di default
+    blackboard_client.battery_level = 100
+    blackboard_client.person_detected = False
+    blackboard_client.pallet_list_empty = False
+         
     blackboard = RobotBlackboard()
     logic_controller = LogicController(redis_manager) 
     
