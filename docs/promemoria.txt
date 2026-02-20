@@ -1,5 +1,7 @@
+posizionati nella cartella che contiene venv
+
 per avviare l'ambiente virtuale: source ./venv/bin/activate
 
 Aprire simulazione.ttt con coppelia
 
-avviare prova.py con python e non python3
+avviare prova.py con python e non python3: python /home/nadimuz/Univ/agv_robotica/docs/prova.py

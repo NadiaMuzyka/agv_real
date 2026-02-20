@@ -1,157 +1,227 @@
-def vai_avanti_metri(distanza, motori):
-    sim.addLog(sim.verbosity_scriptinfos, f"Avanzo per {distanza} metri")
-    pos_iniziale = sim.getObjectPosition(sim.getObject('/Robot'), -1)
-    imposta_velocita(VELOCITA_CROCIERA, VELOCITA_CROCIERA, motori)
-    import math
-    while True:
-        pos_attuale = sim.getObjectPosition(sim.getObject('/Robot'), -1)
-        percorso = math.sqrt((pos_attuale[0] - pos_iniziale[0])**2 + (pos_attuale[1] - pos_iniziale[1])**2)
-        if percorso >= distanza:
-            break
-        time.sleep(0.01)
-    ferma(motori)
-    sim.addLog(sim.verbosity_scriptinfos, f"Percorso effettivo: {percorso:.4f} m")
+import math
 import time
 from coppeliasim_zmqremoteapi_client import RemoteAPIClient
 
-# Connessione
-client = RemoteAPIClient()
-sim = client.getObject('sim')
+class RobotAGV:
+    def vai_avanti_return_dist(self, metri_target, velocita=1.5):
+        self.ferma()
+        time.sleep(0.05)
+        pos_iniziale = self.sim.getObjectPosition(self.robot_handle, -1)
+        orient_iniziale = self.sim.getObjectOrientation(self.robot_handle, -1)
+        angolo_iniziale = orient_iniziale[2]
+        # Pre-correzione di orientamento a motori fermi
+        Kp_prec = 12.0
+        for _ in range(10):
+            angolo_attuale = self.sim.getObjectOrientation(self.robot_handle, -1)[2]
+            errore_angolo = self._normalize_delta(angolo_iniziale, angolo_attuale)
+            if abs(math.degrees(errore_angolo)) < 0.05:
+                break
+            correzione = errore_angolo * Kp_prec
+            self.set_velocita(-correzione, correzione)
+            time.sleep(0.01)
+            self.ferma()
+            time.sleep(0.01)
+        self.last_pos_sx, self.last_pos_dx = self._get_raw_encoder_positions()
+        distanza_percorsa = 0
+        Kp = 12.0
+        step = 0
+        while distanza_percorsa < metri_target:
+            angolo_attuale = self.sim.getObjectOrientation(self.robot_handle, -1)[2]
+            errore_angolo = self._normalize_delta(angolo_iniziale, angolo_attuale)
+            correzione = errore_angolo * Kp
+            self.set_velocita(velocita - correzione, velocita + correzione)
+            curr_sx, curr_dx = self._get_raw_encoder_positions()
+            delta_sx = abs(self._normalize_delta(curr_sx, self.last_pos_sx))
+            delta_dx = abs(self._normalize_delta(curr_dx, self.last_pos_dx))
+            distanza_percorsa += ((delta_sx + delta_dx) / 2) * self.raggio_ruota
+            self.last_pos_sx, self.last_pos_dx = curr_sx, curr_dx
+            step += 1
+            time.sleep(0.002)
+        self.ferma()
+        return distanza_percorsa
+    def __init__(self, client):
+        self.sim = client.getObject('sim')
+        # Dati del tuo robot
+        self.raggio_ruota = 0.1  # raggio = 10 cm (diametro 20 cm)
+        self.interasse = 0.5     # interasse = 50 cm
+        
+        try:
+            self.robot_handle = self.sim.getObject('/Robot')
+            self.motori = {
+                'ps': self.sim.getObject('/Robot/JointPS'),
+                'as': self.sim.getObject('/Robot/JointAS'),
+                'pd': self.sim.getObject('/Robot/JointPD'),
+                'ad': self.sim.getObject('/Robot/JointAD')
+            }
+            self.log("Sistema pronto.")
+        except Exception as e:
+            print(f"Errore nel recupero degli oggetti: {e}")
+        
+        # Variabili per l'odometria
+        self.last_pos_sx = 0
+        self.last_pos_dx = 0
 
-# --- CONFIGURAZIONE ---
-VELOCITA_CROCIERA = 3.0
-VELOCITA_ROTAZIONE = 3.0
-# Calibrazione: quanti secondi servono per fare 90 gradi? 
-# Sperimenta con questo valore (es. 1.2 o 1.5) finché non è preciso
-TEMPO_PER_90_GRADI = 4.0
+    def log(self, messaggio):
+        self.sim.addLog(self.sim.verbosity_scriptinfos, f"[Python AGV] {messaggio}")
 
-# --- FUNZIONI DI MOVIMENTO ---
+    def set_velocita(self, v_sx, v_dx):
+        # Imposta tutte le velocità in un'unica chiamata batch per massima sincronia
+        for handle, vel in zip([
+            self.motori['as'], self.motori['ps'], self.motori['ad'], self.motori['pd']],
+            [v_sx, v_sx, v_dx, v_dx]):
+            self.sim.setJointTargetVelocity(handle, vel)
 
-def imposta_velocita(v_sinistra, v_destra, motori):
-    sim.setJointTargetVelocity(motori['ps'], v_sinistra)
-    sim.setJointTargetVelocity(motori['as'], v_sinistra)
-    sim.setJointTargetVelocity(motori['pd'], v_destra)
-    sim.setJointTargetVelocity(motori['ad'], v_destra)
+    def ferma(self):
+        self.set_velocita(0, 0)
 
-def vai_dritto(secondi, motori):
-    sim.addLog(sim.verbosity_scriptinfos, f"Avanzo per {secondi}s")
-    imposta_velocita(VELOCITA_CROCIERA, VELOCITA_CROCIERA, motori)
-    time.sleep(secondi)
-    ferma(motori)
+    def _get_raw_encoder_positions(self):
+        """Legge i radianti attuali dai giunti"""
+        pos_sx = (self.sim.getJointPosition(self.motori['as']) + self.sim.getJointPosition(self.motori['ps'])) / 2
+        pos_dx = (self.sim.getJointPosition(self.motori['ad']) + self.sim.getJointPosition(self.motori['pd'])) / 2
+        return pos_sx, pos_dx
 
-def gira_sx(gradi, motori):
-    sim.addLog(sim.verbosity_scriptinfos, f"Giro a sinistra di {gradi}° (preciso)")
-    # Ottieni orientamento iniziale (asse Z locale)
-    initial_orientation = sim.getObjectOrientation(sim.getObject('/Robot'), -1)[2]
-    import math
-    target_angle = initial_orientation + (gradi * math.pi / 180)
-    target_angle = (target_angle + math.pi) % (2 * math.pi) - math.pi
-    vel_rot_precisa = VELOCITA_ROTAZIONE * 0.4
-    imposta_velocita(-vel_rot_precisa, vel_rot_precisa, motori)
-    soglia = 0.005  # ~0.3°
-    while True:
-        current_orientation = sim.getObjectOrientation(sim.getObject('/Robot'), -1)[2]
-        diff = (current_orientation - initial_orientation)
-        diff = (diff + math.pi) % (2 * math.pi) - math.pi
-        if abs(diff) >= abs(gradi * math.pi / 180) - soglia:
-            break
-        time.sleep(0.003)
-    # Breve frenata per annullare inerzia
-    imposta_velocita(vel_rot_precisa, -vel_rot_precisa, motori)
-    time.sleep(0.025)
-    ferma(motori)
-    # Log angolo effettivo
-    final_orientation = sim.getObjectOrientation(sim.getObject('/Robot'), -1)[2]
-    effettivo = (final_orientation - initial_orientation)
-    effettivo = (effettivo + math.pi) % (2 * math.pi) - math.pi
-    sim.addLog(sim.verbosity_scriptinfos, f"Angolo effettivo ruotato: {math.degrees(effettivo):.3f}°")
+    def _normalize_delta(self, attuale, precedente):
+        """Gestisce il salto angolare (-pi a +pi)"""
+        diff = attuale - precedente
+        while diff > math.pi: diff -= 2 * math.pi
+        while diff < -math.pi: diff += 2 * math.pi
+        return diff
 
+    # --- MOVIMENTO RETTILINEO (ODOMETRIA) ---
+    def vai_avanti(self, metri_target, velocita=1.5):
+        self.ferma()  # 1. Imposta velocità motori a zero prima di leggere posizione iniziale
+        time.sleep(0.05)  # pausa più lunga per assicurarsi che il robot sia fermo
+        self.log(f"Avanzo di {metri_target}m con correzione di rotta (velocità ridotta)")
+        pos_iniziale = self.sim.getObjectPosition(self.robot_handle, -1)
+        orient_iniziale = self.sim.getObjectOrientation(self.robot_handle, -1)
+        print(f"PRIMA: x={pos_iniziale[0]:.3f}, y={pos_iniziale[1]:.3f}, gamma={math.degrees(orient_iniziale[2]):.2f}°")
+        self.log(f"PRIMA: x={pos_iniziale[0]:.3f}, y={pos_iniziale[1]:.3f}, gamma={math.degrees(orient_iniziale[2]):.2f}°")
+        angolo_iniziale = orient_iniziale[2]
 
-def gira_dx(gradi, motori):
-    sim.addLog(sim.verbosity_scriptinfos, f"Giro a destra di {gradi}° (preciso)")
-    # Ottieni orientamento iniziale (asse Z locale)
-    initial_orientation = sim.getObjectOrientation(sim.getObject('/Robot'), -1)[2]
-    import math
-    target_angle = initial_orientation - (gradi * math.pi / 180)
-    target_angle = (target_angle + math.pi) % (2 * math.pi) - math.pi
-    vel_rot_precisa = VELOCITA_ROTAZIONE * 0.4
-    imposta_velocita(vel_rot_precisa, -vel_rot_precisa, motori)
-    soglia = 0.005  # ~0.3°
-    while True:
-        current_orientation = sim.getObjectOrientation(sim.getObject('/Robot'), -1)[2]
-        diff = (current_orientation - initial_orientation)
-        diff = (diff + math.pi) % (2 * math.pi) - math.pi
-        if abs(diff) >= abs(gradi * math.pi / 180) - soglia:
-            break
-        time.sleep(0.003)
-    # Breve frenata per annullare inerzia
-    imposta_velocita(-vel_rot_precisa, vel_rot_precisa, motori)
-    time.sleep(0.025)
-    ferma(motori)
-    # Log angolo effettivo
-    final_orientation = sim.getObjectOrientation(sim.getObject('/Robot'), -1)[2]
-    effettivo = (final_orientation - initial_orientation)
-    effettivo = (effettivo + math.pi) % (2 * math.pi) - math.pi
-    sim.addLog(sim.verbosity_scriptinfos, f"Angolo effettivo ruotato: {math.degrees(effettivo):.3f}°")
+        # Pre-correzione di orientamento a motori fermi
+        Kp_prec = 12.0
+        for _ in range(10):
+            angolo_attuale = self.sim.getObjectOrientation(self.robot_handle, -1)[2]
+            errore_angolo = self._normalize_delta(angolo_iniziale, angolo_attuale)
+            if abs(math.degrees(errore_angolo)) < 0.05:
+                break
+            correzione = errore_angolo * Kp_prec
+            # Applica una piccola correzione di velocità per allineare
+            self.set_velocita(-correzione, correzione)
+            time.sleep(0.01)
+            self.ferma()
+            time.sleep(0.01)
 
-def ferma(motori):
-    imposta_velocita(0, 0, motori)
+        self.last_pos_sx, self.last_pos_dx = self._get_raw_encoder_positions()
+        distanza_percorsa = 0
+        Kp = 12.0  # Aumentato per correzione più forte
+        step = 0
+        # 2. Applica subito la correzione di rotta già allo step 0
+        while distanza_percorsa < metri_target:
+            angolo_attuale = self.sim.getObjectOrientation(self.robot_handle, -1)[2]
+            errore_angolo = self._normalize_delta(angolo_iniziale, angolo_attuale)
+            correzione = errore_angolo * Kp
+            self.set_velocita(velocita - correzione, velocita + correzione)
+            curr_sx, curr_dx = self._get_raw_encoder_positions()
+            delta_sx = abs(self._normalize_delta(curr_sx, self.last_pos_sx))
+            delta_dx = abs(self._normalize_delta(curr_dx, self.last_pos_dx))
+            distanza_percorsa += ((delta_sx + delta_dx) / 2) * self.raggio_ruota
+            self.last_pos_sx, self.last_pos_dx = curr_sx, curr_dx
+            # 4. Rileggi posizione e correggi rotta ad ogni step (già presente)
+            if step % 10 == 0:
+                pos = self.sim.getObjectPosition(self.robot_handle, -1)
+                orient = self.sim.getObjectOrientation(self.robot_handle, -1)
+                print(f"Step {step}: x={pos[0]:.3f}, y={pos[1]:.3f}, gamma={math.degrees(orient[2]):.2f}°")
+                self.log(f"Step {step}: x={pos[0]:.3f}, y={pos[1]:.3f}, gamma={math.degrees(orient[2]):.2f}°")
+            step += 1
+            # 3. Aumenta frequenza ciclo di controllo (sleep più breve)
+            time.sleep(0.002)
+        self.ferma()
+        pos_finale = self.sim.getObjectPosition(self.robot_handle, -1)
+        orient_finale = self.sim.getObjectOrientation(self.robot_handle, -1)
+        print(f"DOPO: x={pos_finale[0]:.3f}, y={pos_finale[1]:.3f}, gamma={math.degrees(orient_finale[2]):.2f}°")
+        self.log(f"DOPO: x={pos_finale[0]:.3f}, y={pos_finale[1]:.3f}, gamma={math.degrees(orient_finale[2]):.2f}°")
+        print(f"Distanza percorsa (odometria): {distanza_percorsa:.4f} m")
+        self.log(f"Distanza percorsa (odometria): {distanza_percorsa:.4f} m")
 
-# --- LOGICA PRINCIPALE ---
+    # --- ROTAZIONE (ORIENTAMENTO OGGETTO) ---
+    def gira_sx(self, gradi, velocita_base=3.0):
+        self.log(f"Giro a sinistra di {gradi}° (Orientamento)")
+        initial_orientation = self.sim.getObjectOrientation(self.robot_handle, -1)[2]
+        
+        vel_rot = velocita_base * 0.4
+        self.set_velocita(-vel_rot, vel_rot)
+        
+        soglia = 0.005
+        while True:
+            current_orientation = self.sim.getObjectOrientation(self.robot_handle, -1)[2]
+            diff = (current_orientation - initial_orientation)
+            diff = (diff + math.pi) % (2 * math.pi) - math.pi
+            if abs(diff) >= abs(math.radians(gradi)) - soglia:
+                break
+            time.sleep(0.003)
+        
+        # Frenata attiva per inerzia
+        self.set_velocita(vel_rot, -vel_rot)
+        time.sleep(0.025)
+        self.ferma()
+        self.log(f"Angolo finale: {math.degrees(diff):.2f}°")
+
+    def gira_dx(self, gradi, velocita_base=3.0):
+        self.log(f"Giro a destra di {gradi}° (Orientamento)")
+        initial_orientation = self.sim.getObjectOrientation(self.robot_handle, -1)[2]
+        
+        vel_rot = velocita_base * 0.4
+        self.set_velocita(vel_rot, -vel_rot)
+        
+        soglia = 0.005
+        while True:
+            current_orientation = self.sim.getObjectOrientation(self.robot_handle, -1)[2]
+            diff = (current_orientation - initial_orientation)
+            diff = (diff + math.pi) % (2 * math.pi) - math.pi
+            if abs(diff) >= abs(math.radians(gradi)) - soglia:
+                break
+            time.sleep(0.003)
+        
+        # Frenata attiva
+        self.set_velocita(-vel_rot, vel_rot)
+        time.sleep(0.025)
+        self.ferma()
+        self.log(f"Angolo finale: {math.degrees(diff):.2f}°")
 
 def main():
-    try:
-        motori = {
-            'ps': sim.getObject('/Robot/JointPS'),
-            'as': sim.getObject('/Robot/JointAS'),
-            'pd': sim.getObject('/Robot/JointPD'),
-            'ad': sim.getObject('/Robot/JointAD')
-        }
-    except Exception as e:
-        print(f"Errore: {e}")
-        return
+    client = RemoteAPIClient()
+    sim = client.getObject('sim')
+    agv = RobotAGV(client)
 
     sim.startSimulation()
 
     try:
-
-
-        # Misura distanza percorsa in 2 secondi
-        pos_start = sim.getObjectPosition(sim.getObject('/Robot'), -1)
-        vai_dritto(2, motori)
-        pos_end = sim.getObjectPosition(sim.getObject('/Robot'), -1)
-        import math
-        distanza_2s = math.sqrt((pos_end[0] - pos_start[0])**2 + (pos_end[1] - pos_start[1])**2)
-        print(f"Distanza percorsa in 2 secondi: {distanza_2s:.4f} m")
-        sim.addLog(sim.verbosity_scriptinfos, f"Distanza percorsa in 2 secondi: {distanza_2s:.4f} m")
-
-        # Registra posizione prima della rotazione
-        pos_before = sim.getObjectPosition(sim.getObject('/Robot'), -1)
-        gira_sx(90, motori)
-        # Registra posizione dopo la rotazione
-        pos_after = sim.getObjectPosition(sim.getObject('/Robot'), -1)
-        distanza = math.sqrt((pos_after[0] - pos_before[0])**2 + (pos_after[1] - pos_before[1])**2)
-        print(f"Distanza tra le due rette (centro robot): {distanza:.4f} m")
-        sim.addLog(sim.verbosity_scriptinfos, f"Distanza tra le due rette (centro robot): {distanza:.4f} m")
-
-        sim.addLog(sim.verbosity_scriptinfos, f"Sto per fermarmi per 10 secondi di tempo simulato")
-        ferma(motori)
-        start_time = sim.getSimulationTime()
-        while sim.getSimulationTime() - start_time < 10:
-            time.sleep(0.05)  # Attendi brevemente per non bloccare il thread
-        sim.addLog(sim.verbosity_scriptinfos, f"Sono passati i 10 secondi, riparto")
-
-        # Esempio: avanza di 1 metro
-        vai_avanti_metri(1.0, motori)
-            
-
-        sim.addLog(sim.verbosity_scriptinfos, "Percorso completato!")
-
+        risultati = []
+        # Valori di partenza desiderati
+        pos_reset = [9.0, 9.0, 0.0]
+        orient_reset = [0.0, 0.0, -math.pi/2]  # gamma = -90°
+        for i in range(10):
+            agv.log(f"--- Simulazione {i+1}/10 ---")
+            # Reset posizione e orientamento
+            agv.sim.setObjectPosition(agv.robot_handle, -1, pos_reset)
+            agv.sim.setObjectOrientation(agv.robot_handle, -1, orient_reset)
+            time.sleep(0.1)
+            distanza = agv.vai_avanti_return_dist(1.0)
+            pos = agv.sim.getObjectPosition(agv.robot_handle, -1)
+            orient = agv.sim.getObjectOrientation(agv.robot_handle, -1)
+            risultati.append(f"Sim {i+1}: x={pos[0]:.3f}, y={pos[1]:.3f}, gamma={math.degrees(orient[2]):.2f}, dist={distanza:.4f} m\n")
+            time.sleep(0.5)
+        # Salva i risultati su file
+        with open("risultati_simulazioni.txt", "w") as f:
+            f.writelines(risultati)
+        agv.log("Risultati delle simulazioni salvati in risultati_simulazioni.txt")
     except KeyboardInterrupt:
-        ferma(motori)
-
-    time.sleep(1)
-    sim.stopSimulation()
+        agv.ferma()
+    finally:
+        agv.ferma()
+        time.sleep(1)
+        sim.stopSimulation()
 
 if __name__ == "__main__":
     main()
