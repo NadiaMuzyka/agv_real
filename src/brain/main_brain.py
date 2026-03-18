@@ -38,7 +38,7 @@ def main():
     blackboard_client.register_key(key="logic_controller", access=py_trees.common.Access.WRITE)
     blackboard_client.logic_controller = logic_controller
     
-    # Valori iniziali di default
+    # Valori iniziali di default della blackboard
     blackboard_client.battery_level = 100.0
     blackboard_client.person_detected = False
     blackboard_client.pallet_list_empty = False
@@ -52,26 +52,16 @@ def main():
     tree_executor = py_trees.trees.BehaviourTree(behavior_tree)
     tree_executor.setup(timeout=15) 
 
-    SENSORS_KEY = "agv_sensors"
     print("[BRAIN] Ingresso nel ciclo principale...")
     try:
         while True:
-            # --- LETTURA SENSORI REALI ---
-            sensor_data = redis_manager.get_sensor_data(SENSORS_KEY)
-            if sensor_data:
-                blackboard_client.emergency_state = sensor_data.get("emergency", False)
-                if blackboard_client.emergency_state:
-                    print(f"[BRAIN] 🚨 RILEVATA EMERGENZA DA BODY! (Bumper: {sensor_data.get('bumper')})")
-
-            # --- AGGIORNAMENTO SIMULATO (SOLO PER IL TEST) ---
-            # Diamo al BT dati sufficienti per iniziare a lavorare e generare un comando V/W
-            blackboard_client.battery_level = 90.0 # Batteria OK
-            blackboard_client.person_detected = False
-            blackboard_client.line_error = 0.1 # Simula un errore di linea per innescare il LineFollower
+            #lettura dei dati percepiti ed elaborati daisensori da Resdis
+            sensor_data = logic_controller.read_sensors_data_from_redis()
             
-            if not blackboard_client.current_target and not blackboard_client.mission_queue:
-                blackboard_client.current_target = {'id': 'HOME', 'prio': 100} 
+            #aggiornamento della blackboard con i dati dei sensori provenienti da Redis
+            logic_controller.update_blackboard_from_sensors(sensor_data, blackboard_client)
             
+            #tick del BT
             tree_executor.tick()
             
             # Il Brain invia comandi solo quando il BT fa un tick e ne ha bisogno.
@@ -83,5 +73,6 @@ def main():
 if __name__ == "__main__":
     main()
     
+
 
 
