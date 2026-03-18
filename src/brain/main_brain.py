@@ -17,11 +17,14 @@ def main():
     if not redis_manager.db:
         print("[BRAIN] Errore critico: Uscita per mancata connessione a Redis.")
         return 
-   
+    
+    # --- INIZIALIZZAZIONE LOGIC CONTROLLER ---
+    logic_controller = LogicController(redis_manager) 
+       
     # --- INIZIALIZZAZIONE BLACKBOARD ---
     # Creiamo un client per scrivere i dati nella memoria del BT
     blackboard_client = py_trees.blackboard.Client(name="ClientBrain")
-    
+
     # Registriamo le chiavi che i nodi dovranno leggere
     blackboard_client.register_key(key="battery_level", access=py_trees.common.Access.WRITE)
     blackboard_client.register_key(key="person_detected", access=py_trees.common.Access.WRITE)
@@ -30,6 +33,10 @@ def main():
     blackboard_client.register_key(key="line_error", access=py_trees.common.Access.WRITE)
     blackboard_client.register_key(key="current_target", access=py_trees.common.Access.WRITE)
     blackboard_client.register_key(key="mission_queue", access=py_trees.common.Access.WRITE)
+    
+    # Registriamo la chiave per il Logic Controller, che sarà un oggetto condiviso
+    blackboard_client.register_key(key="logic_controller", access=py_trees.common.Access.WRITE)
+    blackboard_client.logic_controller = logic_controller
     
     # Valori iniziali di default
     blackboard_client.battery_level = 100.0
@@ -40,10 +47,7 @@ def main():
     blackboard_client.current_target = None
     blackboard_client.mission_queue = []
          
-    # --- INIZIALIZZAZIONE LOGIC CONTROLLER ---
-    logic_controller = LogicController(redis_manager) 
-    
-    # Creazione e setup del Behavior Tree  (blackboard e logic controller)
+    # Creazione e setup del Behavior Tree  
     behavior_tree = crea_albero_agv() 
     tree_executor = py_trees.trees.BehaviourTree(behavior_tree)
     tree_executor.setup(timeout=15) 
