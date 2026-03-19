@@ -41,7 +41,8 @@ class LogicController:
             "target_speed": 0.5 # Velocità desiderata
         }
         self.db.set_command(self.db.COMMAND_CHANNEL, command)
-        
+      
+    #Funzione per stoppare l'AGV  
     def execute_stop(self):
         """ Invia il comando di stop. """
         command = {
@@ -50,5 +51,6 @@ class LogicController:
             "w": 0.0
         }
         self.db.set_command(self.db.COMMAND_CHANNEL, command)
-        
+        print("[LogicController] Comando STOP inviato.")
+        return True
     #------------------------------------------------------------------------

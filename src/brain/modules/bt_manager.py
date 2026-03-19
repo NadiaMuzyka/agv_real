@@ -1,5 +1,6 @@
 import py_trees
 import random
+import time
 from py_trees.common import Status
 
 # =============================================================================
@@ -26,7 +27,7 @@ class ControllaPersona(py_trees.behaviour.Behaviour):
 
     def update(self):
         #person_detected = self.blackboard.person_detected
-        person_detected = random.choice([True, False], weights=[80, 20], k=1)[0] # Simulazione casuale, verrà eliminata
+        person_detected = random.choices([True, False], weights=[80, 20], k=1)[0] # Simulazione casuale, verrà eliminata
         if person_detected:
             return Status.SUCCESS
         else:
@@ -38,18 +39,23 @@ class StopMotori(py_trees.behaviour.Behaviour):
     """
     def __init__(self):
         super(StopMotori, self).__init__(name="Stop Motori")
-    
+        self.blackboard = py_trees.blackboard.Client(name=self.name)
+        self.blackboard.register_key(key="logic_controller", access=py_trees.common.Access.READ)
+        
     def setup(self):
         print("Setup StopMotori")
         return True
 
     def initialize(self):
-        pass
+       pass
 
-    def update(self):
-        print("Motori fermati")
-        # Restituisce SUCCESS dopo aver inviato il comando di stop
-        return Status.SUCCESS 
+    def update(self):       
+        LogicController = self.blackboard.logic_controller
+        esito = LogicController.execute_stop()
+        if esito:
+            return Status.SUCCESS
+        else:
+            return Status.FAILURE
 
 class Aspetta(py_trees.behaviour.Behaviour):
     """
@@ -57,17 +63,25 @@ class Aspetta(py_trees.behaviour.Behaviour):
     """
     def __init__(self):
         super(Aspetta, self).__init__(name="Aspetta")
-    
+        self.duration = 5.0 # Durata dell'attesa in secondi
+        self.start_time = None
+        
     def setup(self):
         print("Setup Aspetta")
         return True
 
     def initialize(self):
-        pass
+        self.start_time = time.time()
+        print("[StopMotori] Inizio Stop. Attesa di sicurezza attivata...") 
+        print(f"[StopMotori] Attesa di {self.duration} secondi...")
 
     def update(self):
-        # Qui andrebbe la logica di timer
-        return Status.SUCCESS 
+        elapsed_time = time.time() - self.start_time
+        if elapsed_time >= self.duration:
+            print("[StopMotori] Attesa completata. Ripresa operazioni.")
+            return Status.SUCCESS
+        else:
+            return Status.RUNNING 
 
 # =============================================================================
 # 2. NODI DI GESTIONE ENERGIA
