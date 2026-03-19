@@ -1,5 +1,6 @@
 # FILE: src/brain/modules/logic_controller.py
 import time
+import random
 from modules.redis_interface import RedisInterface 
 
 class LogicController:
@@ -9,12 +10,30 @@ class LogicController:
     def __init__(self, redis_interface: RedisInterface):
         self.db = redis_interface
 
+
     # Metodo che legge i dati percepiti ed elaborati dai sensori da Redis
     def read_sensors_data_from_redis(self) -> dict:
         """ Legge i dati dei sensori da Redis e li restituisce come dizionario. """
         SENSORS_KEY = "agv_sensors"
         sensor_data = self.db.get_sensor_data(SENSORS_KEY)
-        return sensor_data
+        #return sensor_data
+        # Stampiamo cosa c'è davvero nel DB (all'inizio sarà vuoto: {})
+        print(f"[LogicController] Letti dati REALI da Redis: {sensor_data}") 
+        
+        # GENERAZIONE DATI RANDOMICI (Per testare il Behavior Tree)
+        dati_random = {
+            # Genera True al 20%, False all'80%
+            "person_detected": random.choices([True, False], weights=[20, 80], k=1)[0],
+            # Tutti i dati sottostanti possono essere generati casualmente per il test
+            "battery_level": 100.0,
+            "pallet_list_empty": False,
+            "emergency_state": False,
+            "line_error": 0.0,
+            "current_target": None,
+            "mission_queue": []
+        }
+        return dati_random # Restituiamo al main_brain i dati falsati per la simulazione
+    
     
     # Metodo che aggiorna la blackboard con i dati dei sensori
     def update_blackboard_from_sensors(self, sensor_data: dict, blackboard_client):
@@ -30,6 +49,19 @@ class LogicController:
             blackboard_client.mission_queue = sensor_data.get("mission_queue", [])
     
     
+    #Metodo per stoppare l'AGV  
+    def execute_stop(self):
+        """ Invia il comando di stop. """
+        command = {
+            "type": "STOP",
+            "v": 0.0, 
+            "w": 0.0
+        }
+        self.db.set_command(self.db.COMMAND_CHANNEL, command)
+        print("[LogicController] Comando STOP inviato.")
+        return True
+
+
     # METODI DI ESEMPIO
     #------------------------------------------------------------------------
     def execute_line_follow(self, line_error: float):
@@ -41,16 +73,5 @@ class LogicController:
             "target_speed": 0.5 # Velocità desiderata
         }
         self.db.set_command(self.db.COMMAND_CHANNEL, command)
-      
-    #Funzione per stoppare l'AGV  
-    def execute_stop(self):
-        """ Invia il comando di stop. """
-        command = {
-            "type": "STOP",
-            "v": 0.0, 
-            "w": 0.0
-        }
-        self.db.set_command(self.db.COMMAND_CHANNEL, command)
-        print("[LogicController] Comando STOP inviato.")
-        return True
+
     #------------------------------------------------------------------------

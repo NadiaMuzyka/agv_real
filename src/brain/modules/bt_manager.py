@@ -1,5 +1,4 @@
 import py_trees
-import random
 import time
 from py_trees.common import Status
 
@@ -26,9 +25,7 @@ class ControllaPersona(py_trees.behaviour.Behaviour):
         pass
 
     def update(self):
-        #person_detected = self.blackboard.person_detected
-        person_detected = random.choices([True, False], weights=[80, 20], k=1)[0] # Simulazione casuale, verrà eliminata
-        if person_detected:
+        if self.blackboard.person_detected:
             return Status.SUCCESS
         else:
             return Status.FAILURE
