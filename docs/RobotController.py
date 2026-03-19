@@ -1,4 +1,5 @@
 from coppeliasim_zmqremoteapi_client import RemoteAPIClient
+from NavigatoreGrafo import NavigatoreGrafo
 from ColorSensor import ColorSensor
 import time
 
@@ -35,7 +36,18 @@ class RobotController:
             self.sim.stopSimulation()
             print("Simulazione terminata.")
 
+    def percorso(self, nodo_partenza, nodo_arrivo):
+        """Metodo per calcolare e seguire un percorso tra due nodi."""
+        # Qui potremmo integrare il NavigatoreGrafo per ottenere il percorso
+        sistema_navigazione = NavigatoreGrafo()
+
+        # Calcoliamo il percorso
+        percorso, distanza = sistema_navigazione.trova_percorso_minimo(nodo_partenza, nodo_arrivo)
+
+        print(percorso, distanza)
+
 # Esecuzione principale
 if __name__ == "__main__":
     mio_robot = RobotController()
-    mio_robot.start()
+    #mio_robot.start()
+    mio_robot.percorso("EC", "E2")  # Esempio di chiamata al metodo percorso (da implementare)
