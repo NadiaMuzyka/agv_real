@@ -1,4 +1,5 @@
 import py_trees
+import random
 from py_trees.common import Status
 
 # =============================================================================
@@ -12,6 +13,8 @@ class ControllaPersona(py_trees.behaviour.Behaviour):
     """
     def __init__(self):
         super(ControllaPersona, self).__init__(name="Persona Rilevata")
+        self.blackboard = py_trees.blackboard.Client(name=self.name)
+        self.blackboard.register_key(key="person_detected", access=py_trees.common.Access.READ)
     
     def setup(self):
         # TODO: implementare YOLO o sensori per la rilevazione persona
@@ -22,8 +25,12 @@ class ControllaPersona(py_trees.behaviour.Behaviour):
         pass
 
     def update(self):
-        # Qui andrebbe la logica reale di rilevamento
-        return Status.SUCCESS 
+        #person_detected = self.blackboard.person_detected
+        person_detected = random.choice([True, False], weights=[80, 20], k=1)[0] # Simulazione casuale, verrà eliminata
+        if person_detected:
+            return Status.SUCCESS
+        else:
+            return Status.FAILURE
 
 class StopMotori(py_trees.behaviour.Behaviour):
     """
