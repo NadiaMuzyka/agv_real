@@ -21,7 +21,7 @@ class ControllaPersona(py_trees.behaviour.Behaviour):
         print("Setup ControllaPersona")
         return True
 
-    def initialize(self):
+    def initialise(self):
         pass
 
     def update(self):
@@ -43,7 +43,7 @@ class StopMotori(py_trees.behaviour.Behaviour):
         print("Setup StopMotori")
         return True
 
-    def initialize(self):
+    def initialise(self):
        pass
 
     def update(self):       
@@ -67,7 +67,7 @@ class Aspetta(py_trees.behaviour.Behaviour):
         print("Setup Aspetta")
         return True
 
-    def initialize(self):
+    def initialise(self):
         self.start_time = time.time()
         print("[StopMotori] Inizio Stop. Attesa di sicurezza attivata...") 
         print(f"[StopMotori] Attesa di {self.duration} secondi...")
@@ -96,7 +96,7 @@ class ControlloBatteria(py_trees.behaviour.Behaviour):
         print("Setup ControlloBatteria")
         return True
 
-    def initialize(self):
+    def initialise(self):
         pass
 
     def update(self):
@@ -114,7 +114,7 @@ class CalcolaPercorsoRicarica(py_trees.behaviour.Behaviour):
         print("Setup CalcolaPercorsoRicarica")
         return True
 
-    def initialize(self):
+    def initialise(self):
         pass
 
     def update(self):
@@ -131,7 +131,7 @@ class VaiAStazioneRicarica(py_trees.behaviour.Behaviour):
         print("Setup VaiAStazioneRicarica")
         return True
 
-    def initialize(self):
+    def initialise(self):
         pass
 
     def update(self):
@@ -148,7 +148,7 @@ class RicaricaBatteria(py_trees.behaviour.Behaviour):
         print("Setup RicaricaBatteria")
         return True
 
-    def initialize(self):
+    def initialise(self):
         pass
 
     def update(self):
@@ -170,7 +170,7 @@ class ListaPalletVuota(py_trees.behaviour.Behaviour):
         print("Setup ListaPalletVuota")
         return True
 
-    def initialize(self):
+    def initialise(self):
         pass
 
     def update(self):
@@ -188,7 +188,7 @@ class PianoNonGenerato(py_trees.behaviour.Behaviour):
         print("Setup PianoNonGenerato")
         return True
 
-    def initialize(self):
+    def initialise(self):
         pass
 
     def update(self):
@@ -205,7 +205,7 @@ class RiceviListaPallet(py_trees.behaviour.Behaviour):
         print("Setup RiceviListaPallet")
         return True
 
-    def initialize(self):
+    def initialise(self):
         pass
 
     def update(self):
@@ -222,7 +222,7 @@ class GeneraPianoOttimale(py_trees.behaviour.Behaviour):
         print("Setup GeneraPianoOttimale")
         return True
 
-    def initialize(self):
+    def initialise(self):
         pass
 
     def update(self):
@@ -239,7 +239,7 @@ class EstraiProssimoNodo(py_trees.behaviour.Behaviour):
         print("Setup EstraiProssimoNodo")
         return True
 
-    def initialize(self):
+    def initialise(self):
         pass
 
     def update(self):
@@ -256,7 +256,7 @@ class NavigaVersoNodo(py_trees.behaviour.Behaviour):
         print("Setup NavigaVersoNodo")
         return True
 
-    def initialize(self):
+    def initialise(self):
         pass
 
     def update(self):
@@ -277,7 +277,7 @@ class ENodoDiPrelievo(py_trees.behaviour.Behaviour):
         print("Setup ENodoDiPrelievo")
         return True
 
-    def initialize(self):
+    def initialise(self):
         pass
 
     def update(self):
@@ -294,7 +294,7 @@ class EseguiPrelievo(py_trees.behaviour.Behaviour):
         print("Setup EseguiPrelievo")
         return True
 
-    def initialize(self):
+    def initialise(self):
         pass
 
     def update(self):
@@ -311,7 +311,7 @@ class ENodoDiConsegna(py_trees.behaviour.Behaviour):
         print("Setup ENodoDiConsegna")
         return True
 
-    def initialize(self):
+    def initialise(self):
         pass
 
     def update(self):
@@ -328,7 +328,7 @@ class EseguiConsegna(py_trees.behaviour.Behaviour):
         print("Setup EseguiConsegna")
         return True
 
-    def initialize(self):
+    def initialise(self):
         pass
 
     def update(self):
@@ -343,11 +343,11 @@ def crea_albero_agv():
     Costruisce e restituisce la struttura completa del Behavior Tree.
     """
     # Elemento Root: Selettore Principale (Priorità: Sicurezza -> Energia -> Missione)
-    root = py_trees.composites.Selector("Selettore Principale")
+    root = py_trees.composites.Selector("Selettore Principale", memory=False)
 
     # --- RAMO 1: SICUREZZA PERSONA ---
     # Sequenza: Se c'è una persona -> Ferma -> Aspetta
-    sequenza_sicurezza = py_trees.composites.Sequence("Sicurezza Persona")
+    sequenza_sicurezza = py_trees.composites.Sequence("Sicurezza Persona" , memory=False)
     controllo_persona = ControllaPersona()
     stop_motori = StopMotori()
     aspetta = Aspetta()
@@ -355,7 +355,7 @@ def crea_albero_agv():
 
     # --- RAMO 2: GESTIONE ENERGIA ---
     # Sequenza: Se batteria bassa -> Calcola Ricarica -> Vai -> Ricarica
-    sequenza_energia = py_trees.composites.Sequence("Gestione Energia")
+    sequenza_energia = py_trees.composites.Sequence("Gestione Energia", memory=False)
     controllo_batteria = ControlloBatteria()
     calcola_percorso_ricarica = CalcolaPercorsoRicarica()
     vai_a_ricarica = VaiAStazioneRicarica()
@@ -364,10 +364,10 @@ def crea_albero_agv():
 
     # --- RAMO 3: GESTIONE MISSIONE ---
     # Selettore: Sceglie tra Missione Finita, Pianificazione o Esecuzione
-    selettore_missione = py_trees.composites.Selector("Gestione Missione")
+    selettore_missione = py_trees.composites.Selector("Gestione Missione", memory=False)
 
     # 3.1: Missione Conclusa (Se lista vuota -> Torna alla base)
-    sequenza_conclusione = py_trees.composites.Sequence("Missione Conclusa")
+    sequenza_conclusione = py_trees.composites.Sequence("Missione Conclusa", memory=False)
     lista_vuota = ListaPalletVuota()
     # Usiamo le stesse classi di ricarica per tornare alla base a fine turno
     calcola_rientro = CalcolaPercorsoRicarica() 
@@ -375,32 +375,32 @@ def crea_albero_agv():
     sequenza_conclusione.add_children([lista_vuota, calcola_rientro, vai_a_base])
 
     # 3.2: Generazione Piano (Se non c'è piano -> Crea)
-    sequenza_pianificazione = py_trees.composites.Sequence("Generazione Piano")
+    sequenza_pianificazione = py_trees.composites.Sequence("Generazione Piano", memory=False)
     piano_non_generato = PianoNonGenerato()
     ricevi_lista = RiceviListaPallet()
     genera_piano = GeneraPianoOttimale()
     sequenza_pianificazione.add_children([piano_non_generato, ricevi_lista, genera_piano])
 
     # 3.3: Esecuzione Step (Navigazione + Azione)
-    sequenza_esecuzione = py_trees.composites.Sequence("Esecuzione Step")
+    sequenza_esecuzione = py_trees.composites.Sequence("Esecuzione Step", memory=False)
 
     # 3.3.1: Navigazione Grafo
-    sequenza_navigazione = py_trees.composites.Sequence("Navigazione Grafo")
+    sequenza_navigazione = py_trees.composites.Sequence("Navigazione Grafo", memory=False)
     estrai_nodo = EstraiProssimoNodo()
     naviga_nodo = NavigaVersoNodo()
     sequenza_navigazione.add_children([estrai_nodo, naviga_nodo])
 
     # 3.3.2: Operazione sul Nodo (Ritiro O Consegna)
-    selettore_operazione = py_trees.composites.Selector("Operazione Nodo")
+    selettore_operazione = py_trees.composites.Selector("Operazione Nodo", memory=False)
 
     # Ramo Ritiro
-    sequenza_ritiro = py_trees.composites.Sequence("Ritiro")
+    sequenza_ritiro = py_trees.composites.Sequence("Ritiro", memory=False  )
     e_prelievo = ENodoDiPrelievo()
     esegui_prelievo = EseguiPrelievo()
     sequenza_ritiro.add_children([e_prelievo, esegui_prelievo])
 
     # Ramo Consegna
-    sequenza_consegna = py_trees.composites.Sequence("Consegna")
+    sequenza_consegna = py_trees.composites.Sequence("Consegna", memory=False)
     e_consegna = ENodoDiConsegna()
     esegui_consegna = EseguiConsegna()
     sequenza_consegna.add_children([e_consegna, esegui_consegna])
