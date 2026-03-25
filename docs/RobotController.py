@@ -1,6 +1,6 @@
 from coppeliasim_zmqremoteapi_client import RemoteAPIClient
 from NavigatoreGrafo import NavigatoreGrafo
-from ColorSensor import ColorSensor
+from body.modules.sensors.color_sensor import ColorSensor
 import time
 
 class RobotController:
