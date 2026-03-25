@@ -18,6 +18,8 @@ AGV_Project/
     │   └── modules/               # Logica di Alto Livello
     │       ├── __init__.py
     │       ├── bt_manager.py      # Gestione Behavior Tree (py_trees)
+    |       |-- branches           # Cartella nodi del bt_manager
+    |       |   |---nodo___.py     # file con all'interno dei nodi
     │       ├── logic_controller.py # Logica decisionale e Path Planning (Controllore di alto livello)
     │       └── vision_system.py   # [SENSE-High] Elaborazione YOLO (se gira qui)
     │
