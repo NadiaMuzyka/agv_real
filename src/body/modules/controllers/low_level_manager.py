@@ -8,9 +8,11 @@ class LowLevelManager:
     Controllore di Basso Livello.
     Riceve comandi di alto livello (es. LINE_FOLLOW) e calcola V/W tramite PID.
     """
-    def __init__(self):
+    def __init__(self, sim=None):
         print("[LOW-LEVEL] Controllore Inizializzato (Modalità Debug/Stampa)")
         self.last_print_time = 0
+        self.sim = sim
+        print("🛠️ LowLevelManager inizializzato con successo!")
         
         # PID Constants
         self.kp = 0.8

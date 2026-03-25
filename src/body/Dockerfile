@@ -2,6 +2,9 @@
 FROM python:3.10
 
 ENV PYTHONUNBUFFERED=1
+# AGGIUNGI QUESTA RIGA: permette a Python di trovare la cartella modules
+ENV PYTHONPATH=/app
+
 WORKDIR /app
 
 # 1. Installiamo strumenti di compilazione essenziali

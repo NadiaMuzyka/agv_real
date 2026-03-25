@@ -35,12 +35,16 @@ services:
     container_name: agv_body
     depends_on:
       - redis
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./src/body:/app
       # MONTAGGIO ZMQ: Montiamo la cartella radice delle librerie esterne.
-      - ./external_libs:/usr/local/lib/python3.10/dist-packages/
+      #- ./external_libs:/usr/local/lib/python3.10/dist-packages/
     environment:
       - REDIS_HOST=agv_redis
+      - COPPELIA_HOST=host.docker.internal # Indica al codice dove cercare Coppelia
+      - PYTHONPATH=/app
     networks:
       - agv_net
     command: python -u main_body.py
