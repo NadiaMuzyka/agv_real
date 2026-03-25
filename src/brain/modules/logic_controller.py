@@ -22,8 +22,8 @@ class LogicController:
         
         # GENERAZIONE DATI RANDOMICI (Per testare il Behavior Tree)
         dati_random = {
-            # Genera True al 20%, False all'80%
-            "person_detected": random.choices([True, False], weights=[20, 80], k=1)[0],
+            # Genera True al 5%, False all'95%
+            "person_detected": random.choices([True, False], weights=[5, 95], k=1)[0],
             # Tutti i dati sottostanti possono essere generati casualmente per il test
             "battery_level": 100.0,
             "pallet_list_empty": False,
@@ -32,6 +32,10 @@ class LogicController:
             "current_target": None,
             "mission_queue": []
         }
+        if dati_random["person_detected"]:
+            print("[LogicController] SIMULAZIONE: Persona rilevata (dati random).")
+        else:
+            print("[LogicController] SIMULAZIONE: Nessuna persona rilevata (dati random).")
         return dati_random # Restituiamo al main_brain i dati falsati per la simulazione
     
     
