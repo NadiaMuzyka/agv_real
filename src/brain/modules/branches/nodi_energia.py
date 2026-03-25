@@ -13,6 +13,8 @@ class ControlloBatteria(py_trees.behaviour.Behaviour):
     """
     def __init__(self):
         super(ControlloBatteria, self).__init__(name="Controllo Batteria < 20%")
+        self.blackboard = py_trees.blackboard.Client(name=self.name)
+        self.blackboard.register_key(key="battery_level", access=py_trees.common.Access.READ)
     
     def setup(self):
         print("Setup ControlloBatteria")
@@ -22,8 +24,12 @@ class ControlloBatteria(py_trees.behaviour.Behaviour):
         pass
 
     def update(self):
-        # Restituisce SUCCESS se batteria < 20%, altrimenti FAILURE
-        return Status.SUCCESS 
+        # Controlla se il livello della batteria è inferiore al 20%
+        if self.blackboard.battery_level < 20.0:
+            print(f"[ControlloBatteria] Batteria critica: {self.blackboard.battery_level:.2f}%")
+            return Status.SUCCESS
+        else:
+                return Status.FAILURE
 
 class CalcolaPercorsoRicarica(py_trees.behaviour.Behaviour):
     """
