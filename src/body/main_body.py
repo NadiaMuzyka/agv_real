@@ -1,97 +1,79 @@
-# FILE: src/body/main_body.py
-
 import time
-import os
-import sys
 import json
+import os
 
-# Aggiusta il path per importare i moduli interni
-sys.path.append(os.path.join(os.path.dirname(__file__), 'modules'))
-sys.path.append(os.path.join(os.path.dirname(__file__), 'modules/controllers'))
-
-from redis_interface import RedisInterface
-from low_level_manager import LowLevelManager
-from sensors.bumper_sensor import BumperSensor
+from modules.connection.coppelia_connector import CoppeliaConnector
+from modules.sensors.color_sensor import ColorSensor
+from modules.redis_interface import RedisInterface 
+from modules.controllers.low_level_manager import LowLevelManager
 
 # --- COSTANTI ---
-COMMAND_KEY = "agv_command"
 SENSORS_KEY = "agv_sensors"
-RESET_KEY = "agv_reset"
 
 def main():
-    print("🦾 [BODY] Avvio del Controllore (Ascolto Redis Pub/Sub)...")
+    print("🦾 [BODY] Avvio del Controllore - Modalità Color Sensor...")
+    
+    # 1. Inizializzazione Connessioni (Coppelia & Redis)
+    connector = CoppeliaConnector()
+    sim = connector.get_sim()
     
     redis_iface = RedisInterface()
-    manager = LowLevelManager()
-    bumper = BumperSensor()
-
     if not redis_iface.db:
-        print("[BODY] Errore critico: Il Body non può ricevere comandi senza Redis.")
+        print("[BODY] Errore critico: Redis non raggiungibile.")
         return
 
-    # 1. Iscrizione al canale dei comandi (Pub/Sub)
+    if not sim:
+        print("[BODY] Errore critico: Impossibile connettersi a CoppeliaSim.")
+        return
+
+    # 2. Inizializzazione Moduli
+    # Passiamo 'sim' per usare la stessa connessione ZMQ
+    #manager = LowLevelManager(sim) 
+    # Assicurati che "Vision_sensor" sia il nome esatto in CoppeliaSim
+    floor_sensor = ColorSensor(sim, "/Robot/visionSensor") 
+
+    # 3. Iscrizione ai comandi dal Brain
     pubsub = redis_iface.subscribe_to_commands()
-    if not pubsub:
-        print("[BODY] Errore nell'iscrizione al canale Pub/Sub.")
-        return
-
-    last_command_data = {}
-    emergency_state = False
-    
-    # Variabili per memorizzare l'ultimo comando ricevuto via Pub/Sub
     current_command_data = {"type": "STOP"}
 
-    # Ciclo di esecuzione principale
-    while True:
-        # --- 0. READ SENSORS & CHECK SAFETY ---
-        is_bumper_pressed = bumper.read()
-        
-        if is_bumper_pressed:
-            if not emergency_state:
-                print("[BODY] 🚨 EMERGENCY: Bumper pressed! Stopping immediately.")
-            emergency_state = True
+    print("🚀 Loop principale avviato (20Hz).")
+    
+    try:
+        while True:
+            # --- 0. SENSING ---
+            # Legge (r, g, b) normalizzati (0.0 - 1.0)
+            rgb = floor_sensor.read() 
 
-        # Publish Sensor Data
-        sensor_data = {
-            "bumper": is_bumper_pressed,
-            "emergency": emergency_state
-        }
-        redis_iface.set_sensor_data(SENSORS_KEY, sensor_data)
-
-        # --- 1. READ MESSAGES (Pub/Sub) ---
-        # Usiamo un timeout basso per non bloccare il loop dei sensori
-        message = pubsub.get_message(ignore_subscribe_messages=True, timeout=0.01) 
-        
-        if message and message['type'] == 'message':
-            channel = message['channel']
-            try:
-                data = json.loads(message['data'])
-                
-                # Gestione Reset (Interrupt-like)
-                if channel == RedisInterface.RESET_CHANNEL:
-                    if data.get("reset", False) and emergency_state:
-                        print("[BODY] ✅ RESET: Emergency state cleared manually.")
-                        emergency_state = False
-                
-                # Gestione Comandi (Generico)
-                elif channel == RedisInterface.COMMAND_CHANNEL:
-                    current_command_data = data
-
-            except json.JSONDecodeError:
-                print(f"[BODY] Errore nella decodifica del messaggio su {channel}.")
-
-        # --- 2. APPLY SAFETY & ACT ---
-        final_command = current_command_data.copy()
-        
-        # SAFETY OVERRIDE
-        if emergency_state:
-            final_command = {"type": "STOP"}
-        
-        # ACT (Invia al Controllore di Basso Livello)
-        # Nota: Passiamo sempre il comando al manager, lui gestirà se è cambiato o meno o se deve ricalcolare il PID
-        manager.execute_command(final_command)
+            print(f"[SENSORS] Floor Color RGB: {rgb}")
             
-        time.sleep(0.05)  # Loop a 20HzS
+            # --- 1. COMUNICAZIONE (Verso Redis) ---
+            '''
+            sensor_data = {
+                "floor_color": rgb,  # Invia la tupla (r, g, b)
+                "timestamp": time.time()
+            }
+            redis_iface.set_sensor_data(SENSORS_KEY, sensor_data)
+
+            # --- 2. LETTURA COMANDI (Da Redis) ---
+            message = pubsub.get_message(ignore_subscribe_messages=True, timeout=0.001) 
+            if message and message['type'] == 'message':
+                try:
+                    current_command_data = json.loads(message['data'])
+                except json.JSONDecodeError:
+                    print("[BODY] Errore decodifica comando JSON.")
+
+
+            # --- 3. ACTUATION (Esecuzione Motori) ---
+            # Il manager trasforma il comando (es. {"type": "MOVE", "speed": 0.5}) 
+            # in velocità per le ruote in CoppeliaSim
+            manager.execute_command(current_command_data)
+                
+            time.sleep(0.05) # Manteniamo i 20Hz per stabilità
+            '''
+    except KeyboardInterrupt:
+        print("\n🛑 Arresto manuale del Body.")
+    except Exception as e:
+        print(f"❌ Errore nel loop: {e}")
 
 if __name__ == "__main__":
     main()
