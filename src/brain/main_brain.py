@@ -33,7 +33,8 @@ def main():
     blackboard_client.register_key(key="line_error", access=py_trees.common.Access.WRITE)
     blackboard_client.register_key(key="current_target", access=py_trees.common.Access.WRITE)
     blackboard_client.register_key(key="mission_queue", access=py_trees.common.Access.WRITE)
-    
+    blackboard_client.register_key(key="current_position", access=py_trees.common.Access.WRITE)
+
     # Registriamo la chiave per il Logic Controller, che sarà un oggetto condiviso
     blackboard_client.register_key(key="logic_controller", access=py_trees.common.Access.WRITE)
     blackboard_client.logic_controller = logic_controller
@@ -46,7 +47,8 @@ def main():
     blackboard_client.line_error = 0.0
     blackboard_client.current_target = None
     blackboard_client.mission_queue = []
-         
+    blackboard_client.current_position = "ER"
+
     # Creazione e setup del Behavior Tree  
     behavior_tree = crea_albero_agv() 
     tree_executor = py_trees.trees.BehaviourTree(behavior_tree)

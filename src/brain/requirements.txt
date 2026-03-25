@@ -4,5 +4,6 @@ ultralytics
 numpy
 opencv-python
 pytest
+networkx
 # Rimuoviamo la dipendenza generica da torch e installiamo la versione CPU
 torch==2.1.0+cpu --index-url https://download.pytorch.org/whl/cpu

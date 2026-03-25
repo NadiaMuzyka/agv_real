@@ -2,6 +2,7 @@
 import time
 import random
 from modules.redis_interface import RedisInterface 
+from modules.navigatore_grafo import NavigatoreGrafo
 
 class LogicController:
     """ Traduce l'intento del BT in comandi di alto livello e li pubblica su Redis. """
@@ -9,7 +10,7 @@ class LogicController:
     # Costruttore di classe
     def __init__(self, redis_interface: RedisInterface):
         self.db = redis_interface
-
+        self.navigatore = NavigatoreGrafo() 
 
     # Metodo che legge i dati percepiti ed elaborati dai sensori da Redis
     def read_sensors_data_from_redis(self) -> dict:
@@ -30,6 +31,7 @@ class LogicController:
             "emergency_state": False,
             "line_error": 0.0,
             "current_target": None,
+            "current_position": "ER",
             "mission_queue": []
         }
         if dati_random["person_detected"]:
@@ -50,6 +52,7 @@ class LogicController:
             blackboard_client.emergency_state = sensor_data.get("emergency_state", False)
             blackboard_client.line_error = sensor_data.get("line_error", 0.0)
             blackboard_client.current_target = sensor_data.get("current_target", None)
+            blackboard_client.current_position = sensor_data.get("current_position", "ER")
             blackboard_client.mission_queue = sensor_data.get("mission_queue", [])
     
     
