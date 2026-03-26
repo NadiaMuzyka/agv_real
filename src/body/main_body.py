@@ -7,6 +7,8 @@ from modules.sensors.color_sensor import ColorSensor
 from modules.redis_interface import RedisInterface 
 from modules.controllers.low_level_manager import LowLevelManager
 
+#NOTA: per eseguire mettere docker compose up --build body
+
 # --- COSTANTI ---
 SENSORS_KEY = "agv_sensors"
 
@@ -27,9 +29,7 @@ def main():
         return
 
     # 2. Inizializzazione Moduli
-    # Passiamo 'sim' per usare la stessa connessione ZMQ
     #manager = LowLevelManager(sim) 
-    # Assicurati che "Vision_sensor" sia il nome esatto in CoppeliaSim
     floor_sensor = ColorSensor(sim, "/Robot/visionSensor") 
 
     # 3. Iscrizione ai comandi dal Brain
@@ -47,13 +47,13 @@ def main():
             print(f"[SENSORS] Floor Color RGB: {rgb}")
             
             # --- 1. COMUNICAZIONE (Verso Redis) ---
-            '''
+            
             sensor_data = {
                 "floor_color": rgb,  # Invia la tupla (r, g, b)
                 "timestamp": time.time()
             }
             redis_iface.set_sensor_data(SENSORS_KEY, sensor_data)
-
+            '''
             # --- 2. LETTURA COMANDI (Da Redis) ---
             message = pubsub.get_message(ignore_subscribe_messages=True, timeout=0.001) 
             if message and message['type'] == 'message':
