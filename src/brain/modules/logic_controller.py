@@ -11,7 +11,7 @@ class LogicController:
     # Costruttore di classe
     def __init__(self, redis_interface: RedisInterface):
         self.db = redis_interface
-        self.blackboard = py_trees.blackboard.Blackboard(name="LogicController")
+        self.blackboard = py_trees.blackboard.Client(name="LogicController")
         # Registriamo le chiavi che il logic controller dovrà leggere e scrivere sulla blackboard
         self.blackboard.register_key(key="battery_level", access=py_trees.common.Access.WRITE)
         self.blackboard.register_key(key="person_detected", access=py_trees.common.Access.WRITE)
@@ -62,7 +62,7 @@ class LogicController:
             self.blackboard.emergency_state = sensor_data.get("emergency_state", False)
             self.blackboard.line_error = sensor_data.get("line_error", 0.0)
             self.blackboard.current_target = sensor_data.get("current_target", None)
-            self.blackboard.current_position = sensor_data.get("current_position", "ER")
+            self.blackboard.current_position = sensor_data.get("current_position", "I3")
             self.blackboard.mission_queue = sensor_data.get("mission_queue", [])
     
     #Metodo per trovare il percorso ottimotra due nodi
