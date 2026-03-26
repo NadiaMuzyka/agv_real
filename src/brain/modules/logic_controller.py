@@ -13,14 +13,16 @@ class LogicController:
         self.db = redis_interface
         self.blackboard = py_trees.blackboard.Client(name="LogicController")
         # Registriamo le chiavi che il logic controller dovrà leggere e scrivere sulla blackboard
-        self.blackboard.register_key(key="battery_level", access=py_trees.common.Access.WRITE)
-        self.blackboard.register_key(key="person_detected", access=py_trees.common.Access.WRITE)
-        self.blackboard.register_key(key="pallet_list_empty", access=py_trees.common.Access.WRITE)
-        self.blackboard.register_key(key="emergency_state", access=py_trees.common.Access.WRITE)
-        self.blackboard.register_key(key="line_error", access=py_trees.common.Access.WRITE)
-        self.blackboard.register_key(key="current_target", access=py_trees.common.Access.WRITE)
-        self.blackboard.register_key(key="mission_queue", access=py_trees.common.Access.WRITE)
-        self.blackboard.register_key(key="current_position", access=py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key="battery_level", access=py_trees.common.Access.WRITE) #livello batteria
+        self.blackboard.register_key(key="person_detected", access=py_trees.common.Access.WRITE)#persona rilevata
+        self.blackboard.register_key(key="pallet_list_empty", access=py_trees.common.Access.WRITE)#lista pallet vuota?
+        self.blackboard.register_key(key="emergency_state", access=py_trees.common.Access.WRITE)#stato di emergenza?
+        self.blackboard.register_key(key="line_error", access=py_trees.common.Access.WRITE)#errore di linea?
+        self.blackboard.register_key(key="next_node", access=py_trees.common.Access.WRITE)#prossimo nodo verso cui staimo andando
+        self.blackboard.register_key(key="path_to_target", access=py_trees.common.Access.WRITE)#percorso completo verso il target
+        self.blackboard.register_key(key="mission_queue", access=py_trees.common.Access.WRITE)#lista dei nodi dove svolgere la missione
+        self.blackboard.register_key(key="current_position", access=py_trees.common.Access.WRITE)#posizione attuale dell'AGV
+        
         self.navigatore = NavigatoreGrafo() 
 
     # Metodo che legge i dati percepiti ed elaborati dai sensori da Redis
@@ -37,12 +39,13 @@ class LogicController:
             # Genera True al 5%, False all'95%
             "person_detected": random.choices([True, False], weights=[5, 95], k=1)[0],
             # Tutti i dati sottostanti possono essere generati casualmente per il test
-            "battery_level": 100.0,
+            "battery_level": 10.0,
             "pallet_list_empty": False,
             "emergency_state": False,
             "line_error": 0.0,
-            "current_target": None,
-            "current_position": "ER",
+            "next_node": self.blackboard.next_node if hasattr(self.blackboard, 'next_node') else None,
+            "current_position": self.blackboard.current_position if hasattr(self.blackboard, 'current_position') else "I3",
+            "path_to_target": self.blackboard.path_to_target if hasattr(self.blackboard, 'path_to_target') else [],
             "mission_queue": []
         }
         if dati_random["person_detected"]:
@@ -61,9 +64,10 @@ class LogicController:
             self.blackboard.pallet_list_empty = sensor_data.get("pallet_list_empty", False)
             self.blackboard.emergency_state = sensor_data.get("emergency_state", False)
             self.blackboard.line_error = sensor_data.get("line_error", 0.0)
-            self.blackboard.current_target = sensor_data.get("current_target", None)
+            self.blackboard.next_node = sensor_data.get("next_node", None)
             self.blackboard.current_position = sensor_data.get("current_position", "I3")
             self.blackboard.mission_queue = sensor_data.get("mission_queue", [])
+            self.blackboard.path_to_target = sensor_data.get("path_to_target", [])
     
     #Metodo per trovare il percorso ottimotra due nodi
     def find_path(self, nodo_partenza: str, nodo_arrivo: str) -> bool:
@@ -72,7 +76,7 @@ class LogicController:
         # percorso = lista di stringhe (nodi da attraversare), distanza = float (costo totale del percorso) 
         percorso = self.navigatore.trova_percorso_minimo(nodo_partenza, nodo_arrivo)[0]
         if percorso:
-            esito_aggiornamento = self.update_mission_queue_e_target(percorso[1:], nodo_arrivo)
+            esito_aggiornamento = self.update_mission_for_recharge(percorso[1:], nodo_arrivo)
             if esito_aggiornamento:
                 print(f"[LogicController] Percorso trovato: {percorso}")
             else:
@@ -83,19 +87,55 @@ class LogicController:
             return False
         
     #Metodo per aggiornare mission queue e current target
-    def update_mission_queue_e_target(self, mission_queue: list, current_target):
+    def update_mission_for_recharge(self, path: list, next_node: str):
         """ Aggiorna la mission queue e il current target sulla blackboard. """
-        if mission_queue:
-            self.blackboard.mission_queue = mission_queue
-            self.blackboard.current_target = current_target
+        if path:
+            self.blackboard.path_to_target = path
+            self.blackboard.next_node = next_node
             return True 
         else:
-            self.blackboard.current_target = None  # Nessun target se la coda è vuota
+            self.blackboard.next_node = None  # Nessun target se la coda è vuota
             print("[LogicController] Mission queue vuota. Nessun target da assegnare.")
             return False
+        #NOTA: non cambio mission_queue, quella viene sospesa finché non ricarico la batteria
     
-    
-    #Metodo per stoppare l'AGV  
+
+    #Metodo che va a ricaricare l'AGV  (VA RISCRITTO APPENA COLLEGHIAMO IL BODY)
+    def go_to_charge_station(self) -> str:
+        comando = {
+            "type": "MOVE_TO",
+            
+        # Abbiamo il prossimo nodo?
+        if self.blackboard.next_node:
+            #L'abbiamo gia raggiunto?
+            if self.blackboard.current_position == self.blackboard.next_node:
+                #E' il nodo di ricarica?
+                if self.blackboard.current_position == "ER":
+                    print("[LogicController] Stazione di ricarica raggiunta!")
+                    return "SUCCESS"
+                else:
+                    #abbiamo raggiunto un nodo intermedio
+                    # Simuliamo che il sensore di posizione rilevi l'arrivo al nodo intermedio
+                    print(f"[LogicController] Nodo intermedio {self.blackboard.next_node} raggiunto, proseguo verso la stazione di ricarica.")
+                    self.blackboard.current_position = self.blackboard.next_node  
+                    self.blackboard.next_node = self.blackboard.path_to_target.pop(0) if self.blackboard.path_to_target else None
+                    #aggiorno il path_to_target rimuovendo il nodo appena raggiunto (LO FARANNO I SENSORI)
+                    self.blackboard.path_to_target = self.blackboard.path_to_target[1:] if len(self.blackboard.path_to_target) > 1 else []
+                    return "RUNNING"
+            else:
+                # Non siamo ancora arrivati al prossimo nodo
+                # non mando nessun comando, l'attuatore continua a seguire il comando precedente
+                return "RUNNING"
+
+
+
+
+
+
+       
+
+
+    #Metodo per stoppare l'AGV   
     def execute_stop(self):
         """ Invia il comando di stop. """
         command = {
