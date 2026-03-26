@@ -30,7 +30,8 @@ class NavigatoreGrafo:
             for nodo_destinazione, peso in vicini:
                 self.grafo.add_edge(nodo_origine, nodo_destinazione, weight=peso)
 
-    def trova_percorso_minimo(self, nodo_partenza, nodo_arrivo):
+    # Metodo per trovare il percorso più breve tra due nodi
+    def trova_percorso_minimo(self, nodo_partenza, nodo_arrivo)-> tuple[list, float]:
         """Calcola il percorso più breve e la distanza totale."""
         try:
             percorso = nx.shortest_path(self.grafo, source=nodo_partenza, target=nodo_arrivo, weight="weight")
