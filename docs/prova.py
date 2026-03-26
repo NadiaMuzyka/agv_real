@@ -2,6 +2,8 @@ import math
 import time
 from coppeliasim_zmqremoteapi_client import RemoteAPIClient
 
+#robaccia che poi cancelleremo
+
 class RobotAGV:
     def __init__(self, client):
         self.client = client # Ci serve per il comando .step()
