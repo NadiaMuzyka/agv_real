@@ -16,12 +16,11 @@ class LogicController:
         self.blackboard.register_key(key="battery_level", access=py_trees.common.Access.WRITE) #livello batteria
         self.blackboard.register_key(key="person_detected", access=py_trees.common.Access.WRITE)#persona rilevata
         self.blackboard.register_key(key="pallet_list_empty", access=py_trees.common.Access.WRITE)#lista pallet vuota?
-        self.blackboard.register_key(key="emergency_state", access=py_trees.common.Access.WRITE)#stato di emergenza?
-        self.blackboard.register_key(key="line_error", access=py_trees.common.Access.WRITE)#errore di linea?
         self.blackboard.register_key(key="next_node", access=py_trees.common.Access.WRITE)#prossimo nodo verso cui staimo andando
         self.blackboard.register_key(key="path_to_target", access=py_trees.common.Access.WRITE)#percorso completo verso il target
         self.blackboard.register_key(key="mission_queue", access=py_trees.common.Access.WRITE)#lista dei nodi dove svolgere la missione
         self.blackboard.register_key(key="current_position", access=py_trees.common.Access.WRITE)#posizione attuale dell'AGV
+        self.blackboard.register_key(key="am_i_in_a_node", access=py_trees.common.Access.WRITE)#sono in un nodo?
         
         self.navigatore = NavigatoreGrafo() 
 
