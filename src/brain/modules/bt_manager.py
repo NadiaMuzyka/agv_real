@@ -68,13 +68,13 @@ def crea_albero_agv():
     # Ramo Ritiro
     sequenza_ritiro = py_trees.composites.Sequence("Ritiro", memory=False  )
     e_prelievo = ENodoDiPrelievo()
-    esegui_prelievo = EseguiPrelievo()
+    esegui_prelievo = EseguiPrelievo("Esegui Prelievo")
     sequenza_ritiro.add_children([e_prelievo, esegui_prelievo])
 
     # Ramo Consegna
     sequenza_consegna = py_trees.composites.Sequence("Consegna", memory=False)
     e_consegna = ENodoDiConsegna()
-    esegui_consegna = EseguiConsegna()
+    esegui_consegna = EseguiConsegna("Esegui Consegna")  
     sequenza_consegna.add_children([e_consegna, esegui_consegna])
 
     # Assemblaggio sotto-alberi

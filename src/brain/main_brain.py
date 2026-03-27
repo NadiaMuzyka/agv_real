@@ -29,7 +29,7 @@ def main():
     blackboard_client.logic_controller = logic_controller
 
     # Creazione e setup del Behavior Tree  
-    behavior_tree = crea_albero_agv() 
+    behavior_tree = crea_albero_agv(logic_controller) 
     tree_executor = py_trees.trees.BehaviourTree(behavior_tree)
     tree_executor.setup(timeout=15) 
 
