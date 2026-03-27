@@ -107,23 +107,36 @@ class RicaricaBatteria(py_trees.behaviour.Behaviour):
     """
     def __init__(self):
         super(RicaricaBatteria, self).__init__(name="Ricarica Batteria")
+        self.blackboard = py_trees.blackboard.Client(name=self.name)
+        self.blackboard.register_key(key="battery_level", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="logic_controller", access=py_trees.common.Access.READ)
     
     def setup(self):
         print("Setup RicaricaBatteria")
         return True
 
     def initialise(self):
-        pass
+        print("[RicaricaBatteria] Inizio ricarica... Attesa fino al 100%")
 
     def update(self):
-        return Status.SUCCESS
-    
+        try:
+            logic_controller = self.blackboard.logic_controller
+        except KeyError:
+            print("[RicaricaBatteria] Errore: 'logic_controller' non trovato sulla blackboard.")
+            return Status.FAILURE
+        
+        esito = logic_controller.recharge_battery()
 
-
-
-
-
-
+        match esito:
+            case "SUCCESS":
+                print(f"[RicaricaBatteria] Ricarica completata: {self.blackboard.battery_level}%.")
+                return Status.SUCCESS
+            case "RUNNING":
+                print(f"[RicaricaBatteria] In ricarica... livello attuale: {self.blackboard.battery_level}%")
+                return Status.RUNNING
+            case "FAILURE":
+                print("[RicaricaBatteria] Errore durante la ricarica.")
+                return Status.FAILURE
 
 
 

@@ -29,7 +29,7 @@ class LogicController:
     def read_sensors_data_from_redis(self) -> dict:
         """ Legge i dati dei sensori da Redis e li restituisce come dizionario. """
         SENSORS_KEY = "agv_sensors"
-        sensor_data = self.db.get_sensor_data(SENSORS_KEY)
+        sensor_data = self.db.get_sensor_data(SENSORS_KEY) or {}
         #return sensor_data
         # Stampiamo cosa c'è davvero nel DB (all'inizio sarà vuoto: {})
         print(f"[LogicController] Letti dati REALI da Redis: {sensor_data}") 
@@ -38,13 +38,14 @@ class LogicController:
         dati_random = {
             # Genera True al 5%, False all'95%
             "person_detected": random.choices([True, False], weights=[5, 95], k=1)[0],
-            # Tutti i dati sottostanti possono essere generati casualmente per il test
-            "battery_level": 10.0,
+            # Tutti i dati sottostanti possono essere generati casualmente per il test, al momento vengono letti da redis tramite 
+            #il logic controller e scritti sulla blackboard, poi lo faranno i sensori
+            "battery_level": sensor_data.get("battery_level",10.0),
             "pallet_list_empty": False,
-            "am_i_in_a_node": self.blackboard.am_i_in_a_node if hasattr(self.blackboard, 'am_i_in_a_node') else False,
-            "next_node": self.blackboard.next_node if hasattr(self.blackboard, 'next_node') else None,
-            "current_position": self.blackboard.current_position if hasattr(self.blackboard, 'current_position') else "I3",
-            "path_to_target": self.blackboard.path_to_target if hasattr(self.blackboard, 'path_to_target') else [],
+            "am_i_in_a_node": sensor_data.get("am_i_in_a_node", True),
+            "next_node": sensor_data.get("next_node", None),
+            "current_position": sensor_data.get("current_position", "I3"),
+            "path_to_target": sensor_data.get("path_to_target", []),
             "mission_queue": []
         }
         if dati_random["person_detected"]:
@@ -126,7 +127,7 @@ class LogicController:
         #se sono in un nodo
         if self.blackboard.am_i_in_a_node:
             # è la stazione di ricarica? 
-            if self.blackboard.next_node == "ER":
+            if self.blackboard.current_position == "ER":
                 print("[LogicController] Arrivati alla stazione di ricarica. Inizio ricarica...")
                 comando = {
                     "type": "STOP"
@@ -139,7 +140,7 @@ class LogicController:
                 #invio il comando per partire verso il prossimo nodo del percorso
                 self.db.set_command(self.db.COMMAND_CHANNEL, comando)
                 #simulo la partenza
-                self.db.set_sensor_data("agv_sensors", {"am_i_in_a_node": False })
+                self.db.update_sensor_data("agv_sensors", {"am_i_in_a_node": False })
                 return "RUNNING"
         #se non sono in un nodo, sto seguendo il percorso verso la stazione di ricarica
         else:
@@ -148,16 +149,32 @@ class LogicController:
             if arrivato_in_nodo:
                 #faccio una scrittura sul DB per simulare il body , verrà fatto dal sensore (DA RIMUOVERE)
                 #aggiorno la posizione attuale su redis
-                self.db.set_sensor_data("agv_sensors", {"current_position": self.blackboard.path_to_target[0] })
-                #aggiorno il next_node su redis
-                self.db.set_sensor_data("agv_sensors", {"next_node": self.blackboard.path_to_target[1] })
-                #aggiorno il path_to_target su redis
-                self.db.set_sensor_data("agv_sensors", {"path_to_target": self.blackboard.path_to_target[1:] })
-                #aggiorno l'arrivo a nodo su redis
-                self.db.set_sensor_data("agv_sensors", {"am_i_in_a_node": True })
+                if len(self.blackboard.path_to_target)>0:
+                    aggiornamenti = {
+                        "current_position": self.blackboard.path_to_target[0], #aggiorno la posizione attuale al nodo appena raggiunto
+                    }
+                    if len(self.blackboard.path_to_target)>1:
+                        #aggiorno il next_node su redis
+                        aggiornamenti["next_node"] = self.blackboard.path_to_target[1] #aggiorno il next_node al nodo successivo del percorso
+                    else:
+                        aggiornamenti["next_node"] = None
+                    #aggiorno il path_to_target su redis
+                    aggiornamenti["path_to_target"] = self.blackboard.path_to_target[1:] #rimuovo il nodo appena raggiunto dal percorso verso la stazione di ricarica
+                    self.db.update_sensor_data("agv_sensors", aggiornamenti) #chiamata unica per aggiornare posizione, più veloce
+                #aggiorno l'arrivo a nodo su redis (singola chiamata per aggiornamento am_i_in_a_node, deve avvenire dopo le altre)
+                self.db.update_sensor_data("agv_sensors", {"am_i_in_a_node": True })
             self.db.set_command(self.db.COMMAND_CHANNEL, comando)
             return "RUNNING"
 
+    #Metodo che simula la carica della batteria (VA RISCRITTO APPENA COLLEGHIAMO IL BODY)
+    def recharge_battery(self) -> str:
+        step_ricarica = 5.0 # percentuale di carica aggiunta ad ogni step
+        if self.blackboard.battery_level < 100.0:
+            #aggiorno il livello della batteria su redis
+            self.db.update_sensor_data("agv_sensors", {"battery_level": min(self.blackboard.battery_level + step_ricarica, 100.0) })
+            return "RUNNING"
+        else:
+            return "SUCCESS"
 
     #Metodo per stoppare l'AGV   
     def execute_stop(self):
