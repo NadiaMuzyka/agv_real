@@ -31,3 +31,12 @@ class RedisInterface:
             if data:
                 return json.loads(data)
         return {}
+    
+    #metodo da eliminare , usato i fase di test
+    def set_sensor_data(self, key: str, data: dict):
+        """ Metodo di test: scrive dati di sensori su Redis. """
+        if self.db:
+            json_data = json.dumps(data)
+            self.db.set(key, json_data)
+
+

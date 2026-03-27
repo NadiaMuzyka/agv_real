@@ -43,6 +43,7 @@ class CalcolaPercorsoRicarica(py_trees.behaviour.Behaviour):
         self.blackboard = py_trees.blackboard.Client(name=self.name)
         self.blackboard.register_key(key="current_position", access=py_trees.common.Access.READ)
         self.blackboard.register_key(key="logic_controller", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="path_to_target", access=py_trees.common.Access.READ)
 
     def setup(self):
         print("Setup CalcolaPercorsoRicarica")
@@ -59,14 +60,17 @@ class CalcolaPercorsoRicarica(py_trees.behaviour.Behaviour):
         except KeyError:
             print("[CalcolaPercorsoRicarica] Errore: Posizione 'current_position' non trovata sulla blackboard.")
             return Status.FAILURE
-        
-        esito = LogicController.find_path(nodo_partenza, self.nodo_ricarica)
-        match esito:
-            case True:
-                return Status.SUCCESS
-            case False:
-                return Status.FAILURE
-
+        # Se stavo già andando a ricaricare non devo ricalcolare il percorso
+        if self.blackboard.path_to_target and self.blackboard.path_to_target[-1] == self.nodo_ricarica:
+            print("[CalcolaPercorsoRicarica] Già in missione verso la stazione di ricarica, non ricalcolo il percorso.")
+            return Status.SUCCESS
+        else:
+            esito = LogicController.find_path(nodo_partenza, self.nodo_ricarica)
+            match esito:
+                case True:
+                    return Status.SUCCESS
+                case False:
+                    return Status.FAILURE
 
 class VaiAStazioneRicarica(py_trees.behaviour.Behaviour):
     """
@@ -74,6 +78,9 @@ class VaiAStazioneRicarica(py_trees.behaviour.Behaviour):
     """
     def __init__(self):
         super(VaiAStazioneRicarica, self).__init__(name="Vai A Stazione Ricarica")
+        self.blackboard = py_trees.blackboard.Client(name=self.name)
+        self.blackboard.register_key(key="path_to_target", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="logic_controller", access=py_trees.common.Access.READ)
     
     def setup(self):
         print("Setup VaiAStazioneRicarica")
@@ -83,7 +90,16 @@ class VaiAStazioneRicarica(py_trees.behaviour.Behaviour):
         pass
 
     def update(self):
-        return Status.SUCCESS
+        LogicController = self.blackboard.logic_controller
+        esito = LogicController.go_to_charge_station()
+        match esito:
+            case "SUCCESS":
+                return Status.SUCCESS
+            case "FAILURE":
+                return Status.FAILURE
+            case "RUNNING":
+                return Status.RUNNING
+            
 
 class RicaricaBatteria(py_trees.behaviour.Behaviour):
     """
@@ -108,50 +124,7 @@ class RicaricaBatteria(py_trees.behaviour.Behaviour):
 
 
 
-class VaiAStazioneRicarica(py_trees.behaviour.Behaviour):
-    """
-    Gestisce la navigazione simulata verso la stazione di ricarica attraversando i nodi.
-    """
-    def __init__(self):
-        super(VaiAStazioneRicarica, self).__init__(name="Vai A Stazione Ricarica")
-        
-        self.blackboard = py_trees.blackboard.Client(name=self.name)
-        # Legge il percorso calcolato dal nodo precedente
-        self.blackboard.register_key(key="target_path", access=py_trees.common.Access.READ)
-        # Aggiorna la posizione attuale man mano che si muove
-        self.blackboard.register_key(key="current_node", access=py_trees.common.Access.WRITE)
-        
-        self.percorso_rimanente = []
-    
-    def setup(self):
-        print("Setup VaiAStazioneRicarica")
-        return True
 
-    def initialise(self):
-        # Carica il percorso dalla blackboard quando il nodo viene attivato
-        try:
-            self.percorso_rimanente = list(self.blackboard.target_path)
-            print(f"[{self.name}] Inizio viaggio lungo il percorso: {self.percorso_rimanente}")
-        except KeyError:
-            print(f"[{self.name}] Errore: 'target_path' mancante.")
-            self.percorso_rimanente = []
-
-    def update(self):
-        if not self.percorso_rimanente:
-            return Status.FAILURE
-
-        # Estrae il prossimo nodo da raggiungere
-        nodo_raggiunto = self.percorso_rimanente.pop(0)
-        self.blackboard.current_node = nodo_raggiunto
-        print(f"[{self.name}] In movimento... Raggiunto nodo: {nodo_raggiunto}")
-
-        # Se ci sono ancora nodi, il viaggio è "IN CORSO"
-        if len(self.percorso_rimanente) > 0:
-            return Status.RUNNING
-        else:
-            # Siamo arrivati a destinazione!
-            print(f"[{self.name}] Destinazione raggiunta!")
-            return Status.SUCCESS
 
 
 class RicaricaBatteria(py_trees.behaviour.Behaviour):
