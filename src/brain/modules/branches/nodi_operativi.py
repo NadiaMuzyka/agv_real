@@ -41,11 +41,12 @@ class EseguiPrelievo(py_trees.behaviour.Behaviour):
     """
     Azione: Attiva gli attuatori (es. muletto) per prelevare il pallet.
     """
-    def __init__(self, name, logic_controller):
+    def __init__(self, name):
         super().__init__(name)
-        self.lc = logic_controller
         self.blackboard = py_trees.blackboard.Client(name=self.name)
+        self.blackboard.register_key(key="logic_controller", access=py_trees.common.Access.READ)
         self.blackboard.register_key(key="current_target", access=py_trees.common.Access.READ)
+        self.lc = self.blackboard.logic_controller  
 
     def initialise(self):
         self.fase = "INNESCO"
@@ -111,13 +112,14 @@ class EseguiConsegna(py_trees.behaviour.Behaviour):
     """
     Azione: Attiva gli attuatori per depositare il pallet.
     """
-    def __init__(self, name, logic_controller):
+    def __init__(self, name):
         super().__init__(name)
-        self.lc = logic_controller
         self.blackboard = py_trees.blackboard.Client(name=self.name)
         self.blackboard.register_key(key="current_target", access=py_trees.common.Access.READ)
         self.blackboard.register_key(key="current_position", access=py_trees.common.Access.READ)
         self.blackboard.register_key(key="last_operation", access=py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key="logic_controller", access=py_trees.common.Access.READ)
+        self.lc = self.blackboard.logic_controller
     
     def setup(self):
         print("Setup EseguiConsegna")
