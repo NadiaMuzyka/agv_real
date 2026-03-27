@@ -41,8 +41,7 @@ class LogicController:
             # Tutti i dati sottostanti possono essere generati casualmente per il test
             "battery_level": 10.0,
             "pallet_list_empty": False,
-            "emergency_state": False,
-            "line_error": 0.0,
+            "am_i_in_a_node": self.blackboard.am_i_in_a_node if hasattr(self.blackboard, 'am_i_in_a_node') else False,
             "next_node": self.blackboard.next_node if hasattr(self.blackboard, 'next_node') else None,
             "current_position": self.blackboard.current_position if hasattr(self.blackboard, 'current_position') else "I3",
             "path_to_target": self.blackboard.path_to_target if hasattr(self.blackboard, 'path_to_target') else [],
@@ -59,15 +58,14 @@ class LogicController:
         """ Aggiorna la blackboard con i dati provenienti dai sensori. """
         if sensor_data:
             # NOTA: se la chiave non esiste, usiamo un valore di default
-            self.blackboard.battery_level = sensor_data.get("battery_level", 100.0)
-            self.blackboard.person_detected = sensor_data.get("person_detected", False)
-            self.blackboard.pallet_list_empty = sensor_data.get("pallet_list_empty", False)
-            self.blackboard.emergency_state = sensor_data.get("emergency_state", False)
-            self.blackboard.line_error = sensor_data.get("line_error", 0.0)
-            self.blackboard.next_node = sensor_data.get("next_node", None)
-            self.blackboard.current_position = sensor_data.get("current_position", "I3")
-            self.blackboard.mission_queue = sensor_data.get("mission_queue", [])
-            self.blackboard.path_to_target = sensor_data.get("path_to_target", [])
+            self.blackboard.battery_level = sensor_data.get("battery_level", 100.0)#livello batteria
+            self.blackboard.person_detected = sensor_data.get("person_detected", False)#persona rilevata
+            self.blackboard.pallet_list_empty = sensor_data.get("pallet_list_empty", False)#lista pallet vuota?
+            self.blackboard.am_i_in_a_node = sensor_data.get("am_i_in_a_node", False)#sono in un nodo?
+            self.blackboard.next_node = sensor_data.get("next_node", None)#prossimo nodo verso cui stiamo andando
+            self.blackboard.current_position = sensor_data.get("current_position", "I3")#posizione attuale dell'AGV
+            self.blackboard.mission_queue = sensor_data.get("mission_queue", [])#lista dei nodi dove svolgere la missione
+            self.blackboard.path_to_target = sensor_data.get("path_to_target", [])#percorso completo verso il target
     
     #Metodo per trovare il percorso ottimotra due nodi
     def find_path(self, nodo_partenza: str, nodo_arrivo: str) -> bool:
@@ -76,7 +74,7 @@ class LogicController:
         # percorso = lista di stringhe (nodi da attraversare), distanza = float (costo totale del percorso) 
         percorso = self.navigatore.trova_percorso_minimo(nodo_partenza, nodo_arrivo)[0]
         if percorso:
-            esito_aggiornamento = self.update_mission_for_recharge(percorso[1:], nodo_arrivo)
+            esito_aggiornamento = self.update_mission_for_recharge(percorso)
             if esito_aggiornamento:
                 print(f"[LogicController] Percorso trovato: {percorso}")
             else:
@@ -87,52 +85,78 @@ class LogicController:
             return False
         
     #Metodo per aggiornare mission queue e current target
-    def update_mission_for_recharge(self, path: list, next_node: str):
+    def update_mission_for_recharge(self, path: list)-> bool:
         """ Aggiorna la mission queue e il current target sulla blackboard. """
         if path:
-            self.blackboard.path_to_target = path
-            self.blackboard.next_node = next_node
+            #se il prossimo nodo del vecchi percorso è lo stesso del nuovo percorso
+            #che porta a stazione di ricarica, allora non cambio niente,
+            if (path[1]==self.blackboard.next_node):
+                self.blackboard.path_to_target = path
+                self.blackboard.next_node = path[0] if path else None
+            #se ti trovi in un nodo e ancora non l'hai lasciato, allora non cambio niente, 
+            elif (self.blackboard.am_i_in_a_node):
+                self.blackboard.path_to_target = path
+                self.blackboard.next_node = path[0] if path else None
+            # se invece sei fuori da un nodo e il nodo di destinazione del vecchio percorso è diverso
+            # da quello del nuovo percorso, modifico il path,
+            #raggiungo il nodo successivo del vecchio percorso, 
+            #poi torno al vecchio nodo da cui stavo venendo e da li prendo il nuovo percorso verso la stazione di ricarica
+            else:
+                next_node_vecchio_percorso = self.blackboard.next_node
+                nodo_attuale = self.blackboard.current_position
+                path = [next_node_vecchio_percorso, nodo_attuale] + path
             return True 
         else:
             self.blackboard.next_node = None  # Nessun target se la coda è vuota
             print("[LogicController] Mission queue vuota. Nessun target da assegnare.")
             return False
         #NOTA: non cambio mission_queue, quella viene sospesa finché non ricarico la batteria
+        #      non cambia current_target, quello è sempre il primo nodo della missione
+        #      non cambia am_i_in_a_node, se stavi raggiungendo il prossimo nodo e ti sei fermato a metà strada, quando riparti devi continuare ad andare verso quel nodo finché non ci arrivi, poi aggiorni next_node al nodo successivo della missione (o None se era l'ultimo nodo)
     
 
     #Metodo che va a ricaricare l'AGV  (VA RISCRITTO APPENA COLLEGHIAMO IL BODY)
     def go_to_charge_station(self) -> str:
         comando = {
             "type": "MOVE_TO",
-            
-        # Abbiamo il prossimo nodo?
-        if self.blackboard.next_node:
-            #L'abbiamo gia raggiunto?
-            if self.blackboard.current_position == self.blackboard.next_node:
-                #E' il nodo di ricarica?
-                if self.blackboard.current_position == "ER":
-                    print("[LogicController] Stazione di ricarica raggiunta!")
-                    return "SUCCESS"
-                else:
-                    #abbiamo raggiunto un nodo intermedio
-                    # Simuliamo che il sensore di posizione rilevi l'arrivo al nodo intermedio
-                    print(f"[LogicController] Nodo intermedio {self.blackboard.next_node} raggiunto, proseguo verso la stazione di ricarica.")
-                    self.blackboard.current_position = self.blackboard.next_node  
-                    self.blackboard.next_node = self.blackboard.path_to_target.pop(0) if self.blackboard.path_to_target else None
-                    #aggiorno il path_to_target rimuovendo il nodo appena raggiunto (LO FARANNO I SENSORI)
-                    self.blackboard.path_to_target = self.blackboard.path_to_target[1:] if len(self.blackboard.path_to_target) > 1 else []
-                    return "RUNNING"
+            "next_node":self.blackboard.next_node, # Nodo verso cui stiamo andando
+            "current_position": self.blackboard.current_position, # Nodo in cui siamo attualmente
+            "am_i_in_a_node": self.blackboard.am_i_in_a_node # Flag che indica se siamo in un nodo
+        }
+        #se sono in un nodo
+        if self.blackboard.am_i_in_a_node:
+            # è la stazione di ricarica? 
+            if self.blackboard.next_node == "ER":
+                print("[LogicController] Arrivati alla stazione di ricarica. Inizio ricarica...")
+                comando = {
+                    "type": "STOP"
+                }
+                self.db.set_command(self.db.COMMAND_CHANNEL, comando)
+                return "SUCCESS"
+            # mi trovo in un nodo del percorso verso la stazione di ricarica
             else:
-                # Non siamo ancora arrivati al prossimo nodo
-                # non mando nessun comando, l'attuatore continua a seguire il comando precedente
+                print(f"[LogicController] Mi trovo in un nodo del percorso verso la stazione di ricarica: {self.blackboard.next_node}. Continuo a seguire il percorso...")
+                #invio il comando per partire verso il prossimo nodo del percorso
+                self.db.set_command(self.db.COMMAND_CHANNEL, comando)
+                #simulo la partenza
+                self.db.set_sensor_data("agv_sensors", {"am_i_in_a_node": False })
                 return "RUNNING"
-
-
-
-
-
-
-       
+        #se non sono in un nodo, sto seguendo il percorso verso la stazione di ricarica
+        else:
+            #variabile per simulare l'arrivo in un nodo (DA RIMUOVERE)
+            arrivato_in_nodo = random.choices([True, False], weights=[30, 70], k=1)[0]
+            if arrivato_in_nodo:
+                #faccio una scrittura sul DB per simulare il body , verrà fatto dal sensore (DA RIMUOVERE)
+                #aggiorno la posizione attuale su redis
+                self.db.set_sensor_data("agv_sensors", {"current_position": self.blackboard.path_to_target[0] })
+                #aggiorno il next_node su redis
+                self.db.set_sensor_data("agv_sensors", {"next_node": self.blackboard.path_to_target[1] })
+                #aggiorno il path_to_target su redis
+                self.db.set_sensor_data("agv_sensors", {"path_to_target": self.blackboard.path_to_target[1:] })
+                #aggiorno l'arrivo a nodo su redis
+                self.db.set_sensor_data("agv_sensors", {"am_i_in_a_node": True })
+            self.db.set_command(self.db.COMMAND_CHANNEL, comando)
+            return "RUNNING"
 
 
     #Metodo per stoppare l'AGV   

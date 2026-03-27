@@ -72,7 +72,6 @@ class CalcolaPercorsoRicarica(py_trees.behaviour.Behaviour):
                 case False:
                     return Status.FAILURE
 
-
 class VaiAStazioneRicarica(py_trees.behaviour.Behaviour):
     """
     Gestisce la navigazione fisica verso la stazione di ricarica.
