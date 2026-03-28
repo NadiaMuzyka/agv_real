@@ -14,7 +14,12 @@ class ControlloBatteria(py_trees.behaviour.Behaviour):
     def __init__(self):
         super(ControlloBatteria, self).__init__(name="Controllo Batteria < 20%")
         self.blackboard = py_trees.blackboard.Client(name=self.name)
+        self.blackboard.register_key(key="logic_controller", access=py_trees.common.Access.READ)
         self.blackboard.register_key(key="battery_level", access=py_trees.common.Access.READ)
+        #flag per indicare che siamo sotto il 20% e dobbiamo ricaricare,
+        #questo serve per evitare di rientrare in questa condizione ad ogni tick del BT
+        #verrà settato a True quando la batteria scende sotto il 20% e a False quando la ricarica è completa
+        self.blackboard.register_key(key="is_charging", access=py_trees.common.Access.READ)
     
     def setup(self):
         print("Setup ControlloBatteria")
@@ -24,12 +29,20 @@ class ControlloBatteria(py_trees.behaviour.Behaviour):
         pass
 
     def update(self):
-        # Controlla se il livello della batteria è inferiore al 20%
-        if self.blackboard.battery_level < 20.0:
-            print(f"[ControlloBatteria] Batteria critica: {self.blackboard.battery_level:.2f}%")
+        livello_batteria = self.blackboard.battery_level
+        # Se la batteria è sotto il 20% attivo "Modalità Ricarica"
+        if livello_batteria < 20:
+            self.blackboard.logic_controller.set_energy_mode("CHARGE_MODE")
+        if livello_batteria >= 100.0:
+            self.logic_controller.set_energy_mode("NORMAL_MODE")
+
+        # Restituisco SUCCESS se siamo in modalità ricarica, altrimenti FAILURE
+        if self.blackboard.is_charging:
+            if livello_batteria < 20:
+                print(f"[ControlloBatteria] Batteria critica: {livello_batteria}%. Attivo modalità ricarica.")
             return Status.SUCCESS
         else:
-                return Status.FAILURE
+            return Status.FAILURE
 
 class CalcolaPercorsoRicarica(py_trees.behaviour.Behaviour):
     """

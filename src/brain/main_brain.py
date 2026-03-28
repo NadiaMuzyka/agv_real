@@ -36,11 +36,9 @@ def main():
     print("[BRAIN] Ingresso nel ciclo principale...")
     try:
         while True:
-            #lettura dei dati percepiti ed elaborati daisensori da Resdis
-            sensor_data = logic_controller.read_sensors_data_from_redis()
             
-            #aggiornamento della blackboard con i dati dei sensori provenienti da Redis
-            logic_controller.update_blackboard_from_sensors(sensor_data)
+            #aggiornamento della blackboard con i dati dei sensori elaborati provenienti da Redis
+            logic_controller.update_blackboard_reading_from_redis()
             
             #tick del BT
             tree_executor.tick()
