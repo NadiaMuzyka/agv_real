@@ -41,7 +41,7 @@ class LogicController:
         self.blackboard.battery_level = sensor_data.get("battery_level", 10.0)#livello batteria
         self.blackboard.person_detected = sensor_data.get("person_detected", random.choices([True, False], weights=[5, 95], k=1)[0])#persona rilevata
         self.blackboard.pallet_list_empty = sensor_data.get("pallet_list_empty", False)#lista pallet vuota?
-        self.blackboard.am_i_in_a_node = sensor_data.get("am_i_in_a_node", False)#sono in un nodo?
+        self.blackboard.am_i_in_a_node = sensor_data.get("am_i_in_a_node", True)#sono in un nodo?
         self.blackboard.next_node = sensor_data.get("next_node", None)#prossimo nodo verso cui stiamo andando
         self.blackboard.current_position = sensor_data.get("current_position", "I3")#posizione attuale dell'AGV
         self.blackboard.mission_queue = sensor_data.get("mission_queue", [])#lista dei nodi dove svolgere la missione

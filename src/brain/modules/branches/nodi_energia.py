@@ -34,7 +34,7 @@ class ControlloBatteria(py_trees.behaviour.Behaviour):
         if livello_batteria < 20:
             self.blackboard.logic_controller.set_energy_mode("CHARGE_MODE")
         if livello_batteria >= 100.0:
-            self.logic_controller.set_energy_mode("NORMAL_MODE")
+            self.blackboard.logic_controller.set_energy_mode("NORMAL_MODE")
 
         # Restituisco SUCCESS se siamo in modalità ricarica, altrimenti FAILURE
         if self.blackboard.is_charging:
