@@ -34,37 +34,21 @@ class LogicController:
         sensor_data = self.db.get_sensor_data(SENSORS_KEY) or {}
         print(f"[LogicController] Letti dati REALI da Redis: {sensor_data}") 
         
-        # GENERAZIONE DATI RANDOMICI (Per testare il Behavior Tree)
-        dati_random = {
-            # Genera True al 5%, False all'95%
-            "person_detected": random.choices([True, False], weights=[5, 95], k=1)[0],
-            # Tutti i dati sottostanti possono essere generati casualmente per il test, al momento vengono letti da redis tramite 
-            #il logic controller e scritti sulla blackboard, poi lo faranno i sensori
-            "battery_level": sensor_data.get("battery_level",10.0),
-            "pallet_list_empty": False,
-            "am_i_in_a_node": sensor_data.get("am_i_in_a_node", True),
-            "next_node": sensor_data.get("next_node", None),
-            "current_position": sensor_data.get("current_position", "I3"),
-            "path_to_target": sensor_data.get("path_to_target", []),
-            "mission_queue": []
-        }
-        if dati_random["person_detected"]:
-            print("[LogicController] SIMULAZIONE: Persona rilevata (dati random).")
-        else:
-            print("[LogicController] SIMULAZIONE: Nessuna persona rilevata (dati random).")
+        
+        print(f"[LogicController] Aggiornamento blackboard con dati REALI da Redis: {sensor_data}")
+        # Aggiorna la blackboard con i dati random (o reali se presenti)
+        # NOTA: se la chiave non esiste, usiamo un valore di default
+        self.blackboard.battery_level = sensor_data.get("battery_level", 10.0)#livello batteria
+        self.blackboard.person_detected = sensor_data.get("person_detected", random.choices([True, False], weights=[5, 95], k=1)[0])#persona rilevata
+        self.blackboard.pallet_list_empty = sensor_data.get("pallet_list_empty", False)#lista pallet vuota?
+        self.blackboard.am_i_in_a_node = sensor_data.get("am_i_in_a_node", False)#sono in un nodo?
+        self.blackboard.next_node = sensor_data.get("next_node", None)#prossimo nodo verso cui stiamo andando
+        self.blackboard.current_position = sensor_data.get("current_position", "I3")#posizione attuale dell'AGV
+        self.blackboard.mission_queue = sensor_data.get("mission_queue", [])#lista dei nodi dove svolgere la missione
+        self.blackboard.path_to_target = sensor_data.get("path_to_target", [])#percorso completo verso il target
+        self.blackboard.is_charging = sensor_data.get("is_charging", False)#sono in modalità ricarica?
 
-        if dati_random:
-            # Aggiorna la blackboard con i dati random (o reali se presenti)
-            # NOTA: se la chiave non esiste, usiamo un valore di default
-            self.blackboard.battery_level = dati_random.get("battery_level", 100.0)#livello batteria
-            self.blackboard.person_detected = dati_random.get("person_detected", False)#persona rilevata
-            self.blackboard.pallet_list_empty = dati_random.get("pallet_list_empty", False)#lista pallet vuota?
-            self.blackboard.am_i_in_a_node = dati_random.get("am_i_in_a_node", False)#sono in un nodo?
-            self.blackboard.next_node = dati_random.get("next_node", None)#prossimo nodo verso cui stiamo andando
-            self.blackboard.current_position = dati_random.get("current_position", "I3")#posizione attuale dell'AGV
-            self.blackboard.mission_queue = dati_random.get("mission_queue", [])#lista dei nodi dove svolgere la missione
-            self.blackboard.path_to_target = dati_random.get("path_to_target", [])#percorso completo verso il target
-            self.blackboard.is_charging = dati_random.get("is_charging", False)#sono in modalità ricarica?
+
         
     #Metodo per settare la modalità di energia
     def set_energy_mode(self, mode: str):
