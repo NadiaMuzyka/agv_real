@@ -3,6 +3,7 @@ import time
 import sys
 import os
 import py_trees
+import signal # Per gestire l'interruzione del processo con Ctrl+C
 
 sys.path.append(os.path.join(os.path.dirname(__file__), 'modules'))
 
@@ -32,6 +33,13 @@ def main():
     behavior_tree = crea_albero_agv() 
     tree_executor = py_trees.trees.BehaviourTree(behavior_tree)
     tree_executor.setup(timeout=15) 
+
+    def spegnimento_sicuro(signum, frame):
+        print("\n[BRAIN] Ricevuto segnale di spegnimento da Docker (SIGTERM)!")
+        raise KeyboardInterrupt() # Scatena l'eccezione che ti fa uscire dal while!
+
+    # Diciamo a Python di usare questa funzione quando Docker bussa alla porta
+    signal.signal(signal.SIGTERM, spegnimento_sicuro)
 
     print("[BRAIN] Ingresso nel ciclo principale...")
     try:
