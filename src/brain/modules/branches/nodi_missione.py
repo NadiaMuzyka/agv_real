@@ -13,6 +13,10 @@ class ListaPalletVuota(py_trees.behaviour.Behaviour):
     """
     def __init__(self):
         super(ListaPalletVuota, self).__init__(name="Lista Pallet Vuota")
+        self.blackboard = py_trees.blackboard.Client(name=self.name)
+        self.blackboard.register_key(key="mission_queue", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="pallet_list_empty", access=py_trees.common.Access.READ) 
+        self.blackboard.register_key(key="current_target", access=py_trees.common.Access.READ)
     
     def setup(self):
         print("Setup ListaPalletVuota")
@@ -22,7 +26,18 @@ class ListaPalletVuota(py_trees.behaviour.Behaviour):
         pass
 
     def update(self):
-        return Status.SUCCESS 
+        try:
+            magazzino_vuoto = self.blackboard.pallet_list_empty
+            coda_locale = self.blackboard.mission_queue
+            target_attuale = self.blackboard.current_target
+        except KeyError:
+            return py_trees.common.Status.FAILURE
+        
+        if magazzino_vuoto and not coda_locale and target_attuale is None:
+            print("[ListaPalletVuota] Missione globale conclusa. Rientro alla base.")
+            return py_trees.common.Status.SUCCESS
+        
+        return py_trees.common.Status.FAILURE
 
 class PianoNonGenerato(py_trees.behaviour.Behaviour):
     """
