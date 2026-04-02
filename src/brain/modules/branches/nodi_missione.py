@@ -46,6 +46,10 @@ class PianoNonGenerato(py_trees.behaviour.Behaviour):
     """
     def __init__(self):
         super(PianoNonGenerato, self).__init__(name="Piano Non Generato")
+        self.blackboard = py_trees.blackboard.Client(name=self.name)
+        self.blackboard.register_key(key="current_target", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="mission_queue", access=py_trees.common.Access.READ)
+
     
     def setup(self):
         print("Setup PianoNonGenerato")
@@ -55,7 +59,18 @@ class PianoNonGenerato(py_trees.behaviour.Behaviour):
         pass
 
     def update(self):
-        return Status.SUCCESS 
+        try:
+            target_attuale = self.blackboard.current_target
+            coda_locale = self.blackboard.mission_queue
+        except KeyError:
+            return py_trees.common.Status.FAILURE
+        
+        if target_attuale is None and len(coda_locale) == 0:
+            print("[PianoNonGenerato] Nuova missione da pianificare.")
+            return py_trees.common.Status.SUCCESS
+        
+        return py_trees.common.Status.FAILURE
+        
 
 class RiceviListaPallet(py_trees.behaviour.Behaviour):
     """

@@ -22,8 +22,12 @@ class LogicController:
         self.blackboard.register_key(key="current_position", access=py_trees.common.Access.WRITE)#posizione attuale dell'AGV
         self.blackboard.register_key(key="am_i_in_a_node", access=py_trees.common.Access.WRITE)#sono in un nodo?
         self.blackboard.register_key(key="is_charging", access=py_trees.common.Access.WRITE)#sto ricaricando?
+        self.blackboard.register_key(key="current_target", access=py_trees.common.Access.WRITE)#nodo target della missione in corso, None se non c'è missione in corso
         
         self.navigatore = NavigatoreGrafo() 
+
+        self.blackboard.mission_queue = []
+        self.blackboard.current_target = None
 
     # Metodo che legge i dati percepiti ed elaborati dai sensori da Redis
     def update_blackboard_reading_from_redis(self):
@@ -57,7 +61,7 @@ class LogicController:
         else:
             self.db.update_sensor_data("agv_sensors", {"is_charging": False})
 
-    #Metodo per trovare il percorso ottimotra due nodi
+    #Metodo per trovare il percorso ottimo tra due nodi
     def find_path(self, nodo_partenza: str, nodo_arrivo: str) -> bool:
 
         print(f"[LogicController] Trovando percorso da {nodo_partenza} a {nodo_arrivo}...")
