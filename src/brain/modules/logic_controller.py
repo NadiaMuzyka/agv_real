@@ -48,7 +48,6 @@ class LogicController:
         self.blackboard.am_i_in_a_node = sensor_data.get("am_i_in_a_node", True)#sono in un nodo?
         self.blackboard.next_node = sensor_data.get("next_node", None)#prossimo nodo verso cui stiamo andando
         self.blackboard.current_position = sensor_data.get("current_position", "I3")#posizione attuale dell'AGV
-        self.blackboard.mission_queue = sensor_data.get("mission_queue", [])#lista dei nodi dove svolgere la missione
         self.blackboard.path_to_target = sensor_data.get("path_to_target", [])#percorso completo verso il target
         self.blackboard.is_charging = sensor_data.get("is_charging", False)#sono in modalità ricarica?
 
@@ -185,6 +184,15 @@ class LogicController:
         print("[LogicController] Comando STOP inviato.")
         return True
 
+    def download_mission_from_central_system(self):
+        """ Simula la ricezione di una lista di task dal sistema centrale. """
+        # In un caso reale, qui ci sarebbe una chiamata a un servizio esterno o una lettura da un database
+        finta_lista = [
+            {"id": "E1", "tipo_azione": "PICKUP"},
+            {"id": "E2", "tipo_azione": "DELIVERY"}
+        ]
+        self.blackboard.mission_queue = finta_lista
+        print(f"[LogicController] Nuova lista missioni ricevuta: {finta_lista}")
 
     # METODI DI ESEMPIO
     #------------------------------------------------------------------------
