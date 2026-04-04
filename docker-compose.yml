@@ -47,7 +47,7 @@ services:
       - PYTHONPATH=/app
     networks:
       - agv_net
-    command: ["python", "-u", "main_body.py"]
+    command: ["python", "-u", "mock_body.py"]
 
 networks:
   agv_net:
