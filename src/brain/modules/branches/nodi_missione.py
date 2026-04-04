@@ -158,17 +158,68 @@ class EstraiProssimoNodo(py_trees.behaviour.Behaviour):
 
 class NavigaVersoNodo(py_trees.behaviour.Behaviour):
     """
-    Azione: Esegue la navigazione (Line Follower / Path Planning) verso il nodo corrente.
+    Azione: Calcola il percorso ed esegue la navigazione verso il target attuale.
     """
     def __init__(self):
         super(NavigaVersoNodo, self).__init__(name="Naviga Verso Nodo")
-    
+        self.blackboard = py_trees.blackboard.Client(name=self.name)
+        
+        self.blackboard.register_key(key="logic_controller", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="current_target", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="current_position", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="next_node", access=py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key="path_to_target", access=py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key="path_to_target", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="next_node", access=py_trees.common.Access.READ)
+
+
     def setup(self):
         print("Setup NavigaVersoNodo")
         return True
 
     def initialise(self):
-        pass
+        """ Eseguito UNA SOLA VOLTA all'inizio della navigazione. """
+        print("[NavigaVersoNodo] Inizializzazione navigazione...")
+        try:
+            lc = self.blackboard.logic_controller
+            posizione_attuale = self.blackboard.current_position
+            destinazione_finale = self.blackboard.current_target["id"]
+        except KeyError:
+            return
+        
+        lc.find_path(posizione_attuale, destinazione_finale)
+
 
     def update(self):
-        return Status.SUCCESS
+        """ Eseguito CONTINUAMENTE finché restituisce RUNNING. """
+        try:
+            posizione_attuale = self.blackboard.current_position
+            prossimo_nodo = self.blackboard.next_node
+            percorso_rimanente = self.blackboard.path_to_target
+            lc = self.blackboard.logic_controller
+        except KeyError:
+            return py_trees.common.Status.FAILURE
+
+        if posizione_attuale == prossimo_nodo:
+            
+            # SE ci sono ancora nodi nel percorso_rimanente:
+            if len(percorso_rimanente) > 0:
+                prossimo_nodo = percorso_rimanente.pop(0)
+                self.blackboard.next_node = prossimo_nodo
+                self.blackboard.path_to_target = percorso_rimanente
+                lc.update_path_in_redis(prossimo_nodo, percorso_rimanente)
+                print(f"[NavigaVersoNodo] Prossimo nodo: {prossimo_nodo}. Nodi rimanenti: {len(percorso_rimanente)}")
+                return py_trees.common.Status.RUNNING
+                pass
+                
+            # ALTRIMENTI (percorso finito, siamo arrivati a destinazione!):
+            else:
+                print(f"[NavigaVersoNodo] Arrivati a destinazione: {posizione_attuale}")
+                return py_trees.common.Status.SUCCESS
+                pass
+
+        if posizione_attuale != prossimo_nodo:
+            print(f"[NavigaVersoNodo] In viaggio... Posizione attuale: {posizione_attuale}, Prossimo nodo: {prossimo_nodo}")
+            lc.move_towards(prossimo_nodo)
+            return py_trees.common.Status.RUNNING
+        pass

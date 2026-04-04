@@ -194,6 +194,25 @@ class LogicController:
         self.blackboard.mission_queue = finta_lista
         print(f"[LogicController] Nuova lista missioni ricevuta: {finta_lista}")
 
+    def move_towards(self, next_node: str):
+        """ Invia un comando di movimento verso il prossimo nodo. """
+        command = {
+            "type": "MOVE_TO",
+            "next_node": next_node,
+            "current_position": self.blackboard.current_position,
+            "am_i_in_a_node": self.blackboard.am_i_in_a_node
+        }
+        self.db.set_command(self.db.COMMAND_CHANNEL, command)
+        print(f"[LogicController] Comando MOVE_TO inviato per nodo: {next_node}")
+
+    def update_path_in_redis(self, next_node: str, path_to_target: list):
+        """ Sincronizza il nuovo nodo e il percorso rimanente su Redis """
+        aggiornamenti = {
+            "next_node": next_node,
+            "path_to_target": path_to_target
+        }
+        self.db.update_sensor_data("agv_sensors", aggiornamenti)
+
     # METODI DI ESEMPIO
     #------------------------------------------------------------------------
     def execute_line_follow(self, line_error: float):
