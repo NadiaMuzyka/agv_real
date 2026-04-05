@@ -33,12 +33,13 @@ except Exception as e:
     print(f"❌ [MOCK BODY] Errore di connessione a Redis: {e}")
     sys.exit(1)
 
-ultimo_nodo_destinazione = None
 
 # 2. CICLO NON BLOCCANTE
+ultimo_nodo_destinazione = None
+
 while is_running:
-    # Usiamo get_message con timeout, così il ciclo può sbloccarsi e controllare is_running
-    message = pubsub.get_message(timeout=1.0)
+    # Leggiamo UN SOLO messaggio alla volta, senza svuotare la coda
+    message = pubsub.get_message(timeout=0.1)
     
     if message and message['type'] == 'message':
         try:
@@ -49,16 +50,19 @@ while is_running:
             if tipo == "MOVE_TO":
                 destinazione = comando.get("next_node")
                 
-                # 3. CONTROLLO ANTI-SPAM
+                if destinazione is None:
+                    continue
+                
+                # 3. CONTROLLO ANTI-SPAM (Se stiamo GIÀ andando lì, ignoriamo il messaggio)
                 if destinazione != ultimo_nodo_destinazione:
                     print(f"🚶‍♂️ [MOCK BODY] Ricevuto ordine: MOVE_TO -> {destinazione}. In viaggio...")
                     ultimo_nodo_destinazione = destinazione
                     
-                    # Simuliamo il viaggio
-                    time.sleep(2.0) 
+                    time.sleep(2.0) # Viaggio simulato
                     
                     print(f"📍 [MOCK BODY] Arrivato a destinazione: {destinazione}!")
 
+                    # Scriviamo i sensori
                     dati_grezzi = r.get(SENSOR_KEY)
                     sensori_attuali = json.loads(dati_grezzi) if dati_grezzi else {}
                     
@@ -67,10 +71,28 @@ while is_running:
                     
                     r.set(SENSOR_KEY, json.dumps(sensori_attuali))
                     print(f"✅ [MOCK BODY] Sensori aggiornati!")
+                    
+                    # SVUOTIAMO LA CODA *DOPO* IL VIAGGIO: 
+                    # Buttiamo via tutti i "MOVE_TO" ripetuti che il Brain ha urlato mentre dormivamo
+                    while pubsub.get_message(ignore_subscribe_messages=True):
+                        pass
+
+            elif tipo == "PICKUP":
+                print("📦 [MOCK BODY] Ricevuto ordine PICKUP. Alzando le forche...")
+                time.sleep(3.0) 
                 
-        except json.JSONDecodeError as e:
-            pass # Ignoriamo errori di decodifica per non bloccare il robot
+                dati_grezzi = r.get(SENSOR_KEY)
+                sensori_attuali = json.loads(dati_grezzi) if dati_grezzi else {}
+                sensori_attuali["carico_sollevato"] = True
+                r.set(SENSOR_KEY, json.dumps(sensori_attuali))
+                print("✅ [MOCK BODY] Prelievo completato! Sensori aggiornati.")
+                
+                ultimo_nodo_destinazione = None # Resettiamo la destinazione dopo un'azione
+                
+                while pubsub.get_message(ignore_subscribe_messages=True):
+                    pass
+                
         except Exception as e:
-            print(f"⚠️ [MOCK BODY] Errore generico: {e}")
-
-
+            pass # Ignoriamo errori di decodifica silenziosamente
+            
+    time.sleep(0.05)

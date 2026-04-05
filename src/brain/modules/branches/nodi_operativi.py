@@ -11,13 +11,14 @@ from py_trees.common import Status
 
 class ENodoDiPrelievo(py_trees.behaviour.Behaviour):
     """
-    Condizione: Verifica se il nodo attuale è un punto di ritiro (Pickup).
+    Condizione: Verifica se l'AGV è fisicamente arrivato su un nodo di prelievo (PICKUP).
     """
     def __init__(self):
-        super(ENodoDiPrelievo, self).__init__(name="È Nodo di Prelievo")
+        super(ENodoDiPrelievo, self).__init__(name="E' Nodo di Prelievo?")
         self.blackboard = py_trees.blackboard.Client(name=self.name)
         self.blackboard.register_key(key="current_target", access=py_trees.common.Access.READ)
-    
+        self.blackboard.register_key(key="current_position", access=py_trees.common.Access.READ)
+
     def setup(self):
         print("Setup ENodoDiPrelievo")
         return True
@@ -26,59 +27,71 @@ class ENodoDiPrelievo(py_trees.behaviour.Behaviour):
         pass
 
     def update(self):
-        if self.blackboard.current_target is None:
-            # Se non abbiamo un target attuale, non possiamo determinare se siamo su un nodo di prelievo
-            return Status.FAILURE
-            
-        if self.blackboard.current_target.get("tipo_azione") == "PICKUP":
-            print(f"[ENodoDiPrelievo] Sto sul nodo {self.blackboard.current_target.get('id')} che è un punto di prelievo.")
-            return Status.SUCCESS
-            
-        return Status.FAILURE
+        try:
+            target = self.blackboard.current_target
+            pos_attuale = self.blackboard.current_position
+        except KeyError:
+            return py_trees.common.Status.FAILURE
+
+        if target is None:
+            return py_trees.common.Status.FAILURE
+
+        print(f"[ENodoDiPrelievo] Valuto il target: {target['id']} (Azione: {target.get('tipo_azione')})")
         
+        if target.get("tipo_azione") == "PICKUP":
+            if pos_attuale == target["id"]:
+                print(f"[ENodoDiPrelievo] ✅ CONFERMATO: Siamo fisicamente sul nodo di prelievo {target['id']}.")
+                return py_trees.common.Status.SUCCESS
+            else:
+                return py_trees.common.Status.FAILURE
+        else:
+            return py_trees.common.Status.FAILURE 
+
 
 class EseguiPrelievo(py_trees.behaviour.Behaviour):
     """
-    Azione: Attiva gli attuatori (es. muletto) per prelevare il pallet.
+    Azione: Invia il comando di PICKUP al Body e attende il feedback dai sensori.
     """
-    def __init__(self, name):
+    def __init__(self, name="Esegui Prelievo"):
         super().__init__(name)
         self.blackboard = py_trees.blackboard.Client(name=self.name)
         self.blackboard.register_key(key="logic_controller", access=py_trees.common.Access.READ)
-        self.blackboard.register_key(key="current_target", access=py_trees.common.Access.READ)
-        self.lc = self.blackboard.logic_controller  
+        self.blackboard.register_key(key="current_target", access=py_trees.common.Access.WRITE)
+
+    def setup(self):
+        return True
 
     def initialise(self):
         self.fase = "INNESCO"
-        self.inizio_timer = 0
+        self.lc = self.blackboard.logic_controller
 
     def update(self):
         target = self.blackboard.current_target
         
-        if self.fase == "INNESCO":
-            print(f"Avvio prelievo sul nodo {target['id']}")
-            
-            # self.lc.invia_comando_sollevatore()
-            
-            self.inizio_timer = time.time()
-            self.fase = "ATTESA"
+        if target is None:
+            return py_trees.common.Status.FAILURE
 
-            return Status.RUNNING
+        if self.fase == "INNESCO":
+            print(f"[{self.name}] Invio comando al Body: Sollevare carico per missione {target['id']}...")
+
+            comando = {"type": "PICKUP"}
+            self.lc.db.set_command(self.lc.db.COMMAND_CHANNEL, comando)
+            
+            self.fase = "ATTESA"
+            return py_trees.common.Status.RUNNING
             
         elif self.fase == "ATTESA":
-            # Per ora simuliamo che l'azione ci metta 3 secondi
-            if (time.time() - self.inizio_timer) < 3.0:
-                return Status.RUNNING
-            else:
-                print("Prelievo completato meccanicamente!")
+            sensori = self.lc.db.get_sensor_data("agv_sensors")
+            stato_carico = sensori.get("carico_sollevato", False)
+            
+            if stato_carico == True:
+                print(f"[{self.name}] ✅ Il Body conferma: Prelievo completato meccanicamente!")
                 
-                # diciamo al logic controller che abbiamo prelevato il pallet (per aggiornare la blackboard)
-                # NOTA: questa è una semplificazione, in realtà dovremmo leggere un feedback dai sensori per capire se il prelievo è avvenuto con successo
-                # self.lc.blackboard.current_target = {"id": target["id"], "tipo_azione": "PICKUP", "pallet_prelevato": True}
-                # self.lc.updateTarget()
-
-                return Status.SUCCESS
-
+                self.blackboard.current_target = None
+                
+                return py_trees.common.Status.SUCCESS
+            else:
+                return py_trees.common.Status.RUNNING
 
 class ENodoDiConsegna(py_trees.behaviour.Behaviour):
     """
