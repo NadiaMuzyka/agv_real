@@ -91,6 +91,23 @@ while is_running:
                 
                 while pubsub.get_message(ignore_subscribe_messages=True):
                     pass
+            
+            elif tipo == "DROP":
+                print("📦 [MOCK BODY] Ricevuto ordine DROP. Abbassando le forche...")
+                time.sleep(3.0) # Tempo fisico simulato per abbassare le forche
+                
+                dati_grezzi = r.get(SENSOR_KEY)
+                sensori_attuali = json.loads(dati_grezzi) if dati_grezzi else {}
+                
+                # IL PACCO NON C'È PIÙ!
+                sensori_attuali["carico_sollevato"] = False 
+                r.set(SENSOR_KEY, json.dumps(sensori_attuali))
+                
+                print("✅ [MOCK BODY] Consegna completata! Sensori aggiornati.")
+                ultimo_nodo_destinazione = None
+                
+                # Svuotiamo la coda da eventuali spam
+                while pubsub.get_message(ignore_subscribe_messages=True): pass
                 
         except Exception as e:
             pass # Ignoriamo errori di decodifica silenziosamente

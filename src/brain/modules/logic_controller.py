@@ -213,6 +213,28 @@ class LogicController:
         }
         self.db.update_sensor_data("agv_sensors", aggiornamenti)
 
+    def calcola_distanza_stimata(self, nodo_partenza: str, nodo_arrivo: str) -> float:
+        """
+        Calcola la lunghezza del percorso minimo tra due nodi SENZA modificare lo stato.
+        Uso esclusivo per algoritmi di ottimizzazione e scheduling (Read-Only).
+        """
+        if nodo_partenza == nodo_arrivo:
+            return 0.0
+            
+        try:
+            percorso, distanza = self.navigatore.trova_percorso_minimo(nodo_partenza, nodo_arrivo)
+            
+            if percorso is None:
+                return 99999.0 # Nessuna rotta trovata, diamo una penalità massima
+                
+            distanza = float(len(percorso))
+            
+            return distanza
+            
+        except Exception as e:
+            print(f"[LogicController] Errore nel calcolo distanza stimata: {e}")
+            return 99999.0
+
     # METODI DI ESEMPIO
     #------------------------------------------------------------------------
     def execute_line_follow(self, line_error: float):

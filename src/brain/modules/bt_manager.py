@@ -34,35 +34,27 @@ def crea_albero_agv():
     ricarica_batteria = RicaricaBatteria()
     sequenza_energia.add_children([controllo_batteria, calcola_percorso_ricarica, vai_a_ricarica, ricarica_batteria])
 
-    # --- RAMO 3: GESTIONE MISSIONE ---
-    # Selettore: Sceglie tra Missione Finita, Pianificazione o Esecuzione
+# --- RAMO 3: GESTIONE MISSIONE (Priorità 3) ---
+    # Sceglie tra Pianificazione (se la coda è vuota) o Esecuzione (se abbiamo già target)
     selettore_missione = py_trees.composites.Selector("Gestione Missione", memory=False)
 
-    # 3.1: Missione Conclusa (Se lista vuota -> Torna alla base)
-    sequenza_conclusione = py_trees.composites.Sequence("Missione Conclusa", memory=False)
-    lista_vuota = ListaPalletVuota()
-    # Usiamo le stesse classi di ricarica per tornare alla base a fine turno
-    calcola_rientro = CalcolaPercorsoRicarica() 
-    vai_a_base = VaiAStazioneRicarica()
-    sequenza_conclusione.add_children([lista_vuota, calcola_rientro, vai_a_base])
-
-    # 3.2: Generazione Piano (Se non c'è piano -> Crea)
+    # 3.1: Pianificazione (Ex 3.2 - Il ramo 3.1 originale è stato eliminato!)
     sequenza_pianificazione = py_trees.composites.Sequence("Generazione Piano", memory=False)
     piano_non_generato = PianoNonGenerato()
-    ricevi_lista = RiceviListaPallet()
+    ricevi_lista = RiceviListaPallet() # Questo nodo ora fa da Guardiano (IDLE se lista vuota)
     genera_piano = GeneraPianoOttimale()
     sequenza_pianificazione.add_children([piano_non_generato, ricevi_lista, genera_piano])
 
-    # 3.3: Esecuzione Step (Navigazione + Azione)
+    # 3.2: Esecuzione Step (Navigazione + Azione)
     sequenza_esecuzione = py_trees.composites.Sequence("Esecuzione Step", memory=False)
 
-    # 3.3.1: Navigazione Grafo
+    # 3.2.1: Navigazione Grafo
     sequenza_navigazione = py_trees.composites.Sequence("Navigazione Grafo", memory=False)
     estrai_nodo = EstraiProssimoNodo()
     naviga_nodo = NavigaVersoNodo()
     sequenza_navigazione.add_children([estrai_nodo, naviga_nodo])
 
-    # 3.3.2: Operazione sul Nodo (Ritiro O Consegna)
+    # 3.2.2: Operazione sul Nodo (Ritiro O Consegna)
     selettore_operazione = py_trees.composites.Selector("Operazione Nodo", memory=False)
 
     # Ramo Ritiro
@@ -82,7 +74,7 @@ def crea_albero_agv():
     sequenza_esecuzione.add_children([sequenza_navigazione, selettore_operazione])
 
     # Assemblaggio finale Missione
-    selettore_missione.add_children([sequenza_conclusione, sequenza_pianificazione, sequenza_esecuzione])
+    selettore_missione.add_children([sequenza_pianificazione, sequenza_esecuzione])
 
     # Assemblaggio Root
     root.add_children([sequenza_sicurezza, sequenza_energia, selettore_missione])

@@ -57,15 +57,16 @@ class EseguiPrelievo(py_trees.behaviour.Behaviour):
         self.blackboard = py_trees.blackboard.Client(name=self.name)
         self.blackboard.register_key(key="logic_controller", access=py_trees.common.Access.READ)
         self.blackboard.register_key(key="current_target", access=py_trees.common.Access.WRITE)
+        self.fase = "INNESCO"
 
     def setup(self):
         return True
 
     def initialise(self):
         self.fase = "INNESCO"
-        self.lc = self.blackboard.logic_controller
 
     def update(self):
+        lc = self.blackboard.logic_controller
         target = self.blackboard.current_target
         
         if target is None:
@@ -75,13 +76,13 @@ class EseguiPrelievo(py_trees.behaviour.Behaviour):
             print(f"[{self.name}] Invio comando al Body: Sollevare carico per missione {target['id']}...")
 
             comando = {"type": "PICKUP"}
-            self.lc.db.set_command(self.lc.db.COMMAND_CHANNEL, comando)
+            lc.db.set_command(lc.db.COMMAND_CHANNEL, comando)
             
             self.fase = "ATTESA"
             return py_trees.common.Status.RUNNING
             
         elif self.fase == "ATTESA":
-            sensori = self.lc.db.get_sensor_data("agv_sensors")
+            sensori = lc.db.get_sensor_data("agv_sensors")
             stato_carico = sensori.get("carico_sollevato", False)
             
             if stato_carico == True:
@@ -123,54 +124,52 @@ class ENodoDiConsegna(py_trees.behaviour.Behaviour):
 
 class EseguiConsegna(py_trees.behaviour.Behaviour):
     """
-    Azione: Attiva gli attuatori per depositare il pallet.
+    Azione: Invia il comando di DROP al Body e attende il feedback.
     """
-    def __init__(self, name):
+    def __init__(self, name="Esegui Consegna"):
         super().__init__(name)
         self.blackboard = py_trees.blackboard.Client(name=self.name)
-        self.blackboard.register_key(key="current_target", access=py_trees.common.Access.READ)
-        self.blackboard.register_key(key="current_position", access=py_trees.common.Access.READ)
-        self.blackboard.register_key(key="last_operation", access=py_trees.common.Access.WRITE)
         self.blackboard.register_key(key="logic_controller", access=py_trees.common.Access.READ)
-        self.lc = self.blackboard.logic_controller
-    
+        
+        # Permesso in SCRITTURA per svuotare le mani del robot a missione finita
+        self.blackboard.register_key(key="current_target", access=py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key="current_position", access=py_trees.common.Access.READ)
+        self.fase = "INNESCO"
+
     def setup(self):
         print("Setup EseguiConsegna")
         return True
 
     def initialise(self):
         self.fase = "INNESCO"
-        self.inizio_timer = 0
-        pass
 
     def update(self):
+        lc = self.blackboard.logic_controller
         target = self.blackboard.current_target
-        position = self.blackboard.current_position
+        pos_attuale = self.blackboard.current_position 
         
-        if position is None or target is None:
-            return Status.FAILURE
-        
-        if self.fase == "INNESCO":
-            print(f"Avvio consegna sul nodo {position['id']} per target {target['id']}")
-            
-            # self.lc.invia_comando_sollevatore()  # Simula il comando di deposito
-            
-            self.inizio_timer = time.time()
-            self.fase = "ATTESA"
-            return Status.RUNNING
-            
-        if self.fase == "ATTESA":
-            # Simuliamo che l'azione ci metta 3 secondi
-            if (time.time() - self.inizio_timer) < 3.0:
-                return Status.RUNNING
-            else:
-                print("Consegna completata meccanicamente!")
-                
-                # diciamo al logic controller che abbiamo consegnato il pallet (per aggiornare la blackboard)
-                # NOTA: questa è una semplificazione, in realtà dovremmo leggere un feedback dai sensori per capire se la consegna è avvenuta con successo
-                # self.lc.blackboard.current_target = {"id": target["id"], "tipo_azione": "DELIVERY", "pallet_consegnato": True}
-                # self.lc.updateTarget()
+        if target is None:
+            return py_trees.common.Status.FAILURE
 
-                return Status.SUCCESS
+        if self.fase == "INNESCO":
+            print(f"[{self.name}] Invio comando al Body: Consegna sul nodo {pos_attuale} per target {target['id']}")
             
-        return Status.FAILURE
+            comando = {"type": "DROP"}
+            lc.db.set_command(lc.db.COMMAND_CHANNEL, comando)
+            
+            self.fase = "ATTESA"
+            return py_trees.common.Status.RUNNING
+            
+        elif self.fase == "ATTESA":
+            sensori = lc.db.get_sensor_data("agv_sensors")
+            
+            stato_carico = sensori.get("carico_sollevato", True) 
+            
+            if stato_carico == False:
+                print(f"[{self.name}] ✅ Il Body conferma: Consegna completata fisicamente!")
+                
+                # Svuotiamo le mani (missione completata)
+                self.blackboard.current_target = None
+                return py_trees.common.Status.SUCCESS
+            else:
+                return py_trees.common.Status.RUNNING
