@@ -1,4 +1,5 @@
 import time
+import math
 import json
 import os
 
@@ -49,9 +50,28 @@ def main():
             # --- COMPORTAMENTO AUTONOMO TEMPORANEO ---
             # Valore atteso pavimento: (22, 22, 22)
             # Valore atteso target: ~ (99, 255, 22)
-            if rgb and rgb != (22, 22, 22):
-                print(f"🛑 OSTACOLO RILEVATO! Colore: {rgb}. Arresto motori.")
+            if rgb and rgb == (99, 255, 22):
+                print(f"🛑 OSTACOLO RILEVATO! Colore: {rgb}. Avvio manovra evasiva...")
+                # 1. Ferma e stabilizza
                 wheels.stop()
+                time.sleep(0.5)
+                
+                # 2. Ruota di 90 gradi a destra
+                print("🔄 Giro di 90 gradi a destra...")
+                w_target = -0.5
+                duration = (math.pi / 2) / abs(w_target)
+                wheels.move(0.0, w_target)
+                time.sleep(duration)
+                
+                # 3. Avanza per superarlo
+                print("➡️ Avanzo per superare l'ostacolo...")
+                wheels.move(0.1, 0.0)
+                time.sleep(2.0)
+                
+                print("✅ Manovra finita. Riprendo esplorazione.")
+
+                wheels.stop()
+                time.sleep(5.0)
             else:
                 wheels.move(0.1, 0.0)
             
