@@ -1,6 +1,7 @@
 import time
 import json
 import os
+import signal # Per gestire l'interruzione del processo con Ctrl+C
 
 from modules.connection.coppelia_connector import CoppeliaConnector
 from modules.sensors.color_sensor import ColorSensor
@@ -14,6 +15,10 @@ SENSORS_KEY = "agv_sensors"
 
 def main():
     print("🦾 [BODY] Avvio del Controllore - Modalità Color Sensor...")
+
+    def spegnimento_sicuro(signum, frame):
+        print("\n[BODY] Ricevuto segnale di spegnimento da Docker (SIGTERM)!")
+        raise KeyboardInterrupt()
     
     # 1. Inizializzazione Connessioni (Coppelia & Redis)
     connector = CoppeliaConnector()
@@ -39,6 +44,29 @@ def main():
     print("🚀 Loop principale avviato (20Hz).")
     
     try:
+        # 1. Inizializzazione Connessioni (Coppelia & Redis)
+        connector = CoppeliaConnector()
+        sim = connector.get_sim()
+        
+        redis_iface = RedisInterface()
+        if not redis_iface.db:
+            print("[BODY] Errore critico: Redis non raggiungibile.")
+            return
+
+        if not sim:
+            print("[BODY] Errore critico: Impossibile connettersi a CoppeliaSim.")
+            return
+
+        # 2. Inizializzazione Moduli
+        #manager = LowLevelManager(sim) 
+        floor_sensor = ColorSensor(sim, "/Robot/visionSensor") 
+
+        # 3. Iscrizione ai comandi dal Brain
+        pubsub = redis_iface.subscribe_to_commands()
+        current_command_data = {"type": "STOP"}
+
+        print("🚀 Loop principale avviato (20Hz).")
+    
         while True:
             # --- 0. SENSING ---
             # Legge (r, g, b) normalizzati (0.0 - 1.0)
@@ -70,6 +98,7 @@ def main():
                 
             time.sleep(0.05) # Manteniamo i 20Hz per stabilità
             '''
+            
     except KeyboardInterrupt:
         print("\n🛑 Arresto manuale del Body.")
     except Exception as e:

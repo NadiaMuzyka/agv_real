@@ -54,28 +54,31 @@ class StopMotori(py_trees.behaviour.Behaviour):
         else:
             return Status.FAILURE
 
-class Aspetta(py_trees.behaviour.Behaviour):
-    """
-    Esegue un'attesa (es. 5 secondi) prima di riprendere.
-    """
-    def __init__(self):
-        super(Aspetta, self).__init__(name="Aspetta")
-        self.duration = 5.0 # Durata dell'attesa in secondi
-        self.start_time = None
+
+# questa non serve più, se rileva una persona ferma i motori, appena la strada è libera riparte a razzo
+
+# class Aspetta(py_trees.behaviour.Behaviour):
+#     """
+#     Esegue un'attesa (es. 5 secondi) prima di riprendere.
+#     """
+#     def __init__(self):
+#         super(Aspetta, self).__init__(name="Aspetta")
+#         self.duration = 5.0 # Durata dell'attesa in secondi
+#         self.start_time = None
         
-    def setup(self):
-        print("Setup Aspetta")
-        return True
+#     def setup(self):
+#         print("Setup Aspetta")
+#         return True
 
-    def initialise(self):
-        self.start_time = time.time()
-        print("[StopMotori] Inizio Stop. Attesa di sicurezza attivata...") 
-        print(f"[StopMotori] Attesa di {self.duration} secondi...")
+#     def initialise(self):
+#         self.start_time = time.time()
+#         print("[StopMotori] Inizio Stop. Attesa di sicurezza attivata...") 
+#         print(f"[StopMotori] Attesa di {self.duration} secondi...")
 
-    def update(self):
-        elapsed_time = time.time() - self.start_time
-        if elapsed_time >= self.duration:
-            print("[StopMotori] Attesa completata. Ripresa operazioni.")
-            return Status.SUCCESS
-        else:
-            return Status.RUNNING 
+#     def update(self):
+#         elapsed_time = time.time() - self.start_time
+#         if elapsed_time >= self.duration:
+#             print("[StopMotori] Attesa completata. Ripresa operazioni.")
+#             return Status.SUCCESS
+#         else:
+#             return Status.RUNNING 

@@ -13,6 +13,10 @@ class ListaPalletVuota(py_trees.behaviour.Behaviour):
     """
     def __init__(self):
         super(ListaPalletVuota, self).__init__(name="Lista Pallet Vuota")
+        self.blackboard = py_trees.blackboard.Client(name=self.name)
+        self.blackboard.register_key(key="mission_queue", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="pallet_list_empty", access=py_trees.common.Access.READ) 
+        self.blackboard.register_key(key="current_target", access=py_trees.common.Access.READ)
     
     def setup(self):
         print("Setup ListaPalletVuota")
@@ -22,7 +26,18 @@ class ListaPalletVuota(py_trees.behaviour.Behaviour):
         pass
 
     def update(self):
-        return Status.SUCCESS 
+        try:
+            magazzino_vuoto = self.blackboard.pallet_list_empty
+            coda_locale = self.blackboard.mission_queue
+            target_attuale = self.blackboard.current_target
+        except KeyError:
+            return py_trees.common.Status.FAILURE
+        
+        if magazzino_vuoto and not coda_locale and target_attuale is None:
+            print("[ListaPalletVuota] Missione globale conclusa. Rientro alla base.")
+            return py_trees.common.Status.SUCCESS
+        
+        return py_trees.common.Status.FAILURE
 
 class PianoNonGenerato(py_trees.behaviour.Behaviour):
     """
@@ -31,6 +46,10 @@ class PianoNonGenerato(py_trees.behaviour.Behaviour):
     """
     def __init__(self):
         super(PianoNonGenerato, self).__init__(name="Piano Non Generato")
+        self.blackboard = py_trees.blackboard.Client(name=self.name)
+        self.blackboard.register_key(key="current_target", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="mission_queue", access=py_trees.common.Access.READ)
+
     
     def setup(self):
         print("Setup PianoNonGenerato")
@@ -40,15 +59,37 @@ class PianoNonGenerato(py_trees.behaviour.Behaviour):
         pass
 
     def update(self):
-        return Status.SUCCESS 
+        try:
+            target_attuale = self.blackboard.current_target
+            coda_locale = self.blackboard.mission_queue
+        except KeyError:
+            return py_trees.common.Status.FAILURE
+        
+        if target_attuale is None and len(coda_locale) == 0:
+            print("[PianoNonGenerato] Nuova missione da pianificare.")
+            return py_trees.common.Status.SUCCESS
+        
+        return py_trees.common.Status.FAILURE
+        
 
 class RiceviListaPallet(py_trees.behaviour.Behaviour):
     """
-    Azione: Riceve la lista dei task e le priorità dal sistema centrale.
+    Azione: Contatta il Fleet Manager tramite API REST per scaricare i nuovi task.
+    Se non ci sono task o il server è irraggiungibile, mette l'albero in attesa (IDLE).
     """
     def __init__(self):
         super(RiceviListaPallet, self).__init__(name="Ricevi Lista Pallet")
-    
+        self.blackboard = py_trees.blackboard.Client(name=self.name)
+        self.blackboard.register_key(key="logic_controller", access=py_trees.common.Access.READ)
+        
+        #il mio gemini pensa che Matteo sia Simone, questa cosa mi fa ridere e non lo correggerò.
+        #scusami "Simone" (non so come gli sia venuto)
+        # Registriamo in SCRITTURA perché questo nodo popolerà la coda
+        self.blackboard.register_key(key="mission_queue", access=py_trees.common.Access.WRITE)
+        
+        # TODO per l'incontro di domani: Inserire qui l'IP reale di Simone
+        #self.api_url = "http://HOST_DI_SIMONE:PORTA/api/get_mission/agv_1"
+
     def setup(self):
         print("Setup RiceviListaPallet")
         return True
@@ -57,24 +98,104 @@ class RiceviListaPallet(py_trees.behaviour.Behaviour):
         pass
 
     def update(self):
-        return Status.SUCCESS
+        try:
+            lc = self.blackboard.logic_controller
+        except KeyError:
+            return py_trees.common.Status.FAILURE
+
+        # Anti-Tick Fantasma: aspettiamo che l'AGV sia "sveglio" e connesso a Redis
+        sensori = lc.db.get_sensor_data("agv_sensors")
+        if not sensori:
+            return py_trees.common.Status.RUNNING
+
+        print(f"[{self.name}] Contatto il Fleet Manager...")
+        
+        try:
+            # =========================================================
+            # CODICE PER DOMANI (Scommentare quando Simone è pronto)
+            # risposta = requests.get(self.api_url, timeout=2.0)
+            # if risposta.status_code == 200:
+            #     missioni_scaricate = risposta.json()
+            # else:
+            #     raise Exception(f"Errore HTTP {risposta.status_code}")
+            # =========================================================
+            
+            # --- MOCK PER OGGI ---
+            # Stiamo fingendo che 'requests' abbia restituito questo JSON
+            missioni_scaricate = [
+                {"id": "E1", "tipo_azione": "PICKUP"},
+                {"id": "E2", "tipo_azione": "DELIVERY"}
+            ]
+            # ---------------------
+
+            # SCENARIO 1: Il server ha mandato del lavoro
+            if len(missioni_scaricate) > 0:
+                print(f"[{self.name}] Ricevuti {len(missioni_scaricate)} task dal server.")
+                self.blackboard.mission_queue = missioni_scaricate
+                return py_trees.common.Status.SUCCESS
+            
+            # SCENARIO 2: Il server dice "Nessun lavoro" (Lista vuota)
+            else:
+                print(f"[{self.name}] Coda server vuota. Robot in attesa (IDLE).")
+                lc.execute_stop() # Assicuriamoci che i motori siano fermi!
+                return py_trees.common.Status.RUNNING
+
+        # SCENARIO 3: Errore di Rete (Server spento, cavo staccato, URL sbagliato)
+        except Exception as e:
+            print(f"[{self.name}] ERRORE DI RETE (Server irraggiungibile): {e}")
+            lc.execute_stop()
+            # Restando in RUNNING, l'AGV non crasha ma riprova pacificamente al prossimo tick
+            return py_trees.common.Status.RUNNING
+        
 
 class GeneraPianoOttimale(py_trees.behaviour.Behaviour):
     """
-    Azione: Elabora l'ordine ottimale di visita dei nodi (algoritmo di scheduling).
+    Azione: Elabora l'ordine ottimale delle missioni (task scheduling) con algortmo Greedy (per zio Daniele) bilanciato.
     """
     def __init__(self):
         super(GeneraPianoOttimale, self).__init__(name="Genera Piano Ottimale")
-    
-    def setup(self):
-        print("Setup GeneraPianoOttimale")
-        return True
-
-    def initialise(self):
-        pass
+        self.blackboard = py_trees.blackboard.Client(name=self.name)
+        self.blackboard.register_key(key="current_position", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="mission_queue", access=py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key="logic_controller", access=py_trees.common.Access.READ)
 
     def update(self):
-        return Status.SUCCESS
+        coda = self.blackboard.mission_queue
+        posizione_attuale = self.blackboard.current_position
+        lc = self.blackboard.logic_controller
+        
+        if len(coda) <= 1:
+            # Se c'è un solo task (o zero), non c'è nulla da ottimizzare
+            return py_trees.common.Status.SUCCESS
+
+        # PESI DELL'ALGORITMO (da tarare empiricamente nel tuo simulatore)
+        PESO_DISTANZA = 1.0  
+        PESO_INVECCHIAMENTO = 0.5 # Quanto valore diamo all'attesa?
+
+        for task in coda:
+            # 1. Calcola Distanza Reale (o stimata) dal robot al punto di PICKUP
+            nodo_pickup = task['id'] 
+            distanza = lc.calcola_distanza_stimata(posizione_attuale, nodo_pickup)
+            
+            # 2. Calcola Invecchiamento (se il server ti passa un timestamp di creazione)
+            # time_in_queue = time.time() - task['timestamp_creazione']
+            # Per ora, se non hai il timestamp, possiamo usare l'indice originale nella coda: 
+            # i task arrivati prima hanno un indice più basso (maggiore priorità temporale).
+            invecchiamento = task.get('tempo_attesa', 0) # Assumiamo che il server ce lo dia, o lo calcoliamo
+            
+            # 3. CALCOLO DELLO SCORE (Più è basso, meglio è)
+            # La distanza penalizza (aumenta lo score), l'attesa premia (abbassa lo score)
+            task['score_ottimizzazione'] = (distanza * PESO_DISTANZA) - (invecchiamento * PESO_INVECCHIAMENTO)
+
+        # 4. RIORDINA LA CODA IN BASE ALLO SCORE (Dal minore al maggiore)
+        coda_ordinata = sorted(coda, key=lambda x: x['score_ottimizzazione'])
+        
+        # Scrivi la nuova coda ottimizzata sulla Blackboard
+        self.blackboard.mission_queue = coda_ordinata
+        
+        print(f"[GeneraPianoOttimale] Coda riordinata online! Prossimo target: {coda_ordinata[0]['id']}")
+        
+        return py_trees.common.Status.SUCCESS
 
 class EstraiProssimoNodo(py_trees.behaviour.Behaviour):
     """
@@ -82,7 +203,10 @@ class EstraiProssimoNodo(py_trees.behaviour.Behaviour):
     """
     def __init__(self):
         super(EstraiProssimoNodo, self).__init__(name="Estrai Prossimo Nodo")
-    
+        self.blackboard = py_trees.blackboard.Client(name=self.name)
+        self.blackboard.register_key(key="mission_queue", access=py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key="current_target", access=py_trees.common.Access.WRITE)
+
     def setup(self):
         print("Setup EstraiProssimoNodo")
         return True
@@ -91,21 +215,100 @@ class EstraiProssimoNodo(py_trees.behaviour.Behaviour):
         pass
 
     def update(self):
-        return Status.SUCCESS
+        try:
+            coda = self.blackboard.mission_queue
+            target_attuale = self.blackboard.current_target
+        except KeyError:
+            return py_trees.common.Status.FAILURE
+
+        if target_attuale is None and len(coda) > 0:
+            
+            prossimo_target = coda.pop(0)
+            
+            self.blackboard.current_target = prossimo_target
+            
+            self.blackboard.mission_queue = coda
+            
+            print(f"[EstraiProssimoNodo] Estratto nuovo target: {prossimo_target}. Rimasti in coda: {len(coda)}")
+            
+            return py_trees.common.Status.SUCCESS
+
+        if target_attuale is not None:
+             return py_trees.common.Status.SUCCESS
+
+        return py_trees.common.Status.FAILURE
 
 class NavigaVersoNodo(py_trees.behaviour.Behaviour):
     """
-    Azione: Esegue la navigazione (Line Follower / Path Planning) verso il nodo corrente.
+    Azione: Calcola il percorso ed esegue la navigazione verso il target attuale.
     """
     def __init__(self):
         super(NavigaVersoNodo, self).__init__(name="Naviga Verso Nodo")
-    
+        self.blackboard = py_trees.blackboard.Client(name=self.name)
+        
+        self.blackboard.register_key(key="logic_controller", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="current_target", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="current_position", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="next_node", access=py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key="path_to_target", access=py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key="path_to_target", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="next_node", access=py_trees.common.Access.READ)
+
+
     def setup(self):
         print("Setup NavigaVersoNodo")
         return True
 
     def initialise(self):
-        pass
+        """ Eseguito UNA SOLA VOLTA all'inizio della navigazione. """
+        print("[NavigaVersoNodo] Inizializzazione navigazione...")
+        try:
+            lc = self.blackboard.logic_controller
+            posizione_attuale = self.blackboard.current_position
+            
+            # SALVAVITA: Controlliamo che il target esista davvero prima di estrarre l'ID
+            target = self.blackboard.current_target
+            if target is None:
+                print("[NavigaVersoNodo] ERRORE: Nessun target definito durante l'inizializzazione!")
+                return
+                
+            destinazione_finale = target["id"]
+            lc.find_path(posizione_attuale, destinazione_finale)
+            
+        except KeyError:
+            return
+
 
     def update(self):
-        return Status.SUCCESS
+        """ Eseguito CONTINUAMENTE finché restituisce RUNNING. """
+        try:
+            posizione_attuale = self.blackboard.current_position
+            prossimo_nodo = self.blackboard.next_node
+            percorso_rimanente = self.blackboard.path_to_target
+            lc = self.blackboard.logic_controller
+        except KeyError:
+            return py_trees.common.Status.FAILURE
+
+        if posizione_attuale == prossimo_nodo:
+            
+            # SE ci sono ancora nodi nel percorso_rimanente:
+            if len(percorso_rimanente) > 0:
+                prossimo_nodo = percorso_rimanente.pop(0)
+                self.blackboard.next_node = prossimo_nodo
+                self.blackboard.path_to_target = percorso_rimanente
+                lc.update_path_in_redis(prossimo_nodo, percorso_rimanente)
+                print(f"[NavigaVersoNodo] Prossimo nodo: {prossimo_nodo}. Nodi rimanenti: {len(percorso_rimanente)}")
+                return py_trees.common.Status.RUNNING
+                pass
+                
+            # ALTRIMENTI (percorso finito, siamo arrivati a destinazione!):
+            else:
+                print(f"[NavigaVersoNodo] Arrivati a destinazione: {posizione_attuale}")
+                return py_trees.common.Status.SUCCESS
+                pass
+
+        if posizione_attuale != prossimo_nodo:
+            print(f"[NavigaVersoNodo] In viaggio... Posizione attuale: {posizione_attuale}, Prossimo nodo: {prossimo_nodo}")
+            lc.move_towards(prossimo_nodo)
+            return py_trees.common.Status.RUNNING
+        pass

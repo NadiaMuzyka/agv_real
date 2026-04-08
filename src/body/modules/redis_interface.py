@@ -33,3 +33,32 @@ class RedisInterface:
         """ Metodo placeholder per scrivere i dati dei sensori (Belief State futuro). """
         if self.db:
             self.db.set(key, json.dumps(data))
+
+    def update_sensor_data(self, key: str, partial_data: dict):
+        """ 
+        Aggiorna SOLO i campi specificati in 'partial_data'.
+        Lascia intatti tutti gli altri campi già presenti su Redis.
+        """
+        if not self.db:
+            return
+
+        # 1. Legge cosa c'è attualmente su Redis
+        existing_data_str = self.db.get(key)
+        
+        # 2. Converte la stringa JSON in un dizionario Python
+        if existing_data_str:
+            try:
+                current_data = json.loads(existing_data_str)
+            except json.JSONDecodeError:
+                # Se per qualche motivo il dato su Redis è corrotto, ripartiamo da zero
+                current_data = {}
+        else:
+            # Se la chiave non esiste ancora su Redis, creiamo un dizionario vuoto
+            current_data = {}
+
+        # 3. Unisce i dati vecchi con quelli nuovi!
+        # (Se una chiave in partial_data esiste già, viene sovrascritta. Altrimenti viene aggiunta).
+        current_data.update(partial_data)
+
+        # 4. Salva il dizionario unito (e aggiornato) di nuovo su Redis
+        self.db.set(key, json.dumps(current_data))
