@@ -4,6 +4,7 @@ import os
 
 from modules.connection.coppelia_connector import CoppeliaConnector
 from modules.sensors.color_sensor import ColorSensor
+from modules.actuators.wheel_actuator import WheelsActuator
 from modules.redis_interface import RedisInterface 
 from modules.controllers.low_level_manager import LowLevelManager
 
@@ -30,6 +31,7 @@ def main():
 
     # 2. Inizializzazione Moduli
     #manager = LowLevelManager(sim) 
+    wheels = WheelsActuator(sim)
     color_sensor = ColorSensor(sim, "/Robot/visionSensor") 
 
     # 3. Iscrizione ai comandi dal Brain
@@ -41,10 +43,18 @@ def main():
     try:
         while True:
             # --- 0. SENSING ---
-            # Legge (r, g, b) normalizzati (0.0 - 1.0)
             rgb = color_sensor.read() 
-
-            print(f"[SENSORS] color Color RGB: {rgb}")
+            # print(f"[SENSORS] color Color RGB: {rgb}") # Commentato per non intasare i log
+            
+            # --- COMPORTAMENTO AUTONOMO TEMPORANEO ---
+            # Valore atteso pavimento: (22, 22, 22)
+            # Valore atteso target: ~ (99, 255, 22)
+            if rgb and rgb != (22, 22, 22):
+                print(f"🛑 OSTACOLO RILEVATO! Colore: {rgb}. Arresto motori.")
+                wheels.stop()
+            else:
+                wheels.move(0.1, 0.0)
+            
             
             # --- 1. COMUNICAZIONE (Verso Redis) ---
             
@@ -72,8 +82,10 @@ def main():
             '''
     except KeyboardInterrupt:
         print("\n🛑 Arresto manuale del Body.")
+        wheels.stop()
     except Exception as e:
         print(f"❌ Errore nel loop: {e}")
+        wheels.stop()
 
 if __name__ == "__main__":
     main()
