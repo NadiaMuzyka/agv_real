@@ -9,7 +9,7 @@ class WheelsActuator(GenericActuator):
         self.wheel_radius = 0.1  
         # Calibrazione iterativa ultra-fine per compensare l'attrito del mondo 3D e gli spessori.
         # Storia degli angoli su richiesta da 90°: 246° -> 99° -> 90.95°
-        self.wheelbase = 0.95 * (90.0 / 246.0) * (90.0 / 99.0) * (90.0 / 90.95) # ~0.3126
+        self.wheelbase = 0.3126 # ~0.3126
         
         try:
             # Percorsi basati sulla gerarchia in CoppeliaSim per Robot
