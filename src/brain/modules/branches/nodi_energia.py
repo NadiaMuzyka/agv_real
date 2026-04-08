@@ -87,14 +87,24 @@ class CalcolaPercorsoRicarica(py_trees.behaviour.Behaviour):
 
 class VaiAStazioneRicarica(py_trees.behaviour.Behaviour):
     """
-    Gestisce la navigazione fisica verso la stazione di ricarica.
+    Gestisce la navigazione verso la stazione di ricarica.
+    Invia i comandi al Body e aspetta che i sensori confermino lo spostamento.
     """
     def __init__(self):
         super(VaiAStazioneRicarica, self).__init__(name="Vai A Stazione Ricarica")
         self.blackboard = py_trees.blackboard.Client(name=self.name)
-        self.blackboard.register_key(key="path_to_target", access=py_trees.common.Access.READ)
         self.blackboard.register_key(key="logic_controller", access=py_trees.common.Access.READ)
-    
+        
+        # Lettura stato attuale
+        self.blackboard.register_key(key="current_position", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="am_i_in_a_node", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="path_to_target", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="next_node", access=py_trees.common.Access.READ)
+        
+        # Scrittura per aggiornare il percorso
+        self.blackboard.register_key(key="next_node", access=py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key="path_to_target", access=py_trees.common.Access.WRITE)
+
     def setup(self):
         print("Setup VaiAStazioneRicarica")
         return True
@@ -103,53 +113,109 @@ class VaiAStazioneRicarica(py_trees.behaviour.Behaviour):
         pass
 
     def update(self):
-        LogicController = self.blackboard.logic_controller
-        esito = LogicController.go_to_charge_station()
-        match esito:
-            case "SUCCESS":
-                return Status.SUCCESS
-            case "FAILURE":
-                return Status.FAILURE
-            case "RUNNING":
-                return Status.RUNNING
+        try:
+            lc = self.blackboard.logic_controller
+            pos_attuale = self.blackboard.current_position
+            in_nodo = self.blackboard.am_i_in_a_node
+            percorso_rimanente = self.blackboard.path_to_target
+            prossimo_nodo = self.blackboard.next_node
+        except KeyError:
+            return py_trees.common.Status.FAILURE
+
+        # 1. CONDIZIONE DI VITTORIA: Siamo arrivati alla base?
+        if in_nodo and pos_attuale == "ER":
+            print(f"[{self.name}] 📍 Arrivati alla Stazione di Ricarica (ER)!")
+            return py_trees.common.Status.SUCCESS
+
+        # 2. SIAMO IN UN NODO INTERMEDIO E DOBBIAMO RIPARTIRE
+        if in_nodo:
+            # Se siamo arrivati al 'next_node' che avevamo puntato, dobbiamo aggiornare la rotta
+            if pos_attuale == prossimo_nodo and len(percorso_rimanente) > 0:
+                nuovo_prossimo_nodo = percorso_rimanente.pop(0)
+                
+                self.blackboard.next_node = nuovo_prossimo_nodo
+                self.blackboard.path_to_target = percorso_rimanente
+                lc.update_path_in_redis(nuovo_prossimo_nodo, percorso_rimanente)
+                prossimo_nodo = nuovo_prossimo_nodo # Aggiorniamo la variabile locale per il comando qui sotto
+
+            # Inviamo il comando di movimento verso il prossimo nodo
+            print(f"[{self.name}] Partenza dal nodo {pos_attuale} verso {prossimo_nodo}...")
+            comando = {
+                "type": "MOVE_TO",
+                "next_node": prossimo_nodo,
+                "current_position": pos_attuale,
+                "am_i_in_a_node": in_nodo
+            }
+            lc.db.set_command(lc.db.COMMAND_CHANNEL, comando)
             
+            # Nota: NON settiamo am_i_in_a_node = False qui. Sarà il Body a farlo!
+            return py_trees.common.Status.RUNNING
+
+        # 3. SIAMO IN VIAGGIO (am_i_in_a_node == False)
+        # Il robot si sta muovendo fisicamente tra un nodo e l'altro.
+        # L'albero restituisce semplicemente RUNNING aspettando che il Body dica di essere arrivato.
+        else:
+            return py_trees.common.Status.RUNNING         
+
 
 class RicaricaBatteria(py_trees.behaviour.Behaviour):
     """
-    Gestisce il processo di ricarica (attesa fino al 100%).
+    Azione: Invia il comando di START_CHARGE al Body e attende che il sensore
+    della batteria raggiunga il 100%. Poi invia STOP_CHARGE e dichiara SUCCESS.
     """
-    def __init__(self):
-        super(RicaricaBatteria, self).__init__(name="Ricarica Batteria")
+    def __init__(self, name="Ricarica Batteria"):
+        super().__init__(name)
+        # Inizializziamo il Client della Blackboard
         self.blackboard = py_trees.blackboard.Client(name=self.name)
-        self.blackboard.register_key(key="battery_level", access=py_trees.common.Access.READ)
         self.blackboard.register_key(key="logic_controller", access=py_trees.common.Access.READ)
-    
+        self.blackboard.register_key(key="battery_level", access=py_trees.common.Access.READ)
+        
+        # Variabile di stato del nodo definita nell'__init__
+        self.fase = "INNESCO"
+
     def setup(self):
-        print("Setup RicaricaBatteria")
+        print(f"Setup {self.name}")
         return True
 
     def initialise(self):
-        print("[RicaricaBatteria] Inizio ricarica... Attesa fino al 100%")
+        # Fondamentale: ogni volta che il robot va a ricaricarsi (anche a distanza di giorni),
+        # il nodo deve ripartire dall'innesco.
+        self.fase = "INNESCO"
 
     def update(self):
+        # 1. Lettura "fresca" ad ogni tick
         try:
-            logic_controller = self.blackboard.logic_controller
+            lc = self.blackboard.logic_controller
+            livello_attuale = self.blackboard.battery_level
         except KeyError:
-            print("[RicaricaBatteria] Errore: 'logic_controller' non trovato sulla blackboard.")
             return Status.FAILURE
-        
-        esito = logic_controller.recharge_battery()
 
-        match esito:
-            case "SUCCESS":
-                print(f"[RicaricaBatteria] Ricarica completata: {self.blackboard.battery_level}%.")
+        # 2. FASE 1: Innesco (Invio Comando)
+        if self.fase == "INNESCO":
+            print(f"[{self.name}] 🔌 Invio comando al Body: Connettersi ai pin di ricarica (START_CHARGE)...")
+            
+            comando = {"type": "START_CHARGE"}
+            lc.db.set_command(lc.db.COMMAND_CHANNEL, comando)
+            
+            self.fase = "ATTESA"
+            return Status.RUNNING
+            
+        # 3. FASE 2: Attesa (Lettura Sensori)
+        elif self.fase == "ATTESA":
+            
+            # Condizione di Vittoria: Batteria Piena
+            if livello_attuale >= 100.0:
+                print(f"[{self.name}] ✅ Ricarica completata (100%). Disconnessione dai pin...")
+                
+                # Ordiniamo al Body di staccare la spina
+                comando_stop = {"type": "STOP_CHARGE"}
+                lc.db.set_command(lc.db.COMMAND_CHANNEL, comando_stop)
+                
                 return Status.SUCCESS
-            case "RUNNING":
-                print(f"[RicaricaBatteria] In ricarica... livello attuale: {self.blackboard.battery_level}%")
+                
+            # Condizione di Attesa: Stiamo ancora caricando
+            else:
+                # Nota: Questo spammerà un po' il terminale, ma è ottimo per vedere 
+                # che la comunicazione col Body simulato funziona!
+                print(f"[{self.name}] In ricarica... livello sensore: {livello_attuale}%")
                 return Status.RUNNING
-            case "FAILURE":
-                print("[RicaricaBatteria] Errore durante la ricarica.")
-                return Status.FAILURE
-
-
-

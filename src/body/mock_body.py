@@ -33,6 +33,8 @@ except Exception as e:
     print(f"❌ [MOCK BODY] Errore di connessione a Redis: {e}")
     sys.exit(1)
 
+stato_batteria = 15.0  # Partiamo con batteria scarica per testare l'emergenza!
+in_ricarica = False
 
 # 2. CICLO NON BLOCCANTE
 ultimo_nodo_destinazione = None
@@ -47,7 +49,17 @@ while is_running:
             comando = json.loads(raw_data)
             tipo = comando.get("type")
 
+            if tipo == "START_CHARGE":
+                print("🔋 [MOCK BODY] Pin collegati. Inizio ricarica simulata...")
+                in_ricarica = True
+            
+            elif tipo == "STOP_CHARGE":
+                if in_ricarica:
+                    print("🔌 [MOCK BODY] Ricarica interrotta.")
+                    in_ricarica = False
+
             if tipo == "MOVE_TO":
+                in_ricarica = False
                 destinazione = comando.get("next_node")
                 
                 if destinazione is None:
@@ -111,5 +123,19 @@ while is_running:
                 
         except Exception as e:
             pass # Ignoriamo errori di decodifica silenziosamente
+
+# --- SIMULAZIONE FISICA CONTINUA ---
+    if in_ricarica:
+        stato_batteria += 5.0 # Aggiunge 5% ogni ciclo
+        if stato_batteria >= 100.0:
+            stato_batteria = 100.0
+            
+        # Pubblica il nuovo livello su Redis usando il client 'r'
+        dati_grezzi = r.get(SENSOR_KEY)
+        sensori_attuali = json.loads(dati_grezzi) if dati_grezzi else {}
+        sensori_attuali["battery_level"] = stato_batteria
+        r.set(SENSOR_KEY, json.dumps(sensori_attuali))
+        
+    time.sleep(0.05) # Ritmo di aggiornamento del loop (ho tolto il doppio sleep che c'era alla fine)
             
     time.sleep(0.05)
