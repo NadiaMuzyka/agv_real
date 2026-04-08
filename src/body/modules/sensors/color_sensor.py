@@ -13,7 +13,7 @@ class ColorSensor(GenericSensor):
         Implementazione del metodo obbligatorio della classe base.
         Restituisce i valori normalizzati per default.
         """
-        return self.read_normalized()
+        return self.read_rgb255()
 
     def read_normalized(self):
         """Legge dal sensore e restituisce i valori RGB normalizzati (0.0 - 1.0)."""

@@ -30,7 +30,7 @@ def main():
 
     # 2. Inizializzazione Moduli
     #manager = LowLevelManager(sim) 
-    floor_sensor = ColorSensor(sim, "/Robot/visionSensor") 
+    color_sensor = ColorSensor(sim, "/Robot/visionSensor") 
 
     # 3. Iscrizione ai comandi dal Brain
     pubsub = redis_iface.subscribe_to_commands()
@@ -42,14 +42,14 @@ def main():
         while True:
             # --- 0. SENSING ---
             # Legge (r, g, b) normalizzati (0.0 - 1.0)
-            rgb = floor_sensor.read() 
+            rgb = color_sensor.read() 
 
-            print(f"[SENSORS] Floor Color RGB: {rgb}")
+            print(f"[SENSORS] color Color RGB: {rgb}")
             
             # --- 1. COMUNICAZIONE (Verso Redis) ---
             
             sensor_data = {
-                "floor_color": rgb,  # Invia la tupla (r, g, b)
+                "color_color": rgb,  # Invia la tupla (r, g, b)
                 "timestamp": time.time()
             }
             redis_iface.set_sensor_data(SENSORS_KEY, sensor_data)

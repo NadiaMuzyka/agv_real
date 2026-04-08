@@ -5,17 +5,17 @@ class WheelsActuator(GenericActuator):
         super().__init__(name)
         self.sim = sim
         
-        # Dati fisici (Diametro 20cm, Interasse 50cm)
+        # Dati fisici calibrati empiricamente
         self.wheel_radius = 0.1  
-        self.wheelbase = 0.5     
+        # Calibrazione iterativa ultra-fine per compensare l'attrito del mondo 3D e gli spessori.
+        # Storia degli angoli su richiesta da 90°: 246° -> 99° -> 90.95°
+        self.wheelbase = 0.95 * (90.0 / 246.0) * (90.0 / 99.0) * (90.0 / 90.95) # ~0.3126
         
         try:
-            # Percorsi basati sulla tua gerarchia in CoppeliaSim
-            self.m_ps = self.sim.getObject('/Robot/JointPS')
-            self.m_as = self.sim.getObject('/Robot/JointAS')
-            self.m_pd = self.sim.getObject('/Robot/JointPD')
-            self.m_ad = self.sim.getObject('/Robot/JointAD')
-            print(f"✅ [ACTUATOR] {self.name} inizializzato con i 4 giunti.")
+            # Percorsi basati sulla gerarchia in CoppeliaSim per Robot
+            self.m_as = self.sim.getObject('/Robot/leftMotor')
+            self.m_ad = self.sim.getObject('/Robot/rightMotor')
+            print(f"✅ [ACTUATOR] {self.name} inizializzato con i motori di Robot.")
         except Exception as e:
             print(f"⚠️ [ACTUATOR] Errore nel trovare i giunti: {e}")
 
@@ -36,9 +36,15 @@ class WheelsActuator(GenericActuator):
 
     def _apply_velocity(self, v_l, v_r):
         try:
-            self.sim.setJointTargetVelocity(self.m_ps, v_l)
-            self.sim.setJointTargetVelocity(self.m_as, v_l)
-            self.sim.setJointTargetVelocity(self.m_pd, v_r)
-            self.sim.setJointTargetVelocity(self.m_ad, v_r)
+            # Cerchiamo l'handle dello script attaccato al Robot
+            robot_handle = self.sim.getObject('/Robot')
+            script_handle = self.sim.getScript(self.sim.scripttype_childscript, robot_handle)
+            
+            # Richiamiamo la funzione Python interna a Coppelia passando gli handle dei motori e le velocità
+            self.sim.callScriptFunction(
+                'set_dual_velocity', 
+                script_handle, 
+                self.m_as, self.m_ad, float(v_l), float(v_r)
+            )
         except Exception as e:
-            print(f"❌ [ACTUATOR] Errore setJointTargetVelocity: {e}")
+            print(f"❌ [ACTUATOR] Errore nell'invio simultaneo via script: {e}")
