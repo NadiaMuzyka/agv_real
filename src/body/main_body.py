@@ -14,8 +14,13 @@ from modules.controllers.low_level_manager import LowLevelManager
 # --- COSTANTI ---
 SENSORS_KEY = "agv_sensors"
 
+def is_color_match(rgb, target, tolerance=40):
+    if not rgb:
+        return False
+    return all(abs(c - t) <= tolerance for c, t in zip(rgb, target))
+
 def main():
-    print("🦾 [BODY] Avvio del Controllore - Modalità Color Sensor...")
+    print("🦾 [BODY] Avvio del Controllore - Modalità Line Follower (PID 3 Sensori)...")
     
     # 1. Inizializzazione Connessioni (Coppelia & Redis)
     connector = CoppeliaConnector()
@@ -31,29 +36,36 @@ def main():
         return
 
     # 2. Inizializzazione Moduli
-    #manager = LowLevelManager(sim) 
+    manager = LowLevelManager(sim) 
     wheels = WheelsActuator(sim)
-    color_sensor = ColorSensor(sim, "/Robot/visionSensor") 
+    left_sensor = ColorSensor(sim, "/Robot/leftColorSensor")
+    central_sensor = ColorSensor(sim, "/Robot/centralColorSensor") 
+    right_sensor = ColorSensor(sim, "/Robot/rightColorSensor")
 
-    # 3. Iscrizione ai comandi dal Brain
+    # 3. Iscrizione ai comandi dal Brain (per ora gestito autonomamente)
     pubsub = redis_iface.subscribe_to_commands()
-    current_command_data = {"type": "STOP"}
-
+    
     print("🚀 Loop principale avviato (20Hz).")
+    
+    last_error = 0.0
     
     try:
         while True:
             # --- 0. SENSING ---
-            rgb = color_sensor.read() 
-            # print(f"[SENSORS] color Color RGB: {rgb}") # Commentato per non intasare i log
+            rgb_left = left_sensor.read()
+            rgb_center = central_sensor.read()
+            rgb_right = right_sensor.read()
             
-            # --- COMPORTAMENTO AUTONOMO TEMPORANEO ---
-            # Valore atteso pavimento: (22, 22, 22)
-            # Valore atteso target: ~ (99, 255, 22)
-            if rgb and rgb == (99, 255, 22):
-                print(f"🛑 OSTACOLO RILEVATO! Colore: {rgb}. Avvio manovra evasiva...")
-                # 1. Ferma e stabilizza
+            # Colori target
+            color_line = (22, 22, 22)
+            color_obstacle = (99, 255, 22)
+            
+            # Controllo Ostacolo (controlliamo i 3 sensori o solo centrale)
+            if is_color_match(rgb_center, color_obstacle, 40):
+                print(f"🛑 OSTACOLO RILEVATO! Colore: {rgb_center}. Avvio manovra evasiva...")
                 wheels.stop()
+                current_command_data = {"type": "STOP"}
+                manager.execute_command(current_command_data) # Resetta stato PID
                 time.sleep(0.5)
                 
                 # 2. Ruota di 90 gradi a destra
@@ -69,37 +81,59 @@ def main():
                 time.sleep(2.0)
                 
                 print("✅ Manovra finita. Riprendo esplorazione.")
-
                 wheels.stop()
-                time.sleep(5.0)
-            else:
-                wheels.move(0.1, 0.0)
+                time.sleep(1.0)
+                continue
+                
+            # Logica Line Follower - Calcolo errore
+            on_line_l = is_color_match(rgb_left, color_line, 50)
+            on_line_c = is_color_match(rgb_center, color_line, 50)
+            on_line_r = is_color_match(rgb_right, color_line, 50)
             
+            error = 0.0
+            if on_line_l and on_line_c:
+                error = -0.5  # Leggermente a destra, curvi dolce a sinistra
+            elif on_line_r and on_line_c:
+                error = 0.5   # Leggermente a sinistra, curvi dolce a destra
+            elif on_line_l:
+                error = -1.0  # Decisamente a destra, curvi forte a sx
+            elif on_line_r:
+                error = 1.0   # Decisamente a sinistra, curvi forte a dx
+            elif on_line_c:
+                error = 0.0   # Perfettamente al centro
+            else:
+                # Nessun sensore vede la linea. Esagera l'ultimo errore noto per riprendere la rotta
+                error = 1.5 if last_error > 0 else (-1.5 if last_error < 0 else 0.0)
+                
+            last_error = error
+
+            current_command_data = {
+                "type": "LINE_FOLLOW",
+                "error": error,
+                "target_speed": 0.1 # Velocità di crociera
+            }
             
             # --- 1. COMUNICAZIONE (Verso Redis) ---
-            
             sensor_data = {
-                "color_color": rgb,  # Invia la tupla (r, g, b)
+                "color_left": rgb_left,
+                "color_center": rgb_center,
+                "color_right": rgb_right,
                 "timestamp": time.time()
             }
             redis_iface.set_sensor_data(SENSORS_KEY, sensor_data)
+            
             '''
-            # --- 2. LETTURA COMANDI (Da Redis) ---
+            # Ricezione Comandi da Redis ignorata per via del comportamento autonomo in basso livello
             message = pubsub.get_message(ignore_subscribe_messages=True, timeout=0.001) 
-            if message and message['type'] == 'message':
-                try:
-                    current_command_data = json.loads(message['data'])
-                except json.JSONDecodeError:
-                    print("[BODY] Errore decodifica comando JSON.")
+            # ...
+            '''
 
-
-            # --- 3. ACTUATION (Esecuzione Motori) ---
-            # Il manager trasforma il comando (es. {"type": "MOVE", "speed": 0.5}) 
-            # in velocità per le ruote in CoppeliaSim
-            manager.execute_command(current_command_data)
+            # --- 2. ACTUATION (Esecuzione Motori) ---
+            V, W = manager.execute_command(current_command_data)
+            wheels.move(V, W)
                 
             time.sleep(0.05) # Manteniamo i 20Hz per stabilità
-            '''
+            
     except KeyboardInterrupt:
         print("\n🛑 Arresto manuale del Body.")
         wheels.stop()

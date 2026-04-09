@@ -14,15 +14,16 @@ class LowLevelManager:
         self.sim = sim
         print("🛠️ LowLevelManager inizializzato con successo!")
         
-        # PID Constants
-        self.kp = 0.8
-        self.ki = 0.01
-        self.kd = 0.1
+        # PID Constants (Corretti per evitare la sovracompensazione derivativa)
+        self.kp = 0.28  # Alzato da 0.15: ci serve che sterzi con più forza quando la curva è stretta!
+        self.ki = 0.0   
+        self.kd = 0.01  
         
         # PID State
         self.prev_error = 0.0
         self.integral_error = 0.0
         self.last_time = None
+        self.current_w = 0.0  
 
     def calculate_pid(self, error: float) -> float:
         current_time = time()
@@ -62,8 +63,15 @@ class LowLevelManager:
             error = command_data.get("error", 0.0)
             target_speed = command_data.get("target_speed", 0.0)
             
-            # Calcolo PID locale
-            W = self.calculate_pid(error)
+            target_w = self.calculate_pid(error)
+            
+            # --- SMOOTHING DELLA STERZATA (Anti-Scatto) ---
+            # Abbiamo ridotto la "memoria" dal 70% al 40%.
+            # Era diventato TROPPO lento a reagire, ci metteva mezzo secondo 
+            # ad angolare le ruote e nel frattempo perdeva la linea in curva.
+            self.current_w = (self.current_w * 0.4) + (target_w * 0.6)
+            
+            W = self.current_w
             V = target_speed
             
         elif cmd_type == "STOP":
@@ -73,6 +81,7 @@ class LowLevelManager:
             self.prev_error = 0.0
             self.integral_error = 0.0
             self.last_time = None
+            self.current_w = 0.0
             
         elif "v" in command_data and "w" in command_data:
             # Fallback per comandi diretti V/W (legacy)
@@ -83,8 +92,10 @@ class LowLevelManager:
         current_time = time()
         if (V == 0.0 and W == 0.0) or (current_time - self.last_print_time > 1.0):
             if V == 0.0 and W == 0.0:
-                print(f"[{self.__class__.__name__}] STOP (V:{V:.2f}, W:{W:.2f})")
+                pass # print(f"[{self.__class__.__name__}] STOP (V:{V:.2f}, W:{W:.2f})")
             else:
-                print(f"[{self.__class__.__name__}] MOVIMENTO (Type:{cmd_type}, V:{V:.2f}, W:{W:.2f})")
+                pass # print(f"[{self.__class__.__name__}] MOVIMENTO (Type:{cmd_type}, V:{V:.2f}, W:{W:.2f})")
             
             self.last_print_time = current_time
+            
+        return V, W

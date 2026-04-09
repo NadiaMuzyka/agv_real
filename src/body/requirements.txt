@@ -1,3 +1,4 @@
 redis
 numpy
 coppeliasim-zmqremoteapi-client
+simple-pid
