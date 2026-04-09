@@ -253,6 +253,7 @@ class NavigaVersoNodo(py_trees.behaviour.Behaviour):
         self.blackboard.register_key(key="path_to_target", access=py_trees.common.Access.WRITE)
         self.blackboard.register_key(key="path_to_target", access=py_trees.common.Access.READ)
         self.blackboard.register_key(key="next_node", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="am_i_in_a_node", access=py_trees.common.Access.READ)
 
 
     def setup(self):
@@ -281,34 +282,63 @@ class NavigaVersoNodo(py_trees.behaviour.Behaviour):
 
     def update(self):
         """ Eseguito CONTINUAMENTE finché restituisce RUNNING. """
+        
+        # 1. LETTURA DATI FRESCHI DALLA BLACKBOARD
         try:
             posizione_attuale = self.blackboard.current_position
             prossimo_nodo = self.blackboard.next_node
             percorso_rimanente = self.blackboard.path_to_target
             lc = self.blackboard.logic_controller
+            am_i_in_a_node = self.blackboard.am_i_in_a_node
+            target = self.blackboard.current_target 
         except KeyError:
             return py_trees.common.Status.FAILURE
 
-        if posizione_attuale == prossimo_nodo:
-            
-            # SE ci sono ancora nodi nel percorso_rimanente:
-            if len(percorso_rimanente) > 0:
-                prossimo_nodo = percorso_rimanente.pop(0)
-                self.blackboard.next_node = prossimo_nodo
-                self.blackboard.path_to_target = percorso_rimanente
-                lc.update_path_in_redis(prossimo_nodo, percorso_rimanente)
-                print(f"[NavigaVersoNodo] Prossimo nodo: {prossimo_nodo}. Nodi rimanenti: {len(percorso_rimanente)}")
-                return py_trees.common.Status.RUNNING
-                pass
-                
-            # ALTRIMENTI (percorso finito, siamo arrivati a destinazione!):
-            else:
-                print(f"[NavigaVersoNodo] Arrivati a destinazione: {posizione_attuale}")
-                return py_trees.common.Status.SUCCESS
-                pass
+        # Sicurezza: se non c'è una missione attiva, il nodo fallisce
+        if target is None:
+            return py_trees.common.Status.FAILURE
 
-        if posizione_attuale != prossimo_nodo:
-            print(f"[NavigaVersoNodo] In viaggio... Posizione attuale: {posizione_attuale}, Prossimo nodo: {prossimo_nodo}")
-            lc.move_towards(prossimo_nodo)
+        # 2. SE IL ROBOT E' FERMO IN UN NODO (am_i_in_a_node == True)
+        if am_i_in_a_node:
+            
+            # CASO A: VITTORIA! Siamo al traguardo finale.
+            if posizione_attuale == target["id"]:
+                print(f"[{self.name}] 📍 Arrivati a destinazione finale: {posizione_attuale}")
+                
+                comando_stop = {
+                    "type": "STOP", 
+                    "current_position": posizione_attuale
+                }
+                lc.db.set_command(lc.db.COMMAND_CHANNEL, comando_stop)
+                
+                return py_trees.common.Status.SUCCESS
+                
+            # CASO B: NODO INTERMEDIO. Aggiorniamo la mappa se siamo arrivati al prossimo_nodo
+            if posizione_attuale == prossimo_nodo and len(percorso_rimanente) > 0:
+                nuovo_prossimo_nodo = percorso_rimanente.pop(0)
+                
+                # Aggiorniamo Blackboard
+                self.blackboard.next_node = nuovo_prossimo_nodo
+                self.blackboard.path_to_target = percorso_rimanente
+                
+                # Aggiorniamo Redis
+                lc.update_path_in_redis(nuovo_prossimo_nodo, percorso_rimanente)
+                
+                print(f"[{self.name}] Raggiunto snodo: {posizione_attuale}. Calcolo rotta verso {nuovo_prossimo_nodo}...")
+                
+            # CASO C: PARTENZA. 
+            # Ci arriviamo sia se abbiamo estratto un nuovo nodo (Caso B), sia se siamo appena partiti.
+            print(f"[{self.name}] Invio comando: Partenza da {posizione_attuale} verso {self.blackboard.next_node}...")
+            
+            comando_move = {
+                "type": "MOVE_TO",
+                "next_node": self.blackboard.next_node,
+                "current_position": posizione_attuale
+            }
+            lc.db.set_command(lc.db.COMMAND_CHANNEL, comando_move)
+            
             return py_trees.common.Status.RUNNING
-        pass
+
+        # 3. SE IL ROBOT E' IN VIAGGIO (am_i_in_a_node == False)
+        # Il BT non fa assolutamente nulla. Sta in silenzio e aspetta che i sensori confermino l'arrivo.
+        return py_trees.common.Status.RUNNING
