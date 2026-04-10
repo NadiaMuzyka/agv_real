@@ -202,7 +202,8 @@ class LogicController:
         info_pack = self.read_json_file("docs/info_pack.json")
         plan = self.read_json_file("docs/plan.json")
         if info_pack and plan:
-            self.blackboard.temp["info_pack"]
+            self.blackboard.temp["info_pack"] = info_pack
+            self.blackboard.temp["plan"] = plan
             return "SUCCESS"
         else:
             return "FAILURE"
@@ -247,6 +248,49 @@ class LogicController:
         except Exception as e:
             print(f"[LogicController] Errore nel calcolo distanza stimata: {e}")
             return 99999.0
+
+
+    # Metodo ausiliario per unire le informazioni del piano e dell'infopack (esempio di elaborazione dati)
+    def merge_plan_infopack(self, plan: dict, infopack: list) -> list:
+        """ 
+            Esempio di metodo che unisce le informazioni del piano e dell'infopack per creare un piano ottimale. 
+            In questo esempio, ordiniamo le attività in base alla priorità indicata nell'infopack.
+        """
+        # Creiamo un dizionario che mappa gli ID delle attività del piano alle loro informazioni nell'infopack
+        destinazione_per_id = {item['type']: item for item in infopack}
+        result = []
+        for item in plan:
+            id_item = item.get("id")
+            if id_item in destinazione_per_id:
+                info_item = destinazione_per_id[id_item]
+                result.append({
+                    "id": id_item,
+                    "pick_up_position":info_item.get("pick_up_position"), 
+                    "destination": item.get("destination"),
+                    "priority": info_item.get("priority", 0)
+                })
+        return result
+
+    #metodo per creare un piano ottimale a partire da infopack e plan
+    def create_optimal_plan(self, mission_queue: list) -> list:
+        infopack = self.blackboard.temp.get("info_pack", {})
+        plan = self.blackboard.temp.get("plan", {})
+        merge_result = self.merge_plan_infopack(plan, infopack)
+        # ordiniamo la lista risultante in base alla priorità (dal più alto al più basso)
+        ordered_result = sorted(merge_result, key=lambda x: x['priority'], reverse=True)
+        aggiornamenti = {
+            "mission_queue": ordered_result,
+            "pallet_list_empty": False,
+            "current_target": ordered_result[0]['destination'] if len(ordered_result)>0 else None}
+        self.db.update_sensor_data("agv_sensors", aggiornamenti)
+
+
+
+
+
+
+
+
 
     # METODI DI ESEMPIO
     #------------------------------------------------------------------------
