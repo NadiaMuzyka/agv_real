@@ -1,0 +1,14 @@
+[
+    {
+        "nome_pacchetto": "gomme",
+        "pick_up_position": "E1",
+        "type":"P1",
+        "priority": "1"
+    },
+    {
+        "nome_pacchetto": "batterie",
+        "pick_up_position": "E3",
+        "type":"P2",
+        "priority": "2"
+    }
+]
