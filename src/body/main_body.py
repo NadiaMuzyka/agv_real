@@ -108,9 +108,9 @@ class RobotController:
         self.manager.execute_command({"type": "STOP"})
         
         if direction == "RIGHT":
-            # 1. Spinge lo sterzo a destra per sgomberare l'alone dell'incrocio (Blind turn)
+            # 1. Spinge lo sterzo a destra per sgomberare l'alone dell'incrocio con moto di avanzamento
             logger.info("-> Svincolando a DESTRA. Prima fase open-loop...")
-            self.wheels.move(0.0, -0.4)
+            self.wheels.move(0.05, -0.4)  # Modificato da 0.0 a 0.05 per curve smussate
             time.sleep(0.7)  # Calibra in base alla dimensione dell'intersezione
             
             # 2. Continua a muoversi in ciclo infinito leggendo il sensore centrale.
@@ -126,7 +126,7 @@ class RobotController:
             
         elif direction == "LEFT":
             logger.info("<- Svincolando a SINISTRA. Prima fase open-loop...")
-            self.wheels.move(0.0, 0.4)
+            self.wheels.move(0.05, 0.4)   # Modificato da 0.0 a 0.05 per curve smussate
             time.sleep(0.7)
             logger.info("<- Cerco la nuova traiettoria e attendo riaggancio della traccia...")
             while True:
@@ -235,10 +235,13 @@ class RobotController:
                 # message = self.pubsub.get_message(ignore_subscribe_messages=True, timeout=0.001)
 
                 # --- 5. ATTUAZIONE (Segnali Motori) ---
+                # Se l'errore è estremo (linea persa), ferma l'avanzamento logico per fare un perno su sé stesso e cercare la linea
+                current_speed = self.TARGET_SPEED if abs(error) < 1.5 else 0.0
+
                 command = {
                     "type": "LINE_FOLLOW",
                     "error": error,
-                    "target_speed": self.TARGET_SPEED
+                    "target_speed": current_speed
                 }
                 
                 v_target, w_target = self.manager.execute_command(command)
