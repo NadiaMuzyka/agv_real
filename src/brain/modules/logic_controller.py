@@ -279,9 +279,8 @@ class LogicController:
         # ordiniamo la lista risultante in base alla priorità (dal più alto al più basso)
         ordered_result = sorted(merge_result, key=lambda x: x['priority'], reverse=True)
         aggiornamenti = {
-            "mission_queue": ordered_result,
-            "pallet_list_empty": False,
-            "current_target": ordered_result[0]['destination'] if len(ordered_result)>0 else None}
+            "mission_queue": ordered_result
+        }
         self.db.update_sensor_data("agv_sensors", aggiornamenti)
 
 

@@ -45,11 +45,11 @@ graph TD
     MissionSel --> ExecuteSeq[<h1><b>--></b></h1><b>Seq</b>: Esecuzione Step]:::sequence
     
     %% A. Navigazione verso il prossimo nodo
-    ExecuteSeq --> NavSeq[<h1><b>--></b></h1><b>Seq</b>: Navigazione Grafo]:::sequence
-    ExecuteSeq --> MoveNode[Az: Muovi a Nodo]:::action
-    NavSeq --> IsAtNode{Cond: Arrivato al Nodo?}:::condition
-    NavSeq --> GetNextNode[Az: Estrai Prossimo Nodo]:::action
-    
+    ExecuteSeq --> PathSeq[<h1><b>--></b></h1><b>Seq</b>: Generazione Percorso]:::sequence
+    ExecuteSeq --> MoveNode[Az: Vai al target]:::action
+    PathSeq --> IsAtNode{Cond: Il percorso è stato calcolato?}:::condition
+    PathSeq --> GetNextNode[Az: Calcola percorso]:::action
+
     
     
     %% B. Operazione sul Nodo (Picking o Delivery)

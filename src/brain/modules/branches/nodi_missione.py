@@ -221,6 +221,9 @@ class EstraiProssimoNodo(py_trees.behaviour.Behaviour):
         self.blackboard = py_trees.blackboard.Client(name=self.name)
         self.blackboard.register_key(key="mission_queue", access=py_trees.common.Access.WRITE)
         self.blackboard.register_key(key="current_target", access=py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key="current_position", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="logic_controller", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="next_node", access=py_trees.common.Access.WRITE) 
 
     def setup(self):
         print("Setup EstraiProssimoNodo")
@@ -235,8 +238,9 @@ class EstraiProssimoNodo(py_trees.behaviour.Behaviour):
             target_attuale = self.blackboard.current_target
         except KeyError:
             return py_trees.common.Status.FAILURE
-
-        if target_attuale is None and len(coda) > 0:
+        #Sono già in un nodo, se questo nodo è il mio prossimo nodo (next_node)
+        #allora 
+        if :
             
             prossimo_target = coda.pop(0)
             
@@ -357,3 +361,32 @@ class NavigaVersoNodo(py_trees.behaviour.Behaviour):
         # 3. SE IL ROBOT E' IN VIAGGIO (am_i_in_a_node == False)
         # Il BT non fa assolutamente nulla. Sta in silenzio e aspetta che i sensori confermino l'arrivo.
         return py_trees.common.Status.RUNNING
+
+## NODO DI CONDIZIONE PER VERIFICARE L'ARRIVO A UN NODO  
+class ArrivatoANodo(py_trees.behaviour.Behaviour):
+    """
+    Condizione: verifica quando il robot e' fermo su un nodo del grafo.s
+    SUCCESS quando il robot e' in un nodo, RUNNING mentre e' in movimento.
+    """
+    def __init__(self):
+        super(ArrivatoANodo, self).__init__(name="Arrivato A Nodo")
+        self.blackboard = py_trees.blackboard.Client(name=self.name)
+        self.blackboard.register_key(key="am_i_in_a_node", access=py_trees.common.Access.READ)
+
+    def setup(self):
+        print("Setup ArrivatoANodo")
+        return True
+
+    def initialise(self):
+        pass
+
+    def update(self):
+        try:
+            am_i_in_a_node = self.blackboard.am_i_in_a_node
+        except KeyError:
+            return py_trees.common.Status.FAILURE
+
+        if am_i_in_a_node:
+            return py_trees.common.Status.SUCCESS
+
+        
