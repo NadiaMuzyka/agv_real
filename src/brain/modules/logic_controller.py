@@ -23,9 +23,10 @@ class LogicController:
         self.blackboard.register_key(key="am_i_in_a_node", access=py_trees.common.Access.WRITE)#sono in un nodo?
         self.blackboard.register_key(key="is_charging", access=py_trees.common.Access.WRITE)#sto ricaricando?
         self.blackboard.register_key(key="current_target", access=py_trees.common.Access.WRITE)#nodo target della missione in corso, None se non c'è missione in corso
-        
+        self.blackboard.register_key(key="temp", access=py_trees.common.Access.WRITE)#variabile temporanea per salvare dati vari, non persistente su Redis
         self.navigatore = NavigatoreGrafo() 
 
+        self.blackboard.temp = dict() 
         self.blackboard.mission_queue = []
         self.blackboard.current_target = None
 
@@ -51,8 +52,8 @@ class LogicController:
         self.blackboard.path_to_target = sensor_data.get("path_to_target", [])#percorso completo verso il target
         self.blackboard.is_charging = sensor_data.get("is_charging", False)#sono in modalità ricarica?
 
+        #self.temp è nella blackboard, ma non è persistente su Redis
 
-        
     #Metodo per settare la modalità di energia
     def set_energy_mode(self, mode: str):
         if mode == "CHARGE_MODE":
@@ -184,15 +185,27 @@ class LogicController:
         print("[LogicController] Comando STOP inviato.")
         return True
 
-    def download_mission_from_central_system(self):
-        """ Simula la ricezione di una lista di task dal sistema centrale. """
-        # In un caso reale, qui ci sarebbe una chiamata a un servizio esterno o una lettura da un database
-        finta_lista = [
-            {"id": "E1", "tipo_azione": "PICKUP"},
-            {"id": "E2", "tipo_azione": "DELIVERY"}
-        ]
-        self.blackboard.mission_queue = finta_lista
-        print(f"[LogicController] Nuova lista missioni ricevuta: {finta_lista}")
+    #Metodo per leggere un file JSON 
+    def read_json_file(self, file_path: str)-> dict:
+        """ Legge un file JSON e restituisce il contenuto come dizionario. """
+        try:
+            with open(file_path, 'r') as file:
+                data = json.load(file)
+                print(f"[LogicController] Dati letti da {file_path}: {data}")
+                return data
+        except Exception as e:
+            print(f"[LogicController] Errore nella lettura del file {file_path}: {e}")
+            return {}
+
+    #Metodo per leggere le richieste e i dati dei pacchetti
+    def download_mission_from_central_system(self)-> str:
+        info_pack = self.read_json_file("docs/info_pack.json")
+        plan = self.read_json_file("docs/plan.json")
+        if info_pack and plan:
+            self.blackboard.temp["info_pack"]
+            return "SUCCESS"
+        else:
+            return "FAILURE"
 
     def move_towards(self, next_node: str):
         """ Invia un comando di movimento verso il prossimo nodo. """

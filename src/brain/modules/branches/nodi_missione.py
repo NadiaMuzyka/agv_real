@@ -71,7 +71,6 @@ class PianoNonGenerato(py_trees.behaviour.Behaviour):
         
         return py_trees.common.Status.FAILURE
         
-
 class RiceviListaPallet(py_trees.behaviour.Behaviour):
     """
     Azione: Contatta il Fleet Manager tramite API REST per scaricare i nuovi task.
@@ -85,7 +84,6 @@ class RiceviListaPallet(py_trees.behaviour.Behaviour):
         #il mio gemini pensa che Matteo sia Simone, questa cosa mi fa ridere e non lo correggerò.
         #scusami "Simone" (non so come gli sia venuto)
         # Registriamo in SCRITTURA perché questo nodo popolerà la coda
-        self.blackboard.register_key(key="mission_queue", access=py_trees.common.Access.WRITE)
         
         # TODO per l'incontro di domani: Inserire qui l'IP reale di Simone
         #self.api_url = "http://HOST_DI_SIMONE:PORTA/api/get_mission/agv_1"
@@ -103,49 +101,55 @@ class RiceviListaPallet(py_trees.behaviour.Behaviour):
         except KeyError:
             return py_trees.common.Status.FAILURE
 
-        # Anti-Tick Fantasma: aspettiamo che l'AGV sia "sveglio" e connesso a Redis
-        sensori = lc.db.get_sensor_data("agv_sensors")
-        if not sensori:
-            return py_trees.common.Status.RUNNING
-
-        print(f"[{self.name}] Contatto il Fleet Manager...")
+        esito = lc.download_mission_from_central_system()
+        if esito is "FAILURE":
+            print(f"[{self.name}] ERRORE: Impossibile contattare il Fleet Manager per scaricare la lista pallet.")
+            return py_trees.common.Status.FAILURE
+        else:
+            print(f"[{self.name}] Lista pallet scaricata con successo: {esito}")
+            return py_trees.common.Status.SUCCESS
         
-        try:
-            # =========================================================
-            # CODICE PER DOMANI (Scommentare quando Simone è pronto)
-            # risposta = requests.get(self.api_url, timeout=2.0)
-            # if risposta.status_code == 200:
-            #     missioni_scaricate = risposta.json()
-            # else:
-            #     raise Exception(f"Errore HTTP {risposta.status_code}")
-            # =========================================================
-            
-            # --- MOCK PER OGGI ---
-            # Stiamo fingendo che 'requests' abbia restituito questo JSON
-            missioni_scaricate = [
-                {"id": "E1", "tipo_azione": "PICKUP"},
-                {"id": "E2", "tipo_azione": "DELIVERY"}
-            ]
-            # ---------------------
 
-            # SCENARIO 1: Il server ha mandato del lavoro
-            if len(missioni_scaricate) > 0:
-                print(f"[{self.name}] Ricevuti {len(missioni_scaricate)} task dal server.")
-                self.blackboard.mission_queue = missioni_scaricate
-                return py_trees.common.Status.SUCCESS
-            
-            # SCENARIO 2: Il server dice "Nessun lavoro" (Lista vuota)
-            else:
-                print(f"[{self.name}] Coda server vuota. Robot in attesa (IDLE).")
-                lc.execute_stop() # Assicuriamoci che i motori siano fermi!
-                return py_trees.common.Status.RUNNING
+        # # Anti-Tick Fantasma: aspettiamo che l'AGV sia "sveglio" e connesso a Redis
+        # sensori = lc.db.get_sensor_data("agv_sensors")
+        # if not sensori:
+        #     return py_trees.common.Status.RUNNING
 
-        # SCENARIO 3: Errore di Rete (Server spento, cavo staccato, URL sbagliato)
-        except Exception as e:
-            print(f"[{self.name}] ERRORE DI RETE (Server irraggiungibile): {e}")
-            lc.execute_stop()
-            # Restando in RUNNING, l'AGV non crasha ma riprova pacificamente al prossimo tick
-            return py_trees.common.Status.RUNNING
+        # print(f"[{self.name}] Contatto il Fleet Manager...")
+        
+        # try:
+        #     # =========================================================
+        #     # CODICE PER DOMANI (Scommentare quando Simone è pronto)
+        #     # risposta = requests.get(self.api_url, timeout=2.0)
+        #     # if risposta.status_code == 200:
+        #     #     missioni_scaricate = risposta.json()
+        #     # else:
+        #     #     raise Exception(f"Errore HTTP {risposta.status_code}")
+        #     # =========================================================
+            
+        #     # --- MOCK PER OGGI ---
+        #     # Stiamo fingendo che 'requests' abbia restituito questo JSON
+        #     missioni_scaricate = 
+        #     # ---------------------
+
+        #     # SCENARIO 1: Il server ha mandato del lavoro
+        #     if len(missioni_scaricate) > 0:
+        #         print(f"[{self.name}] Ricevuti {len(missioni_scaricate)} task dal server.")
+        #         self.blackboard.mission_queue = missioni_scaricate
+        #         return py_trees.common.Status.SUCCESS
+            
+        #     # SCENARIO 2: Il server dice "Nessun lavoro" (Lista vuota)
+        #     else:
+        #         print(f"[{self.name}] Coda server vuota. Robot in attesa (IDLE).")
+        #         lc.execute_stop() # Assicuriamoci che i motori siano fermi!
+        #         return py_trees.common.Status.RUNNING
+
+        # # SCENARIO 3: Errore di Rete (Server spento, cavo staccato, URL sbagliato)
+        # except Exception as e:
+        #     print(f"[{self.name}] ERRORE DI RETE (Server irraggiungibile): {e}")
+        #     lc.execute_stop()
+        #     # Restando in RUNNING, l'AGV non crasha ma riprova pacificamente al prossimo tick
+        #     return py_trees.common.Status.RUNNING
         
 
 class GeneraPianoOttimale(py_trees.behaviour.Behaviour):
@@ -158,6 +162,7 @@ class GeneraPianoOttimale(py_trees.behaviour.Behaviour):
         self.blackboard.register_key(key="current_position", access=py_trees.common.Access.READ)
         self.blackboard.register_key(key="mission_queue", access=py_trees.common.Access.WRITE)
         self.blackboard.register_key(key="logic_controller", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="temp", access=py_trees.common.Access.WRITE) # Variabile temporanea per salvare dati vari, non persistente su Redis
 
     def update(self):
         coda = self.blackboard.mission_queue
