@@ -31,7 +31,7 @@ class RobotController:
     TOLERANCE_LINE = 50
     TOLERANCE_OBSTACLE = 40
     
-    TARGET_SPEED = 0.1
+    TARGET_SPEED = 0.05  # Velocità ridotta come richiesto
     LOOP_HZ = 20
     
     def __init__(self):
@@ -110,8 +110,9 @@ class RobotController:
         if direction == "RIGHT":
             # 1. Spinge lo sterzo a destra per sgomberare l'alone dell'incrocio con moto di avanzamento
             logger.info("-> Svincolando a DESTRA. Prima fase open-loop...")
-            self.wheels.move(0.05, -0.4)  # Modificato da 0.0 a 0.05 per curve smussate
-            time.sleep(0.7)  # Calibra in base alla dimensione dell'intersezione
+            # Raggio di curvatura ristretto: V ridotta a 0.02, sterzata aumentata a -0.5
+            self.wheels.move(0.02, -0.5)  
+            time.sleep(0.6)  # Ridotto leggermente il blind-time per via della rotazione più rapida
             
             # 2. Continua a muoversi in ciclo infinito leggendo il sensore centrale.
             # Appena la telecamera centrale intercetta di nuovo la linea nera, stoppa!
@@ -126,8 +127,9 @@ class RobotController:
             
         elif direction == "LEFT":
             logger.info("<- Svincolando a SINISTRA. Prima fase open-loop...")
-            self.wheels.move(0.05, 0.4)   # Modificato da 0.0 a 0.05 per curve smussate
-            time.sleep(0.7)
+            # Raggio di curvatura ristretto: V ridotta a 0.02, sterzata aumentata a 0.5
+            self.wheels.move(0.02, 0.5)   
+            time.sleep(0.6)
             logger.info("<- Cerco la nuova traiettoria e attendo riaggancio della traccia...")
             while True:
                 rgb_c = self.central_sensor.read()
