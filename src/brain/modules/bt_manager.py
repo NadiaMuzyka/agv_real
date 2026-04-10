@@ -47,12 +47,12 @@ def crea_albero_agv():
 
     # 3.2: Esecuzione Step (Navigazione + Azione)
     sequenza_esecuzione = py_trees.composites.Sequence("Esecuzione Step", memory=False)
-
+    naviga_nodo = NavigaVersoNodo()
     # 3.2.1: Navigazione Grafo
     sequenza_navigazione = py_trees.composites.Sequence("Navigazione Grafo", memory=False)
     estrai_nodo = EstraiProssimoNodo()
-    naviga_nodo = NavigaVersoNodo()
-    sequenza_navigazione.add_children([estrai_nodo, naviga_nodo])
+    arrivato_nodo = ArrivatoAlNodo() 
+    sequenza_navigazione.add_children([arrivato_nodo,estrai_nodo])
 
     # 3.2.2: Operazione sul Nodo (Ritiro O Consegna)
     selettore_operazione = py_trees.composites.Selector("Operazione Nodo", memory=False)
@@ -71,7 +71,7 @@ def crea_albero_agv():
 
     # Assemblaggio sotto-alberi
     selettore_operazione.add_children([sequenza_ritiro, sequenza_consegna])
-    sequenza_esecuzione.add_children([sequenza_navigazione, selettore_operazione])
+    sequenza_esecuzione.add_children([sequenza_navigazione, naviga_nodo,selettore_operazione])
 
     # Assemblaggio finale Missione
     selettore_missione.add_children([sequenza_pianificazione, sequenza_esecuzione])

@@ -46,8 +46,11 @@ graph TD
     
     %% A. Navigazione verso il prossimo nodo
     ExecuteSeq --> NavSeq[<h1><b>--></b></h1><b>Seq</b>: Navigazione Grafo]:::sequence
+    ExecuteSeq --> MoveNode[Az: Muovi a Nodo]:::action
+    NavSeq --> IsAtNode{Cond: Arrivato al Nodo?}:::condition
     NavSeq --> GetNextNode[Az: Estrai Prossimo Nodo]:::action
-    NavSeq --> MoveNode[Az: Muovi a Nodo]:::action
+    
+    
     
     %% B. Operazione sul Nodo (Picking o Delivery)
     ExecuteSeq --> ActionSel[<h1><b>?</b></h1><b>Selector</b>: Operazione Nodo]:::selector
