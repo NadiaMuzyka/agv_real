@@ -64,7 +64,7 @@ class RobotController:
         self.last_error = 0.0
         
         # Coda di navigazione fittizia per incroci (Simulazione Redis/Brain)
-        self.mock_nav_queue = ["RIGHT", "STOP"]
+        self.mock_nav_queue = ["RIGHT", "LEFT","STOP"]
         self.active_intersection_cooldown = 0.0  # Frequenza per non triggherare più volte sullo stesso marker
 
     @staticmethod
@@ -163,13 +163,13 @@ class RobotController:
             return 999.0  # Usato come magic flag float (senza rompere i template PEP)
         
         if on_line_l and on_line_c:
-            error = -0.5  # Leggermente a sinistra del tracciato
+            error = -0.25 # Correzione morbidissima per piccoli disallineamenti
         elif on_line_r and on_line_c:
-            error = 0.5   # Leggermente a destra del tracciato
+            error = 0.25  # Correzione morbidissima per piccoli disallineamenti
         elif on_line_l:
-            error = -1.0  # Decisamente verso sinistra
+            error = -1.0  # Curva stretta
         elif on_line_r:
-            error = 1.0   # Decisamente verso destra
+            error = 1.0   # Curva stretta
         elif on_line_c:
             error = 0.0   # Perfettamente allineato
         else:

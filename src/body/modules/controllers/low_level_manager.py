@@ -32,16 +32,15 @@ class LowLevelManager:
         
         # --- PARAMETRI MATEMATICI DEL CONTROLLORE PID ---
         # Kp: Coefficiente di guadagno Proporzionale. Determina la reattività istantanea all'errore.
-        # Valore attuale 0.28: fornisce una sterzata robusta per curve strette ma senza sbandare.
-        self.kp = 0.28  
+        self.kp = 0.26  
         
         # Ki: Coefficiente di guadagno Integrale. Elimina l'errore stazionario a regime (steady-state).
-        # Impostato a 0.0 in scenari Line-Follower per evitare l'accumulo in curva (Windup error). 
         self.ki = 0.0   
         
-        # Kd: Coefficiente di guadagno Derivativo. Smorza le oscillazioni reagendo alla velocità
-        # della variazione dell'errore (effetto frenante proporzionale alla derivata "de/dt").
-        self.kd = 0.01  
+        # Kd: Coefficiente di guadagno Derivativo. SUI SENSORI DISCRETI DEVE ESSERE ZERO.
+        # I salti discreti dell'errore (0.0 -> 0.5) causano derivate infinite (spike)
+        # che letteralmente "calciano" via il robot inducendo una violentissima oscillazione.
+        self.kd = 0.0  
         
         # --- REGISTRI DI STATO PID (Memoria del controllore) ---
         self.prev_error = 0.0      # Errore rilevato nel ciclo macchina precedente (t-1)
@@ -121,11 +120,11 @@ class LowLevelManager:
             # 1. Elaborazione dell'uscita matematica nuda del PID
             target_w = self.calculate_pid(error)
             
-            # --- FILTRO PASSA-BASSO (Exponential Moving Average / EMA) ---
-            # La sterzata netta generata dal PID verrebbe passata in un unico ciclo a "scalino", 
-            # causando bruschi sovraccarichi meccanici. Lo smoothing esponenziale rimedia prelevando 
-            # l'inerzia precedente della sterzata pesata a 0.4 e iniettando solo la differenza pesata a 0.6.
-            self.current_w = (self.current_w * 0.4) + (target_w * 0.6)
+            # --- AZZERAMENTO FILTRO PASSA-BASSO ---
+            # Su un follower a griglia discreta di sensori, il ritardo di fase (anche minimo)
+            # impedisce di agganciare istantaneamente la zona 0, causando l'overshoot (hunting).
+            # Pertanto scarichiamo l'output del PID direttamente sulle ruote azzerando il lag.
+            self.current_w = target_w
             
             W = self.current_w
             V = target_speed
