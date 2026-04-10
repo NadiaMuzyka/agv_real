@@ -52,7 +52,7 @@ def crea_albero_agv():
     sequenza_percorso = py_trees.composites.Sequence("Generazione Percorso", memory=False)
     condizione_percorso = IlPercorsoEStatoCalcolato()
     calcola_percorso = CalcolaPercorso()
-    sequenza_percorso.add_children([calcola_percorso, condizione_percorso])
+    sequenza_percorso.add_children([condizione_percorso, calcola_percorso])
 
     # 3.2.2: Operazione sul Nodo (Ritiro O Consegna)
     selettore_operazione = py_trees.composites.Selector("Operazione Nodo", memory=False)

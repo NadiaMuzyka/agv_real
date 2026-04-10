@@ -212,21 +212,20 @@ class GeneraPianoOttimale(py_trees.behaviour.Behaviour):
         
         # return py_trees.common.Status.SUCCESS
 
-class EstraiProssimoNodo(py_trees.behaviour.Behaviour):
-    """
-    Azione: Estrae il prossimo nodo target dalla lista pianificata.
-    """
+class NavigaVersoTarget(py_trees.behaviour.Behaviour):
     def __init__(self):
-        super(EstraiProssimoNodo, self).__init__(name="Estrai Prossimo Nodo")
-        self.blackboard = py_trees.blackboard.Client(name=self.name)
-        self.blackboard.register_key(key="mission_queue", access=py_trees.common.Access.WRITE)
-        self.blackboard.register_key(key="current_target", access=py_trees.common.Access.WRITE)
-        self.blackboard.register_key(key="current_position", access=py_trees.common.Access.READ)
-        self.blackboard.register_key(key="logic_controller", access=py_trees.common.Access.READ)
-        self.blackboard.register_key(key="next_node", access=py_trees.common.Access.WRITE) 
+        print("Inizializzo nodo NavigaVersoTarget")
 
+class IlPercorsoEStatoCalcolato(py_trees.behaviour.Behaviour):
+    def __init__(self):
+        print("Inizializzo nodo IlPercorsoEStatoCalcolato")
+        super(IlPercorsoEStatoCalcolato, self).__init__(name="Il Percorso È Stato Calcolato")
+        self.blackboard = py_trees.blackboard.Client(name=self.name)
+        self.blackboard.register_key(key="path_to_target", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="current_target", access=py_trees.common.Access.READ)
+        
     def setup(self):
-        print("Setup EstraiProssimoNodo")
+        print("Setup IlPercorsoEStatoCalcolato")
         return True
 
     def initialise(self):
@@ -234,147 +233,27 @@ class EstraiProssimoNodo(py_trees.behaviour.Behaviour):
 
     def update(self):
         try:
-            coda = self.blackboard.mission_queue
+            percorso = self.blackboard.path_to_target
             target_attuale = self.blackboard.current_target
         except KeyError:
             return py_trees.common.Status.FAILURE
-        #Sono già in un nodo, se questo nodo è il mio prossimo nodo (next_node)
-        #allora 
-        if :
-            
-            prossimo_target = coda.pop(0)
-            
-            self.blackboard.current_target = prossimo_target
-            
-            self.blackboard.mission_queue = coda
-            
-            print(f"[EstraiProssimoNodo] Estratto nuovo target: {prossimo_target}. Rimasti in coda: {len(coda)}")
-            
+        
+        if percorso is None or target_attuale is None:
+            print(f"[{self.name}] Il percorso verso il target {target_attuale} è stato calcolato.")
             return py_trees.common.Status.SUCCESS
-
-        if target_attuale is not None:
-             return py_trees.common.Status.SUCCESS
-
+        
         return py_trees.common.Status.FAILURE
+    
 
-class NavigaVersoNodo(py_trees.behaviour.Behaviour):
-    """
-    Azione: Calcola il percorso ed esegue la navigazione verso il target attuale.
-    """
+class CalcolaPercorso(py_trees.behaviour.Behaviour):
     def __init__(self):
-        super(NavigaVersoNodo, self).__init__(name="Naviga Verso Nodo")
+        print("Inizializzo nodo CalcolaPercorso")
+        super(CalcolaPercorso, self).__init__(name="Calcola Percorso")
         self.blackboard = py_trees.blackboard.Client(name=self.name)
-        
         self.blackboard.register_key(key="logic_controller", access=py_trees.common.Access.READ)
-        self.blackboard.register_key(key="current_target", access=py_trees.common.Access.READ)
-        self.blackboard.register_key(key="current_position", access=py_trees.common.Access.READ)
-        self.blackboard.register_key(key="next_node", access=py_trees.common.Access.WRITE)
-        self.blackboard.register_key(key="path_to_target", access=py_trees.common.Access.WRITE)
-        self.blackboard.register_key(key="path_to_target", access=py_trees.common.Access.READ)
-        self.blackboard.register_key(key="next_node", access=py_trees.common.Access.READ)
-        self.blackboard.register_key(key="am_i_in_a_node", access=py_trees.common.Access.READ)
-
 
     def setup(self):
-        print("Setup NavigaVersoNodo")
-        return True
-
-    def initialise(self):
-        """ Eseguito UNA SOLA VOLTA all'inizio della navigazione. """
-        print("[NavigaVersoNodo] Inizializzazione navigazione...")
-        try:
-            lc = self.blackboard.logic_controller
-            posizione_attuale = self.blackboard.current_position
-            
-            # SALVAVITA: Controlliamo che il target esista davvero prima di estrarre l'ID
-            target = self.blackboard.current_target
-            if target is None:
-                print("[NavigaVersoNodo] ERRORE: Nessun target definito durante l'inizializzazione!")
-                return
-                
-            destinazione_finale = target["id"]
-            lc.find_path(posizione_attuale, destinazione_finale)
-            
-        except KeyError:
-            return
-
-
-    def update(self):
-        """ Eseguito CONTINUAMENTE finché restituisce RUNNING. """
-        
-        # 1. LETTURA DATI FRESCHI DALLA BLACKBOARD
-        try:
-            posizione_attuale = self.blackboard.current_position
-            prossimo_nodo = self.blackboard.next_node
-            percorso_rimanente = self.blackboard.path_to_target
-            lc = self.blackboard.logic_controller
-            am_i_in_a_node = self.blackboard.am_i_in_a_node
-            target = self.blackboard.current_target 
-        except KeyError:
-            return py_trees.common.Status.FAILURE
-
-        # Sicurezza: se non c'è una missione attiva, il nodo fallisce
-        if target is None:
-            return py_trees.common.Status.FAILURE
-
-        # 2. SE IL ROBOT E' FERMO IN UN NODO (am_i_in_a_node == True)
-        if am_i_in_a_node:
-            
-            # CASO A: VITTORIA! Siamo al traguardo finale.
-            if posizione_attuale == target["id"]:
-                print(f"[{self.name}] 📍 Arrivati a destinazione finale: {posizione_attuale}")
-                
-                comando_stop = {
-                    "type": "STOP", 
-                    "current_position": posizione_attuale
-                }
-                lc.db.set_command(lc.db.COMMAND_CHANNEL, comando_stop)
-                
-                return py_trees.common.Status.SUCCESS
-                
-            # CASO B: NODO INTERMEDIO. Aggiorniamo la mappa se siamo arrivati al prossimo_nodo
-            if posizione_attuale == prossimo_nodo and len(percorso_rimanente) > 0:
-                nuovo_prossimo_nodo = percorso_rimanente.pop(0)
-                
-                # Aggiorniamo Blackboard
-                self.blackboard.next_node = nuovo_prossimo_nodo
-                self.blackboard.path_to_target = percorso_rimanente
-                
-                # Aggiorniamo Redis
-                lc.update_path_in_redis(nuovo_prossimo_nodo, percorso_rimanente)
-                
-                print(f"[{self.name}] Raggiunto snodo: {posizione_attuale}. Calcolo rotta verso {nuovo_prossimo_nodo}...")
-                
-            # CASO C: PARTENZA. 
-            # Ci arriviamo sia se abbiamo estratto un nuovo nodo (Caso B), sia se siamo appena partiti.
-            print(f"[{self.name}] Invio comando: Partenza da {posizione_attuale} verso {self.blackboard.next_node}...")
-            
-            comando_move = {
-                "type": "MOVE_TO",
-                "next_node": self.blackboard.next_node,
-                "current_position": posizione_attuale
-            }
-            lc.db.set_command(lc.db.COMMAND_CHANNEL, comando_move)
-            
-            return py_trees.common.Status.RUNNING
-
-        # 3. SE IL ROBOT E' IN VIAGGIO (am_i_in_a_node == False)
-        # Il BT non fa assolutamente nulla. Sta in silenzio e aspetta che i sensori confermino l'arrivo.
-        return py_trees.common.Status.RUNNING
-
-## NODO DI CONDIZIONE PER VERIFICARE L'ARRIVO A UN NODO  
-class ArrivatoANodo(py_trees.behaviour.Behaviour):
-    """
-    Condizione: verifica quando il robot e' fermo su un nodo del grafo.s
-    SUCCESS quando il robot e' in un nodo, RUNNING mentre e' in movimento.
-    """
-    def __init__(self):
-        super(ArrivatoANodo, self).__init__(name="Arrivato A Nodo")
-        self.blackboard = py_trees.blackboard.Client(name=self.name)
-        self.blackboard.register_key(key="am_i_in_a_node", access=py_trees.common.Access.READ)
-
-    def setup(self):
-        print("Setup ArrivatoANodo")
+        print("Setup CalcolaPercorso")
         return True
 
     def initialise(self):
@@ -382,11 +261,14 @@ class ArrivatoANodo(py_trees.behaviour.Behaviour):
 
     def update(self):
         try:
-            am_i_in_a_node = self.blackboard.am_i_in_a_node
+            lc = self.blackboard.logic_controller
         except KeyError:
             return py_trees.common.Status.FAILURE
-
-        if am_i_in_a_node:
-            return py_trees.common.Status.SUCCESS
-
         
+        esito = lc.calculate_path_to_current_target()
+        if esito is "FAILURE":
+            print(f"[{self.name}] ERRORE: Impossibile calcolare il percorso verso il target.")
+            return py_trees.common.Status.FAILURE
+        else:
+            print(f"[{self.name}] Percorso calcolato con successo: {esito}")
+            return py_trees.common.Status.SUCCESS

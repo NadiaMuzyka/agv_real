@@ -23,6 +23,7 @@ class LogicController:
         self.blackboard.register_key(key="am_i_in_a_node", access=py_trees.common.Access.WRITE)#sono in un nodo?
         self.blackboard.register_key(key="is_charging", access=py_trees.common.Access.WRITE)#sto ricaricando?
         self.blackboard.register_key(key="current_target", access=py_trees.common.Access.WRITE)#nodo target della missione in corso, None se non c'è missione in corso
+        self.blackboard.register_key(key="is_load", access=py_trees.common.Access.WRITE)#sto trasportando un carico?
         self.blackboard.register_key(key="temp", access=py_trees.common.Access.WRITE)#variabile temporanea per salvare dati vari, non persistente su Redis
         self.navigatore = NavigatoreGrafo() 
 
@@ -51,7 +52,7 @@ class LogicController:
         self.blackboard.current_position = sensor_data.get("current_position", "I3")#posizione attuale dell'AGV
         self.blackboard.path_to_target = sensor_data.get("path_to_target", [])#percorso completo verso il target
         self.blackboard.is_charging = sensor_data.get("is_charging", False)#sono in modalità ricarica?
-
+        self.blackboard.is_load = sensor_data.get("is_load", False)#sto trasportando un carico?
         #self.temp è nella blackboard, ma non è persistente su Redis
 
     #Metodo per settare la modalità di energia
@@ -184,6 +185,10 @@ class LogicController:
         self.db.set_command(self.db.COMMAND_CHANNEL, command)
         print("[LogicController] Comando STOP inviato.")
         return True
+
+    #Metodo per calcolare il percorso verso il target della missione in corso
+    def calculate_path_to_current_target(self):
+        
 
     #Metodo per leggere un file JSON 
     def read_json_file(self, file_path: str)-> dict:

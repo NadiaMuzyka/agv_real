@@ -47,8 +47,8 @@ graph TD
     %% A. Navigazione verso il prossimo nodo
     ExecuteSeq --> PathSeq[<h1><b>--></b></h1><b>Seq</b>: Generazione Percorso]:::sequence
     ExecuteSeq --> MoveNode[Az: Vai al target]:::action
-    PathSeq --> IsAtNode{Cond: Il percorso è stato calcolato?}:::condition
-    PathSeq --> GetNextNode[Az: Calcola percorso]:::action
+    PathSeq --> IsPathCalculated{Cond: Il percorso è stato calcolato?}:::condition
+    PathSeq --> CalculatePath[Az: Calcola percorso]:::action
 
     
     
