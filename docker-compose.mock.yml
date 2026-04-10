@@ -1,0 +1,5 @@
+services:
+  body:
+    # Sovrascriviamo SOLO il comando finale, dicendo a Docker 
+    # di usare il tuo script invece di quello di Nadia
+    command: ["python", "-u", "mock_body.py"]
