@@ -165,42 +165,52 @@ class GeneraPianoOttimale(py_trees.behaviour.Behaviour):
         self.blackboard.register_key(key="temp", access=py_trees.common.Access.WRITE) # Variabile temporanea per salvare dati vari, non persistente su Redis
 
     def update(self):
-        coda = self.blackboard.mission_queue
-        posizione_attuale = self.blackboard.current_position
+
         lc = self.blackboard.logic_controller
-        
-        if len(coda) <= 1:
-            # Se c'è un solo task (o zero), non c'è nulla da ottimizzare
+        esito = lc.create_optimal_plan()
+        if esito is "FAILURE":
+            print(f"[{self.name}] ERRORE: Impossibile generare un piano ottimale.")
+            return py_trees.common.Status.FAILURE
+        else:            
+            print(f"[{self.name}] Piano ottimale generato con successo: {esito}")
             return py_trees.common.Status.SUCCESS
 
-        # PESI DELL'ALGORITMO (da tarare empiricamente nel tuo simulatore)
-        PESO_DISTANZA = 1.0  
-        PESO_INVECCHIAMENTO = 0.5 # Quanto valore diamo all'attesa?
+        # coda = self.blackboard.mission_queue
+        # posizione_attuale = self.blackboard.current_position
+        # lc = self.blackboard.logic_controller
+        
+        # if len(coda) <= 1:
+        #     # Se c'è un solo task (o zero), non c'è nulla da ottimizzare
+        #     return py_trees.common.Status.SUCCESS
 
-        for task in coda:
-            # 1. Calcola Distanza Reale (o stimata) dal robot al punto di PICKUP
-            nodo_pickup = task['id'] 
-            distanza = lc.calcola_distanza_stimata(posizione_attuale, nodo_pickup)
-            
-            # 2. Calcola Invecchiamento (se il server ti passa un timestamp di creazione)
-            # time_in_queue = time.time() - task['timestamp_creazione']
-            # Per ora, se non hai il timestamp, possiamo usare l'indice originale nella coda: 
-            # i task arrivati prima hanno un indice più basso (maggiore priorità temporale).
-            invecchiamento = task.get('tempo_attesa', 0) # Assumiamo che il server ce lo dia, o lo calcoliamo
-            
-            # 3. CALCOLO DELLO SCORE (Più è basso, meglio è)
-            # La distanza penalizza (aumenta lo score), l'attesa premia (abbassa lo score)
-            task['score_ottimizzazione'] = (distanza * PESO_DISTANZA) - (invecchiamento * PESO_INVECCHIAMENTO)
+        # # PESI DELL'ALGORITMO (da tarare empiricamente nel tuo simulatore)
+        # PESO_DISTANZA = 1.0  
+        # PESO_INVECCHIAMENTO = 0.5 # Quanto valore diamo all'attesa?
 
-        # 4. RIORDINA LA CODA IN BASE ALLO SCORE (Dal minore al maggiore)
-        coda_ordinata = sorted(coda, key=lambda x: x['score_ottimizzazione'])
+        # for task in coda:
+        #     # 1. Calcola Distanza Reale (o stimata) dal robot al punto di PICKUP
+        #     nodo_pickup = task['id'] 
+        #     distanza = lc.calcola_distanza_stimata(posizione_attuale, nodo_pickup)
+            
+        #     # 2. Calcola Invecchiamento (se il server ti passa un timestamp di creazione)
+        #     # time_in_queue = time.time() - task['timestamp_creazione']
+        #     # Per ora, se non hai il timestamp, possiamo usare l'indice originale nella coda: 
+        #     # i task arrivati prima hanno un indice più basso (maggiore priorità temporale).
+        #     invecchiamento = task.get('tempo_attesa', 0) # Assumiamo che il server ce lo dia, o lo calcoliamo
+            
+        #     # 3. CALCOLO DELLO SCORE (Più è basso, meglio è)
+        #     # La distanza penalizza (aumenta lo score), l'attesa premia (abbassa lo score)
+        #     task['score_ottimizzazione'] = (distanza * PESO_DISTANZA) - (invecchiamento * PESO_INVECCHIAMENTO)
+
+        # # 4. RIORDINA LA CODA IN BASE ALLO SCORE (Dal minore al maggiore)
+        # coda_ordinata = sorted(coda, key=lambda x: x['score_ottimizzazione'])
         
-        # Scrivi la nuova coda ottimizzata sulla Blackboard
-        self.blackboard.mission_queue = coda_ordinata
+        # # Scrivi la nuova coda ottimizzata sulla Blackboard
+        # self.blackboard.mission_queue = coda_ordinata
         
-        print(f"[GeneraPianoOttimale] Coda riordinata online! Prossimo target: {coda_ordinata[0]['id']}")
+        # print(f"[GeneraPianoOttimale] Coda riordinata online! Prossimo target: {coda_ordinata[0]['id']}")
         
-        return py_trees.common.Status.SUCCESS
+        # return py_trees.common.Status.SUCCESS
 
 class EstraiProssimoNodo(py_trees.behaviour.Behaviour):
     """
