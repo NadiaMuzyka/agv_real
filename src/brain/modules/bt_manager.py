@@ -49,7 +49,7 @@ def crea_albero_agv():
     sequenza_esecuzione = py_trees.composites.Sequence("Esecuzione Step", memory=False)
     vai_a_target = NavigaVersoTarget()
     # 3.2.1: Generazione Percorso verso il Nodo Target
-    sequenza_percorso = py_trees.composites.Sequence("Generazione Percorso", memory=False)
+    sequenza_percorso = py_trees.composites.Selector("Generazione Percorso", memory=False)
     condizione_percorso = IlPercorsoEStatoCalcolato()
     calcola_percorso = CalcolaPercorso()
     sequenza_percorso.add_children([condizione_percorso, calcola_percorso])

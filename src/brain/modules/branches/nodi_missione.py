@@ -102,7 +102,7 @@ class RiceviListaPallet(py_trees.behaviour.Behaviour):
             return py_trees.common.Status.FAILURE
 
         esito = lc.download_mission_from_central_system()
-        if esito is "FAILURE":
+        if esito == "FAILURE":
             print(f"[{self.name}] ERRORE: Impossibile contattare il Fleet Manager per scaricare la lista pallet.")
             return py_trees.common.Status.FAILURE
         else:
@@ -168,7 +168,7 @@ class GeneraPianoOttimale(py_trees.behaviour.Behaviour):
 
         lc = self.blackboard.logic_controller
         esito = lc.create_optimal_plan()
-        if esito is "FAILURE":
+        if esito == "FAILURE":
             print(f"[{self.name}] ERRORE: Impossibile generare un piano ottimale.")
             return py_trees.common.Status.FAILURE
         else:            
@@ -238,10 +238,14 @@ class IlPercorsoEStatoCalcolato(py_trees.behaviour.Behaviour):
         except KeyError:
             return py_trees.common.Status.FAILURE
         
-        if percorso is None or target_attuale is None:
+        # Controlliamo che esista un percorso valido verso il target attuale
+        if target_attuale is not None and isinstance(percorso, list) and len(percorso) > 0:
             print(f"[{self.name}] Il percorso verso il target {target_attuale} è stato calcolato.")
             return py_trees.common.Status.SUCCESS
         
+        #Se non c'è un percorso significa che o c'è stato un errore
+        #oppure sono arrivato al targhet ho effettuato un pickup/dropoff 
+        #e ora devo decidere il prossimo target da raggiungere
         return py_trees.common.Status.FAILURE
     
 
@@ -266,7 +270,7 @@ class CalcolaPercorso(py_trees.behaviour.Behaviour):
             return py_trees.common.Status.FAILURE
         
         esito = lc.calculate_path_to_current_target()
-        if esito is "FAILURE":
+        if esito == "FAILURE":
             print(f"[{self.name}] ERRORE: Impossibile calcolare il percorso verso il target.")
             return py_trees.common.Status.FAILURE
         else:

@@ -44,11 +44,11 @@ graph TD
     %% 3.3 Esecuzione (Se ho il piano)
     MissionSel --> ExecuteSeq[<h1><b>--></b></h1><b>Seq</b>: Esecuzione Step]:::sequence
     
-    %% A. Navigazione verso il prossimo nodo
-    ExecuteSeq --> PathSeq[<h1><b>--></b></h1><b>Seq</b>: Generazione Percorso]:::sequence
+    %% A. Generazione Percorso per il Nodo Target
+    ExecuteSeq --> PathSel[<h1><b>?</b></h1><b>Selector</b>: Generazione Percorso]:::selector
     ExecuteSeq --> MoveNode[Az: Vai al target]:::action
-    PathSeq --> IsPathCalculated{Cond: Il percorso è stato calcolato?}:::condition
-    PathSeq --> CalculatePath[Az: Calcola percorso]:::action
+    PathSel --> IsPathCalculated{Cond: Il percorso è stato calcolato?}:::condition
+    PathSel --> CalculatePath[Az: Calcola percorso]:::action
 
     
     

@@ -78,7 +78,7 @@ class CalcolaPercorsoRicarica(py_trees.behaviour.Behaviour):
             print("[CalcolaPercorsoRicarica] Già in missione verso la stazione di ricarica, non ricalcolo il percorso.")
             return Status.SUCCESS
         else:
-            esito = LogicController.find_path(nodo_partenza, self.nodo_ricarica)
+            esito = LogicController.find_path_to_recharge(nodo_partenza, self.nodo_ricarica)
             match esito:
                 case True:
                     return Status.SUCCESS

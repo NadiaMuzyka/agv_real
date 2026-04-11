@@ -2,6 +2,7 @@
 import time
 import random
 import py_trees
+import json
 from modules.redis_interface import RedisInterface 
 from modules.navigatore_grafo import NavigatoreGrafo
 
@@ -62,8 +63,8 @@ class LogicController:
         else:
             self.db.update_sensor_data("agv_sensors", {"is_charging": False})
 
-    #Metodo per trovare il percorso ottimo tra due nodi
-    def find_path(self, nodo_partenza: str, nodo_arrivo: str) -> bool:
+    #Metodo per trovare il percorso ottimo tra due nodi (per la ricarica)
+    def find_path_to_recharge(self, nodo_partenza: str, nodo_arrivo: str) -> bool:
 
         print(f"[LogicController] Trovando percorso da {nodo_partenza} a {nodo_arrivo}...")
         # percorso = lista di stringhe (nodi da attraversare), distanza = float (costo totale del percorso) 
@@ -78,7 +79,22 @@ class LogicController:
         else:
             print(f"[LogicController] Nessun percorso trovato da {nodo_partenza} a {nodo_arrivo}.")
             return False
-        
+
+    #Metodo per trovare il percorso ottimo tra due nodi (generico)
+    """
+        restituisce una lista di nodi da attraversare per andare da nodo_partenza
+        a nodo_arrivo, o False se non esiste un percorso valido.
+    """
+    def find_path(self, nodo_partenza: str, nodo_arrivo: str) -> list|bool:
+        print(f"[LogicController] Trovando percorso da {nodo_partenza} a {nodo_arrivo}...")
+        percorso = self.navigatore.trova_percorso_minimo(nodo_partenza, nodo_arrivo)[0]
+        if percorso:
+            print(f"[LogicController] Percorso trovato: {percorso}")
+            return percorso
+        else:
+            print(f"[LogicController] Nessun percorso trovato da {nodo_partenza} a {nodo_arrivo}.")
+            return False
+    
     #Metodo per aggiornare mission queue e current target
     def update_mission_for_recharge(self, path: list)-> bool:
         """ Aggiorna la mission queue e il current target sulla blackboard. """
@@ -188,8 +204,71 @@ class LogicController:
 
     #Metodo per calcolare il percorso verso il target della missione in corso
     def calculate_path_to_current_target(self):
-        
+        #controllo se ho un carico da trasportare a bordo,
+        # se si,mi trovo in un nodo e il targhet sarà la destinazione
+        # dove devo consegnare il carico
+        if self.blackboard.is_load and self.blackboard.am_i_in_a_node: 
+            nodo_partenza = self.blackboard.current_position
+            primo_elemento_missione = self.blackboard.mission_queue[0] if len(self.blackboard.mission_queue)>0 else None
 
+            if primo_elemento_missione is not None:
+                nodo_arrivo = primo_elemento_missione.get("destination")
+                if nodo_arrivo is not None:
+                    esito = self.find_path(nodo_partenza, nodo_arrivo)
+                    if esito != False:
+                        aggiornamenti = {
+                            "current_target": nodo_arrivo,
+                            "path_to_target": esito,
+                            "next_node": esito[1] if len(esito)>1 else None
+                        }
+                        try:
+                            self.db.update_sensor_data("agv_sensors", aggiornamenti)
+                            return "SUCCESS"
+                        except Exception as e:
+                            print(f"[LogicController] Errore nell'aggiornamento del percorso verso il target su Redis: {e}")
+                            return "FAILURE"
+                    else:
+                        print("[LogicController] Errore: percorso verso il target non trovato.")
+                        return "FAILURE"   
+                else:
+                    print("[LogicController] Errore: destinazione non trovata nella mission queue.")
+                    return "FAILURE"
+            else:
+                print("[LogicController] Errore: mission queue vuota, nessun target da raggiungere.")
+                return "FAILURE"
+        # se invece non ho un carico a bordo, 
+        # mi trovo in un nodo e il target sarà il nodo di pick up
+        # del prossimo carico da prendere
+        else:
+            nodo_partenza = self.blackboard.current_position
+            primo_elemento_missione = self.blackboard.mission_queue[0] if len(self.blackboard.mission_queue) > 0 else None
+            if primo_elemento_missione is not None:
+                nodo_arrivo = primo_elemento_missione.get("pick_up_position")
+                if nodo_arrivo is not None:
+                    esito = self.find_path(nodo_partenza, nodo_arrivo)
+                    if esito != False:
+                        aggiornamenti = {
+                            "current_target": nodo_arrivo,
+                            "path_to_target": esito,
+                            "next_node": esito[1] if len(esito)>1 else None
+                        }
+                        try:
+                            self.db.update_sensor_data("agv_sensors", aggiornamenti)
+                            return "SUCCESS"
+                        except Exception as e:
+                            print(f"[LogicController] Errore nell'aggiornamento del percorso verso il target su Redis: {e}")
+                            return "FAILURE"
+                    else:
+                        print("[LogicController] Errore: percorso verso il target non trovato.")
+                        return "FAILURE"   
+                else:
+                    print("[LogicController] Errore: pick_up_position non trovata nella mission queue.")
+                    return "FAILURE"
+            else:
+                print("[LogicController] Errore: mission queue vuota, nessun target da raggiungere.")
+                return "FAILURE"
+    
+    
     #Metodo per leggere un file JSON 
     def read_json_file(self, file_path: str)-> dict:
         """ Legge un file JSON e restituisce il contenuto come dizionario. """
@@ -276,17 +355,35 @@ class LogicController:
                 })
         return result
 
-    #metodo per creare un piano ottimale a partire da infopack e plan
-    def create_optimal_plan(self, mission_queue: list) -> list:
-        infopack = self.blackboard.temp.get("info_pack", {})
-        plan = self.blackboard.temp.get("plan", {})
+    #Metodo per creare un piano ottimale a partire da infopack e plan
+    def create_optimal_plan(self) -> str:
+
+        infopack = self.blackboard.temp.get("info_pack", [])
+        plan = self.blackboard.temp.get("plan", [])
+
+        if not isinstance(infopack, list) or not isinstance(plan, list):
+            print("[LogicController] Dati missione non validi (info_pack/plan).")
+            return "FAILURE"
+        
         merge_result = self.merge_plan_infopack(plan, infopack)
+
+        if not merge_result:
+            print("[LogicController] Nessuna attività valida trovata dopo la fusione di plan e infopack.")
+            return "FAILURE"
+        
         # ordiniamo la lista risultante in base alla priorità (dal più alto al più basso)
-        ordered_result = sorted(merge_result, key=lambda x: x['priority'], reverse=True)
+        ordered_result = sorted(merge_result, key=lambda x: x.get("priority", 0), reverse=True)
         aggiornamenti = {
             "mission_queue": ordered_result
         }
-        self.db.update_sensor_data("agv_sensors", aggiornamenti)
+
+        try:
+            self.db.update_sensor_data("agv_sensors", aggiornamenti)
+            print(f"[LogicController] Piano ottimale creato e mission queue aggiornata: {ordered_result}")
+            return "SUCCESS"
+        except Exception as e:
+            print(f"[LogicController] Errore nell'aggiornamento della mission queue su Redis: {e}")
+            return "FAILURE"
 
 
 
