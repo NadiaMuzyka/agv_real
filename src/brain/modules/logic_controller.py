@@ -385,8 +385,9 @@ class LogicController:
             print(f"[LogicController] Errore nell'aggiornamento della mission queue su Redis: {e}")
             return "FAILURE"
 
-
-
+    #Metodo per raggiungere il nodo target
+    def navigate_to_current_target(self) -> str:
+        
 
 
 

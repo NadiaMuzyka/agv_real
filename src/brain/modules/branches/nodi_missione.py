@@ -215,7 +215,25 @@ class GeneraPianoOttimale(py_trees.behaviour.Behaviour):
 class NavigaVersoTarget(py_trees.behaviour.Behaviour):
     def __init__(self):
         print("Inizializzo nodo NavigaVersoTarget")
+        self.blackboard = py_trees.blackboard.Client(name=self.name)
+        self.blackboard.register_key(key="logic_controller", access=py_trees.common.Access.READ)
 
+    def setup(self):
+        print("Setup NavigaVersoTarget")
+        return True
+
+    def initialise(self):
+        pass
+
+    def update(self):
+        esito = self.blackboard.logic_controller.navigate_to_current_target()
+        if esito == "SUCCESS":
+            return py_trees.common.Status.SUCCESS
+        elif esito == "RUNNING":
+            return py_trees.common.Status.RUNNING
+        else:
+                return py_trees.common.Status.FAILURE
+        
 class IlPercorsoEStatoCalcolato(py_trees.behaviour.Behaviour):
     def __init__(self):
         print("Inizializzo nodo IlPercorsoEStatoCalcolato")
