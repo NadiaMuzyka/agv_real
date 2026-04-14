@@ -9,11 +9,13 @@ graph TD
         
     subgraph BRAIN_CONTAINER [Container BRAIN - Logic]
         BT[<b>Behavior Tree</b><br/>Manager]:::brain
-        LOGIC[<b>Controller di Alto Livello</b><br/>Python Class]:::brain
+        LOGIC[<b>Logic Controller</b><br/>Python Class]:::brain
     end
 
     subgraph REDIS_CONTAINER [Container REDIS]
-        DB[(<b>REDIS SERVER</b><br/>Key-Value & Pub/Sub)]:::redis
+        MESSAGER_SERVER[(<b>MESSAGER SERVER</b><br/>Key-Value & Pub/Sub)]:::redis
+        BRAIN_MEMORY[(<b>BRAIN MEMORY</b><br/>Key-Value & Pub/Sub)]:::redis
+        BODY_MEMORY[(<b>BODY MEMORY</b><br/>Key-Value & Pub/Sub)]:::redis
     end
 
     subgraph BODY_CONTAINER [Container BODY - Actuators & Sensors]
@@ -21,12 +23,11 @@ graph TD
             GEN_SENS[<b>GENERIC SENSOR</b><br/>Class SensorObj<br/>Legge dai sensori e rielabora i dati, fa da <b>Perseption</b>]:::body
         end
 
-        subgraph ACTUATORS [ACTUATORS MODULE]
-            LOW_CTR[<b>Controllore di basso livello</b>]:::body
-            LOW_CTR_LL[<b>Sotto-controllore</b><br/>PID/Velocity/Position]:::body
-            CTR_CINGOLO[<b>Controllore Cingoli</b><br/>Class TrackController]:::body
-            ACT_CINGOLO[<b>Attuatore Cingoli</b><br/>Class TrackActuator<br/>]:::body
-            GEN_ACT[<b>GENERIC ACTUATOR</b><br/>Class ActuatorObj<br/>]:::body
+        subgraph CONTROLLER [CONTROLLER MODULE]
+            TASK_CONTROLLER[<b>TASK CONTROLLER</b><br/> legge dall'alto i comandi provenienti dal BRAIN]:::body
+            PATH_CTR[<b>PATH CONTROLLER</b>]:::body
+            DELIVERY_CTR[<b>DELIVERY CONTROLLER</b>]:::body
+            
         end
         
         BRIDGE[<b>Coppelia Connector</b><br/>Singleton ZMQ]:::body
@@ -45,14 +46,17 @@ graph TD
     %% --- FLUSSO DATI (SENSE) ---
     SIM_SENSOR -- "1. Dati Grezzi (ZMQ)" --> BRIDGE
     BRIDGE --> GEN_SENS
-    GEN_SENS -- "2. SET 'sensor_data'" --> DB
-    DB -- "3. GET 'sensor_data'" --> LOGIC
+    GEN_SENS -- "2. SET 'sensor_data'" --> BRAIN_MEMORY
+    BRAIN_MEMORY -- "3. GET 'sensor_data'" --> LOGIC
 
     %% --- FLUSSO DATI (ACT) ---
-    LOGIC -- "4. PUBLISH 'cmd_action'" --> DB
-    DB -.-> |"5. SUBSCRIBE 'cmd_action'"| LOW_CTR
-    DB -.-> |"5. SUBSCRIBE 'cmd_track'"| CTR_CINGOLO
+    LOGIC -- "4. PUBLISH 'cmd_action'" --> MESSAGER_SERVER
+    MESSAGER_SERVER -.-> |"5. SUBSCRIBE 'cmd_action'"| TASK_CONTROLLER
+
+    TASK_CONTROLLER --> PATH_CTR
+    TASK_CONTROLLER --> DELIVERY_CTR
     CTR_CINGOLO -->ACT_CINGOLO
+    PATH_CTR -->LOW_CTR
     LOW_CTR -->LOW_CTR_LL
     LOW_CTR_LL -->GEN_ACT
     GEN_ACT --> BRIDGE
