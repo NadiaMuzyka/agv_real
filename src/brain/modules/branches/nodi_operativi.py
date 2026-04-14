@@ -6,8 +6,6 @@ from py_trees.common import Status
 # 4. NODI OPERATIVI (RITIRO E CONSEGNA)
 # =============================================================================
 
-# esempio dizionario di current_target
-# {"id": "E1", "tipo_azione": "PICKUP"}
 
 class ENodoDiPrelievo(py_trees.behaviour.Behaviour):
     """
@@ -19,6 +17,7 @@ class ENodoDiPrelievo(py_trees.behaviour.Behaviour):
         self.blackboard.register_key(key="current_target", access=py_trees.common.Access.READ)
         self.blackboard.register_key(key="current_position", access=py_trees.common.Access.READ)
         self.blackboard.register_key(key="am_i_in_a_node", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="is_load", access=py_trees.common.Access.READ)
 
     def setup(self):
         print("Setup ENodoDiPrelievo")
@@ -32,6 +31,7 @@ class ENodoDiPrelievo(py_trees.behaviour.Behaviour):
             target = self.blackboard.current_target
             pos_attuale = self.blackboard.current_position
             am_i_in_a_node = self.blackboard.am_i_in_a_node
+            is_load = self.blackboard.is_load
         except KeyError:
             return py_trees.common.Status.FAILURE
 
@@ -40,10 +40,10 @@ class ENodoDiPrelievo(py_trees.behaviour.Behaviour):
 
         #print(f"[ENodoDiPrelievo] Valuto il target: {target['id']} (Azione: {target.get('tipo_azione')})")
         
-        if target.get("tipo_azione") != "PICKUP":
+        if is_load:
             return py_trees.common.Status.FAILURE
         
-        if pos_attuale == target.get("id") and am_i_in_a_node:
+        if pos_attuale == target and am_i_in_a_node:
             #print(f"[ENodoDiPrelievo] ✅ CONFERMATO: Siamo fisicamente sul nodo di prelievo {target.get('id')}.")
             return py_trees.common.Status.SUCCESS
         
@@ -60,7 +60,7 @@ class EseguiPrelievo(py_trees.behaviour.Behaviour):
         
         # Registriamo le chiavi in lettura
         self.blackboard.register_key(key="logic_controller", access=py_trees.common.Access.READ)
-        #self.blackboard.register_key(key="forche_alzate", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="is_load", access=py_trees.common.Access.READ)
 
     def setup(self):
         print(f"Setup {self.name}")
@@ -81,12 +81,12 @@ class EseguiPrelievo(py_trees.behaviour.Behaviour):
     def update(self):
         """ Eseguito CONTINUAMENTE finché restituisce RUNNING. Lettura sensori. """
         try:
-            forche_alzate = self.blackboard.forche_alzate
+            is_load = self.blackboard.is_load # In questo caso, il feedback che ci interessa è se il carico è stato sollevato, non tanto lo stato delle forche
         except KeyError:
             return py_trees.common.Status.FAILURE
         
         # 1. Se le forche non sono ancora alzate, stiamo in silenzio e aspettiamo
-        if not forche_alzate:
+        if is_load:
             return py_trees.common.Status.RUNNING
             
         # 2. Il Mock Body ha aggiornato il sensore! Il prelievo è completato!
@@ -104,6 +104,7 @@ class ENodoDiConsegna(py_trees.behaviour.Behaviour):
         self.blackboard.register_key(key="current_target", access=py_trees.common.Access.READ)
         self.blackboard.register_key(key="current_position", access=py_trees.common.Access.READ)
         self.blackboard.register_key(key="am_i_in_a_node", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="is_load", access=py_trees.common.Access.READ)
     
     def setup(self):
         print("Setup ENodoDiConsegna")
@@ -117,6 +118,7 @@ class ENodoDiConsegna(py_trees.behaviour.Behaviour):
             target = self.blackboard.current_target
             pos_attuale = self.blackboard.current_position
             am_i_in_a_node = self.blackboard.am_i_in_a_node
+            is_load = self.blackboard.is_load
         except KeyError:
             return py_trees.common.Status.FAILURE
 
@@ -125,10 +127,10 @@ class ENodoDiConsegna(py_trees.behaviour.Behaviour):
 
         #print(f"[ENodoDiConsegna] Valuto il target: {target['id']} (Azione: {target.get('tipo_azione')})")
         
-        if target.get("tipo_azione") != "DELIVERY":
+        if not is_load:
             return py_trees.common.Status.FAILURE
         
-        if pos_attuale == target.get("id") and am_i_in_a_node:
+        if pos_attuale == target and am_i_in_a_node:
             #print(f"[ENodoDiConsegna] ✅ CONFERMATO: Siamo fisicamente sul nodo di consegna {target.get('id')}.")
             return py_trees.common.Status.SUCCESS
         
@@ -144,7 +146,7 @@ class EseguiConsegna(py_trees.behaviour.Behaviour):
         self.blackboard = py_trees.blackboard.Client(name=self.name)
         
         self.blackboard.register_key(key="logic_controller", access=py_trees.common.Access.READ)
-        #self.blackboard.register_key(key="forche_abbassate", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="is_load", access=py_trees.common.Access.READ)
 
     def setup(self):
         print(f"Setup {self.name}")
@@ -165,12 +167,11 @@ class EseguiConsegna(py_trees.behaviour.Behaviour):
     def update(self):
         """ Eseguito CONTINUAMENTE finché restituisce RUNNING. Lettura sensori. """
         try:
-            forche_abbassate = self.blackboard.forche_abbassate
+            is_load = self.blackboard.is_load
         except KeyError:
             return py_trees.common.Status.FAILURE
          
-        # Finché le forche sono alzate, il robot sta ancora scaricando.
-        if not forche_abbassate:
+        if is_load:
             return py_trees.common.Status.RUNNING
             
         # La conferma avviene quando forche_abbassate diventa True, segnalando che il carico è stato rilasciato.
