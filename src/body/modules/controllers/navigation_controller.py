@@ -1,187 +1,126 @@
 import time
 import logging
+from typing import Tuple, Any, Dict, Optional
+
+from .intersection_handler import IntersectionHandler
 
 logger = logging.getLogger(__name__)
 
+
 class NavigationController:
     """
-    Gestisce la logica decisionale e la strategia di navigazione del robot,
-    mantenendo il modulo main pulito.
+    Gestisce la logica decisionale e la strategia di navigazione del robot.
+
+    Restituisce comandi ad alto livello per il `LowLevelManager` durante il
+    line-following normale. Quando viene rilevato un incrocio (tutti e tre i
+    sensori leggono la linea), delega a `IntersectionHandler` una manovra
+    bloccante che esegue il posizionamento e la rotazione richiesta.
     """
 
     COLOR_LINE = (22, 22, 22)
-    COLOR_OBSTACLE = (99, 255, 22)
-    
     TOLERANCE_LINE = 50
-    TOLERANCE_OBSTACLE = 40
 
-    def __init__(self, target_speed: float):
+    def __init__(self, target_speed: float,
+                 sensor_offset_m: float = 0.70,
+                 align_speed: float = 0.05,
+                 rotation_speed: float = 0.5,
+                 ignore_window_s: float = 0.15):
         self.target_speed = target_speed
         self.last_error = 0.0
-        
-        # Coda di navigazione fittizia per incroci (Simulazione Redis/Brain)
-        self.mock_nav_queue = ["RIGHT", "LEFT", "STOP"]
+
         self.active_intersection_cooldown = 0.0
 
+        # Handler dedicato per le manovre d'incrocio (incapsula la logica bloccante)
+        self.intersection_handler = IntersectionHandler(
+            sensor_offset_m=sensor_offset_m,
+            align_speed=align_speed,
+            rotation_speed=rotation_speed,
+            ignore_window_s=ignore_window_s,
+            color_line=self.COLOR_LINE,
+            tolerance_line=self.TOLERANCE_LINE
+        )
+
     @staticmethod
-    def is_color_match(rgb, target, tolerance):
+    def is_color_match(rgb: Tuple[int, int, int], target: Tuple[int, int, int], tolerance: int) -> bool:
         """Verifica se il colore rientra nel target all'interno di un certo margine."""
         if not rgb:
             return False
-        return all(abs(c - t) <= tolerance for c, t in zip(rgb, target))
+        return all(abs(int(c) - int(t)) <= tolerance for c, t in zip(rgb, target))
 
-    def detect_obstacle(self, rgb_center) -> bool:
-        """Controlla se il sensore centrale ha individuato un ostacolo."""
-        return self.is_color_match(rgb_center, self.COLOR_OBSTACLE, self.TOLERANCE_OBSTACLE)
+    def compute_line_state(self, rgb_left: Tuple[int, int, int], rgb_center: Tuple[int, int, int], rgb_right: Tuple[int, int, int]) -> Dict[str, Any]:
+        """
+        Determina lo stato della linea e l'errore direzionale.
 
-    def compute_line_error(self, rgb_left, rgb_center, rgb_right) -> float:
-        """Determina l'errore direzionale sui 3 sensori ottici."""
+        Restituisce un dict con chiavi:
+          - 'state': 'INTERSECTION'|'LINE'|'OFF_LINE'
+          - 'error': float
+        """
         on_line_l = self.is_color_match(rgb_left, self.COLOR_LINE, self.TOLERANCE_LINE)
         on_line_c = self.is_color_match(rgb_center, self.COLOR_LINE, self.TOLERANCE_LINE)
         on_line_r = self.is_color_match(rgb_right, self.COLOR_LINE, self.TOLERANCE_LINE)
-        
-        error = 0.0
-        
-        # TRIGGER INCROCIO
+
+        # Incrocio: tutti e tre i sensori vedono la linea
         if on_line_l and on_line_c and on_line_r:
-            return 999.0
-        
+            return {"state": "INTERSECTION", "error": 0.0}
+
+        error = 0.0
+
         if on_line_l and on_line_c:
-            error = -0.25 # Correzione morbidissima per piccoli disallineamenti
+            error = -0.25
         elif on_line_r and on_line_c:
-            error = 0.25  # Correzione morbidissima per piccoli disallineamenti
+            error = 0.25
         elif on_line_l:
-            error = -1.0  # Curva stretta
+            error = -1.0
         elif on_line_r:
-            error = 1.0   # Curva stretta
+            error = 1.0
         elif on_line_c:
-            error = 0.0   # Perfettamente allineato
+            error = 0.0
         else:
-            # Sensori persi: raddoppiamo l'ultimo errore noto per perno su se stesso
+            # Sensori persi: fallback basato sull'ultimo errore noto
             error = 1.5 if self.last_error > 0 else (-1.5 if self.last_error < 0 else 0.0)
-            
+
         self.last_error = error
-        return error
 
-    def _handle_obstacle_evasion(self, wheels, manager):
-        """Esegue la manovra prefissata per aggirare un ostacolo."""
-        logger.warning("OSTACOLO RILEVATO! Avvio manovra evasiva...")
-        wheels.stop()
-        manager.execute_command({"type": "STOP"})
-        time.sleep(0.5)
-        
-        logger.info("Evasione 1/2: Rotazione a destra di 90°")
-        wheels.move(0.0, -0.5)
-        time.sleep(1.57) # ~90°
-        
-        logger.info("Evasione 2/2: Avanzamento di soppasso")
-        wheels.move(self.target_speed, 0.0)
-        time.sleep(2.0)
-        
-        logger.info("Manovra completata. Ripristino stato PID.")
-        wheels.stop()
-        time.sleep(1.0)
+        state = "LINE" if (on_line_l or on_line_c or on_line_r) else "OFF_LINE"
 
-    def _handle_intersection(self, direction: str, wheels, manager, central_sensor, left_sensor, right_sensor):
-        """Esegue una svolta all'incrocio superando fisicamente il marker spesso."""
-        logger.info(f"🛣️ Svincolo rilevato! Esecuzione istruzione: {direction}")
-        
-        wheels.stop()
-        manager.execute_command({"type": "STOP"})
-        
-        if direction == "RIGHT":
-            logger.info("-> Fase 1: Rotazione per allineamento...")
-            wheels.move(0.02, -0.5)  
-            time.sleep(0.6)
-            
-            # Attende l'allineamento frontale
-            while True:
-                rgb_c = central_sensor.read()
-                if self.is_color_match(rgb_c, self.COLOR_LINE, self.TOLERANCE_LINE):
-                    break
-                time.sleep(0.02)
-                
-            logger.info("-> Fase 2: Allineato! Avanzo per sgomberare l'area nera.")
-            wheels.move(self.target_speed, 0.0)
-            while True:
-                rgb_l = left_sensor.read()
-                rgb_r = right_sensor.read()
-                if not self.is_color_match(rgb_l, self.COLOR_LINE, self.TOLERANCE_LINE) and \
-                   not self.is_color_match(rgb_r, self.COLOR_LINE, self.TOLERANCE_LINE):
-                    break
-                time.sleep(0.02)
-                
-            logger.info("Traccia sgombra! Cedo controllo al PID.")
-            wheels.stop()
-            
-        elif direction == "LEFT":
-            logger.info("<- Fase 1: Rotazione per allineamento...")
-            wheels.move(0.02, 0.5)   
-            time.sleep(0.6)
-            
-            # Attende l'allineamento frontale
-            while True:
-                rgb_c = central_sensor.read()
-                if self.is_color_match(rgb_c, self.COLOR_LINE, self.TOLERANCE_LINE):
-                    break
-                time.sleep(0.02)
-                
-            logger.info("<- Fase 2: Allineato! Avanzo per sgomberare l'area nera.")
-            wheels.move(self.target_speed, 0.0)
-            while True:
-                rgb_l = left_sensor.read()
-                rgb_r = right_sensor.read()
-                if not self.is_color_match(rgb_l, self.COLOR_LINE, self.TOLERANCE_LINE) and \
-                   not self.is_color_match(rgb_r, self.COLOR_LINE, self.TOLERANCE_LINE):
-                    break
-                time.sleep(0.02)
-                
-            logger.info("Traccia sgombra! Cedo controllo al PID.")
-            wheels.stop()
-            
-        elif direction == "STRAIGHT":
-            logger.info("^ Svincolando DRITTO. Ignoro marker laterali.")
-            wheels.move(self.target_speed, 0.0)
-            time.sleep(1.0)
-            logger.info("Oltrepassato il marker centrale. Cedo controllo al PID.")
-            
-        elif direction == "STOP" or direction is None:
-            logger.info("🛑 Destinazione Definitiva Raggiunta. In attesa di ordini.")
-            wheels.stop()
-            while True:
-                time.sleep(1.0)
+        return {"state": state, "error": error}
 
-    def process(self, rgb_l, rgb_c, rgb_r, wheels, manager, central_sensor, left_sensor, right_sensor):
+    def process(self, rgb_l: Tuple[int, int, int], rgb_c: Tuple[int, int, int], rgb_r: Tuple[int, int, int],
+                wheels: Any, manager: Any, central_sensor: Any, left_sensor: Any, right_sensor: Any) -> Optional[Dict[str, Any]]:
         """
-        Motore decisionale. Valuta lo stato e restituisce un comando per il PID o gestisce loop interni bloccanti.
+        Motore decisionale. Valuta lo stato e restituisce un comando per il PID
+        oppure delega la gestione bloccante degli incroci al `IntersectionHandler`.
         """
-        # --- 1. OSTACOLI ---
-        if self.detect_obstacle(rgb_c):
-            self._handle_obstacle_evasion(wheels, manager)
-            return None
-            
-        # --- 2. TRAIETTORIA ---
-        error = self.compute_line_error(rgb_l, rgb_c, rgb_r)
-        
-        # --- 3. INCROCI ---
-        if error == 999.0:
+        # --- 1. TRAIETTORIA / STATO LINEA ---
+        result = self.compute_line_state(rgb_l, rgb_c, rgb_r)
+        state = result["state"]
+        error = result["error"]
+
+        # --- 2. INCROCI ---
+        if state == "INTERSECTION":
             if time.time() > self.active_intersection_cooldown:
                 if len(self.mock_nav_queue) > 0:
                     direction = self.mock_nav_queue.pop(0)
                 else:
                     direction = "STOP"
-                    
+
                 logger.info("*" * 60)
                 logger.info(f"📍 INCROCIO RAGGIUNTO! Azione richiesta dalla Coda: >>> {direction} <<<")
                 logger.info(f"📋 Comandi residui in attesa: {self.mock_nav_queue}")
                 logger.info("*" * 60)
-                
-                self._handle_intersection(direction, wheels, manager, central_sensor, left_sensor, right_sensor)
-                # Imposta cooldown visivo, per ogni evenienza
+
+                # Assicuriamoci che il low-level sia fermo prima della manovra manuale
+                wheels.stop()
+                manager.execute_command({"type": "STOP"})
+
+                # Esegui la manovra bloccante: align + rotate until central sensor sees new line
+                self.intersection_handler.perform(direction, wheels, central_sensor, left_sensor, right_sensor)
+
+                # cooldown visivo per non rileggere immediatamente lo stesso incrocio
                 self.active_intersection_cooldown = time.time() + 1.5
             return None
-            
-        # --- 4. LINE FOLLOWING NORMALE ---
+
+        # --- 3. LINE FOLLOWING NORMALE ---
         current_speed = self.target_speed if abs(error) < 1.5 else 0.0
         return {
             "type": "LINE_FOLLOW",

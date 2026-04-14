@@ -2,6 +2,10 @@ import os
 from coppeliasim_zmqremoteapi_client import RemoteAPIClient
 
 class CoppeliaConnector:
+
+    """
+    Gestisce la connessione a CoppeliaSim come Singleton.
+    Garantisce che tutte le parti del codice condividano la stessa istanza di connessione"""
     _instance = None
     _client = None
     _sim = None
