@@ -7,61 +7,102 @@ graph TD
 
     
         
-    subgraph BRAIN_CONTAINER [Container BRAIN - Logic]
-        BT[<b>Behavior Tree</b><br/>Manager]:::brain
-        LOGIC[<b>Logic Controller</b><br/>Python Class]:::brain
+    subgraph BRAIN_CONTAINER [<b>Container BRAIN - Logic</b>]
+        BT[<b>BEHAVIOR TREE</b><br/>Manager]:::brain
+        LOGIC[<b>LOGIC CONTROLLER</b><br/>]:::brain
+        BLACKBOARD[<b>BLACKBOARD</b><br/>]:::brain
     end
 
-    subgraph REDIS_CONTAINER [Container REDIS]
-        MESSAGER_SERVER[(<b>MESSAGER SERVER</b><br/>Key-Value & Pub/Sub)]:::redis
-        BRAIN_MEMORY[(<b>BRAIN MEMORY</b><br/>Key-Value & Pub/Sub)]:::redis
-        BODY_MEMORY[(<b>BODY MEMORY</b><br/>Key-Value & Pub/Sub)]:::redis
+    subgraph REDIS_CONTAINER [<b>Container REDIS</b>]
+        MESSAGER_SERVER[(<b>REDIS MESSAGER SERVER</b>)]:::redis
+        BRAIN_MEMORY[(<b>BRAIN MEMORY</b>)]:::redis
+        BODY_MEMORY[(<b>BODY MEMORY</b>)]:::redis
     end
 
-    subgraph BODY_CONTAINER [Container BODY - Actuators & Sensors]
+    subgraph BODY_CONTAINER [<b>Container BODY - Sensors, Controllers, Actuators</b>]
+        %%-- SENSORS
         subgraph SENSORS [SENSORS MODULE]
-            GEN_SENS[<b>GENERIC SENSOR</b><br/>Class SensorObj<br/>Legge dai sensori e rielabora i dati, fa da <b>Perseption</b>]:::body
+            SENSOR_MANAGER[<b>SENSOR MANAGER</b><br/>Elabora i dati grezzi dei sensori per fornirli al BRAIN e servire i controllori.Implementa <b>Perception</b>]:::body
+            COLOR_SENSOR_LEFT[<b>COLOR SENSOR LEFT</br></b>Legge dai sensori e scrive su Redis in attesa di rielaborazione]:::body
+            COLOR_SENSOR_RIGHT[<b>COLOR SENSOR RIGHT</br></b>Legge dai sensori e scrive su Redis in attesa di rielaborazione]:::body
+            COLOR_SENSOR_CENTER[<b>COLOR SENSOR CENTER</b><br/>Legge dai sensori e scrive su Redis in attesa di rielaborazione]:::body
         end
 
+        %%-- CONTROLLERS
         subgraph CONTROLLER [CONTROLLER MODULE]
             TASK_CONTROLLER[<b>TASK CONTROLLER</b><br/> legge dall'alto i comandi provenienti dal BRAIN]:::body
             PATH_CTR[<b>PATH CONTROLLER</b>]:::body
             DELIVERY_CTR[<b>DELIVERY CONTROLLER</b>]:::body
+            MANEUVER_CTR[<b>MANEUVER CONTROLLER</b>]:::body
             
         end
+
+        %%-- ACTUATORS
+        subgraph ACTUATORS [ACTUATORS MODULE]
+            WHEEL_ACT[<b>WHEEL ACTUATOR</b>]:::body
+            DELIVERY_ACT[<b>DELIVERY ACTUATOR</b>]:::body
+        end
         
-        BRIDGE[<b>Coppelia Connector</b><br/>Singleton ZMQ]:::body
-    
+        %%-- CONNETTORI_COPPELIASIM
+        subgraph CONNECTORS [CoppeliaSim Connectors]
+            CONNECT_COLOR_LEFT[<b>Coppelia Connector Color Left</b><br/>ZMQ]:::body
+            CONNECT_COLOR_RIGHT[<b>Coppelia Connector Color Right</b><br/>ZMQ]:::body
+            CONNECT_COLOR_CENTER[<b>Coppelia Connector Color Center</b><br/>ZMQ]:::body
+            CONNECT_WHEEL_ACT[<b>Coppelia Connector Wheel Actuator</b><br/>ZMQ]:::body
+            CONNECT_DELIVERY_ACT[<b>Coppelia Connector Delivery Actuator</b><br/>ZMQ]:::body
+        end
     end
 
-    subgraph HOST_OS [CoppeliaSim]
-        SIM_SENSOR(<b>Simulated Sensor</b><br/>Vision/Proximity/Laser):::sim
-        SIM_ACTUATOR(<b>Simulated Actuator</b><br/>Joint/Wheel/Arm):::sim
+    subgraph SIMULATOR [CoppeliaSim]
+        SIM_SENSOR_COLOR_LEFT(<b>Simulated Sensor</b><br/>):::sim
+        SIM_SENSOR_COLOR_RIGHT(<b>Simulated Sensor</b><br/>):::sim
+        SIM_SENSOR_COLOR_CENTER(<b>Simulated Sensor</b><br/>):::sim
+        SIM_ACTUATOR_WHEEL(<b>Simulated Actuator Wheel</b><br/>):::sim
+        SIM_ACTUATOR_DELIVERY(<b>Simulated Actuator Delivery</b><br/>):::sim
     end
 
     %%-- FLUSSO DATI (PLAN)
     BT-->LOGIC
-    LOGIC-->BT
+    BLACKBOARD --> BT
+    LOGIC --> BLACKBOARD
+    
 
     %% --- FLUSSO DATI (SENSE) ---
-    SIM_SENSOR -- "1. Dati Grezzi (ZMQ)" --> BRIDGE
-    BRIDGE --> GEN_SENS
-    GEN_SENS -- "2. SET 'sensor_data'" --> BRAIN_MEMORY
-    BRAIN_MEMORY -- "3. GET 'sensor_data'" --> LOGIC
+    COLOR_SENSOR_LEFT -.-> BODY_MEMORY
+    COLOR_SENSOR_RIGHT -.-> BODY_MEMORY
+    COLOR_SENSOR_CENTER -.-> BODY_MEMORY
+
+    BODY_MEMORY -.-> SENSOR_MANAGER
+
+    SENSOR_MANAGER -.-> |"Dati sensori elaborati"|BRAIN_MEMORY
+    SENSOR_MANAGER -->CONTROLLER
+    SIM_SENSOR_COLOR_LEFT -- "Dati Grezzi (ZMQ)" --> CONNECT_COLOR_LEFT
+    SIM_SENSOR_COLOR_RIGHT -- "Dati Grezzi (ZMQ)" --> CONNECT_COLOR_RIGHT
+    SIM_SENSOR_COLOR_CENTER -- "Dati Grezzi (ZMQ)" --> CONNECT_COLOR_CENTER
+
+    CONNECT_COLOR_LEFT -.-> COLOR_SENSOR_LEFT
+    CONNECT_COLOR_RIGHT -.-> COLOR_SENSOR_RIGHT
+    CONNECT_COLOR_CENTER -.-> COLOR_SENSOR_CENTER
+
+
+    BRAIN_MEMORY -. "GET 'sensor_data'" .-> LOGIC
 
     %% --- FLUSSO DATI (ACT) ---
-    LOGIC -- "4. PUBLISH 'cmd_action'" --> MESSAGER_SERVER
+    LOGIC -."PUBLISH 'cmd_action'".-> MESSAGER_SERVER
     MESSAGER_SERVER -.-> |"5. SUBSCRIBE 'cmd_action'"| TASK_CONTROLLER
 
-    TASK_CONTROLLER --> PATH_CTR
-    TASK_CONTROLLER --> DELIVERY_CTR
-    CTR_CINGOLO -->ACT_CINGOLO
-    PATH_CTR -->LOW_CTR
-    LOW_CTR -->LOW_CTR_LL
-    LOW_CTR_LL -->GEN_ACT
-    GEN_ACT --> BRIDGE
-    ACT_CINGOLO --> BRIDGE
-    BRIDGE -- "6. setTargetPosition (ZMQ)" --> SIM_ACTUATOR
-    GEN_ACT -.-> |"Conferma dell'attuatore"|DB -.->BT
-    ACT_CINGOLO -.-> |"Conferma dell'attuatore"|DB -.->BT
+        %%--- FLUSSO MANEUVER
+        TASK_CONTROLLER --> PATH_CTR
+        PATH_CTR --> MANEUVER_CTR
+        MANEUVER_CTR --> WHEEL_ACT
+        WHEEL_ACT --> CONNECT_WHEEL_ACT
+        CONNECT_WHEEL_ACT --> SIM_ACTUATOR_WHEEL
+
+        %%--- FLUSSO DELIVERY
+        TASK_CONTROLLER --> DELIVERY_CTR
+        DELIVERY_CTR --> DELIVERY_ACT
+        DELIVERY_ACT --> CONNECT_DELIVERY_ACT
+        CONNECT_DELIVERY_ACT --> SIM_ACTUATOR_DELIVERY
+    
+ 
 
