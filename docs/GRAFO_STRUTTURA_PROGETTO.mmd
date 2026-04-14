@@ -12,12 +12,14 @@ graph TD
         LOGIC[<b>LOGIC CONTROLLER</b><br/>]:::brain
         BLACKBOARD[<b>BLACKBOARD</b><br/>]:::brain
     end
+    style BRAIN_CONTAINER fill:#fff3e0,stroke:#e65100,stroke-width:2px
 
     subgraph REDIS_CONTAINER [<b>Container REDIS</b>]
         MESSAGER_SERVER[(<b>REDIS MESSAGER SERVER</b>)]:::redis
         BRAIN_MEMORY[(<b>BRAIN MEMORY</b>)]:::redis
         BODY_MEMORY[(<b>BODY MEMORY</b>)]:::redis
     end
+    style REDIS_CONTAINER fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
 
     subgraph BODY_CONTAINER [<b>Container BODY - Sensors, Controllers, Actuators</b>]
         %%-- SENSORS
@@ -27,6 +29,7 @@ graph TD
             COLOR_SENSOR_RIGHT[<b>COLOR SENSOR RIGHT</br></b>Legge dai sensori e scrive su Redis in attesa di rielaborazione]:::body
             COLOR_SENSOR_CENTER[<b>COLOR SENSOR CENTER</b><br/>Legge dai sensori e scrive su Redis in attesa di rielaborazione]:::body
         end
+        style SENSORS fill:#e1f5fe,stroke:#01579b,stroke-width:2px
 
         %%-- CONTROLLERS
         subgraph CONTROLLER [CONTROLLER MODULE]
@@ -34,7 +37,7 @@ graph TD
             PATH_CTR[<b>PATH CONTROLLER</b>]:::body
             DELIVERY_CTR[<b>DELIVERY CONTROLLER</b>]:::body
             MANEUVER_CTR[<b>MANEUVER CONTROLLER</b>]:::body
-            
+            style CONTROLLER fill:#e1f5fe,stroke:#01579b,stroke-width:2px
         end
 
         %%-- ACTUATORS
@@ -42,6 +45,7 @@ graph TD
             WHEEL_ACT[<b>WHEEL ACTUATOR</b>]:::body
             DELIVERY_ACT[<b>DELIVERY ACTUATOR</b>]:::body
         end
+        style ACTUATORS fill:#e1f5fe,stroke:#01579b,stroke-width:2px
         
         %%-- CONNETTORI_COPPELIASIM
         subgraph CONNECTORS [CoppeliaSim Connectors]
@@ -51,6 +55,7 @@ graph TD
             CONNECT_WHEEL_ACT[<b>Coppelia Connector Wheel Actuator</b><br/>ZMQ]:::body
             CONNECT_DELIVERY_ACT[<b>Coppelia Connector Delivery Actuator</b><br/>ZMQ]:::body
         end
+        style CONNECTORS fill:#e1fffe,stroke:#01579b,stroke-width:2px,stroke-dasharray: 5 5
     end
 
     subgraph SIMULATOR [CoppeliaSim]
@@ -60,6 +65,7 @@ graph TD
         SIM_ACTUATOR_WHEEL(<b>Simulated Actuator Wheel</b><br/>):::sim
         SIM_ACTUATOR_DELIVERY(<b>Simulated Actuator Delivery</b><br/>):::sim
     end
+    style SIMULATOR fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,stroke-dasharray: 5 5
 
     %%-- FLUSSO DATI (PLAN)
     BT-->LOGIC
@@ -89,7 +95,7 @@ graph TD
 
     %% --- FLUSSO DATI (ACT) ---
     LOGIC -."PUBLISH 'cmd_action'".-> MESSAGER_SERVER
-    MESSAGER_SERVER -.-> |"5. SUBSCRIBE 'cmd_action'"| TASK_CONTROLLER
+    MESSAGER_SERVER -.-> |"SUBSCRIBE 'cmd_action'"| TASK_CONTROLLER
 
         %%--- FLUSSO MANEUVER
         TASK_CONTROLLER --> PATH_CTR
