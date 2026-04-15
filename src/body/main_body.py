@@ -5,7 +5,8 @@ import logging
 from modules.sensors.sensor_manager import SensorManager
 from modules.connection.coppelia_connector import CoppeliaConnector
 from modules.sensors.color_sensor import ColorSensor
-from modules.controllers.low_level_manager import LowLevelManager
+from modules.controllers.pid_controller import PIDController
+from modules.actuators.wheel_actuator import WheelsActuator
 
 #docker compose up --build body
 
@@ -27,6 +28,8 @@ class RobotController:
     CENTRAL_SENSOR_NAME = "/Robot/centralColorSensor"
     RIGHT_SENSOR_NAME = "/Robot/rightColorSensor"
 
+    LOOP_HZ = 20
+
     queue = ["RIGHT", "LEFT", "STOP"] #simulazione coda di navigazione (Redis/Brain)
     
     def __init__(self):
@@ -39,10 +42,7 @@ class RobotController:
         if not self.sim:
             logger.error("Impossibile connettersi a Coppelia.")
             raise ConnectionError("Coppelia err")
-    
 
-        # 2. Sottosistemi Hardware
-        self.manager = LowLevelManager(self.sim) 
 
         #Hanno connessioni isolate a CoppeliaSim grazie al Multiton CoppeliaConnector
         self.left_sensor = ColorSensor(self.LEFT_SENSOR_NAME)
@@ -51,14 +51,44 @@ class RobotController:
 
         self.sensor_manager = SensorManager(sensor_names=[self.LEFT_SENSOR_NAME, self.CENTRAL_SENSOR_NAME, self.RIGHT_SENSOR_NAME])
 
+        self.wheels_actuator = WheelsActuator() #Attuatore con connessione isolata a CoppeliaSim
+
+        #Inizializzazione del PID
+        self.pid_controller = PIDController(
+            sensors_dict={
+                'left': self.left_sensor,
+                'center': self.central_sensor,
+                'right': self.right_sensor
+            },
+            wheels_actuator=self.wheels_actuator
+        )
+
 
     def run(self):
+
+        """Ciclo di vita principale."""
+        logger.info(f"Main loop avviato a {self.LOOP_HZ}Hz.")
+        loop_delay = 1.0 / self.LOOP_HZ
+        
 
         #Avvio i thread dei sensori (che leggono e aggiornano Redis in background)
         self.left_sensor.start()
         self.central_sensor.start()
         self.right_sensor.start()
         self.sensor_manager.start()
+
+        self.pid_controller.start() #Avvio il thread del PID 
+
+        try:
+            while True:                
+                
+                time.sleep(loop_delay)
+                
+        except KeyboardInterrupt:
+            logger.warning("Interruzione terminale.")
+
+        except Exception as e:
+            logger.error(f"Eccezione: {e}", exc_info=True)
 
 
 def main():
