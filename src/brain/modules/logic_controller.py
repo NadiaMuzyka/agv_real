@@ -71,13 +71,15 @@ class LogicController:
         return True
 
     #endregion
-    
+
+    #region Metodi Nodi Energia
+
     #Metodo per settare la modalità di energia
     def set_energy_mode(self, mode: str):
         if mode == "CHARGE_MODE":
-            self.db.update_sensor_data("agv_sensors", {"is_charging": True})
+            self.db.update_sensor_data("brain_memory", {"is_charging": True})
         else:
-            self.db.update_sensor_data("agv_sensors", {"is_charging": False})
+            self.db.update_sensor_data("brain_memory", {"is_charging": False})
 
     #Metodo per trovare il percorso ottimo tra due nodi (per la ricarica)
     def find_path_to_recharge(self, nodo_partenza: str, nodo_arrivo: str) -> bool:
@@ -95,22 +97,6 @@ class LogicController:
         else:
             print(f"[LogicController] Nessun percorso trovato da {nodo_partenza} a {nodo_arrivo}.")
             return False
-
-    #Metodo per trovare il percorso ottimo tra due nodi (generico)
-    def find_path(self, nodo_partenza: str, nodo_arrivo: str) -> list|bool:
-        """
-            restituisce una lista di nodi da attraversare per andare da nodo_partenza
-            a nodo_arrivo, o False se non esiste un percorso valido.
-        """
-        print(f"[LogicController] Trovando percorso da {nodo_partenza} a {nodo_arrivo}...")
-        percorso = self.navigatore.trova_percorso_minimo(nodo_partenza, nodo_arrivo)[0]
-        if percorso:
-            print(f"[LogicController] Percorso trovato: {percorso}")
-            return percorso
-        else:
-            print(f"[LogicController] Nessun percorso trovato da {nodo_partenza} a {nodo_arrivo}.")
-            return False
-    
     #Metodo per aggiornare mission queue e current target
     def update_mission_for_recharge(self, path: list)-> bool:
         """ Aggiorna la mission queue e il current target sulla blackboard. """
@@ -148,63 +134,143 @@ class LogicController:
 
     #Metodo che va a ricaricare l'AGV  (VA RISCRITTO APPENA COLLEGHIAMO IL BODY)
     def go_to_charge_station(self) -> str:
+        return self._navigate_to_target(target_node="ER", send_stop_on_arrival=True)
+
+    def _navigate_to_target(self, target_node: str | None, send_stop_on_arrival: bool = False) -> str:
+        """
+        Metodo unico di navigazione per target missione o ricarica.
+        Restituisce: SUCCESS, RUNNING, FAILURE.
+        """
+        if target_node is None:
+            print("[LogicController] Navigazione fallita: target mancante.")
+            return "FAILURE"
+
+        if self.blackboard.am_i_in_a_node and self.blackboard.current_position == target_node:
+            if send_stop_on_arrival:
+                self.db.set_command(self.db.COMMAND_CHANNEL, {"type": "STOP"})
+                print("[LogicController] Arrivato in ER: comando STOP inviato.")
+            else:
+                print(f"[LogicController] Arrivato al target {target_node}.")
+            return "SUCCESS"
+
+        next_node = self.blackboard.next_node
+        if not next_node:
+            print(
+                f"[LogicController] Navigazione fallita: next_node non disponibile "
+                f"(posizione={self.blackboard.current_position}, target={target_node})."
+            )
+            return "FAILURE"
+
         comando = {
             "type": "MOVE_TO",
-            "next_node":self.blackboard.next_node, # Nodo verso cui stiamo andando
+            "next_node": next_node,  # Nodo verso cui stiamo andando
             "current_position": self.blackboard.current_position, # Nodo in cui siamo attualmente
             "am_i_in_a_node": self.blackboard.am_i_in_a_node # Flag che indica se siamo in un nodo
         }
-        #se sono in un nodo
+
         if self.blackboard.am_i_in_a_node:
-            # è la stazione di ricarica? 
-            if self.blackboard.current_position == "ER":
-                print("[LogicController] Arrivati alla stazione di ricarica. Inizio ricarica...")
-                comando = {
-                    "type": "STOP"
-                }
-                self.db.set_command(self.db.COMMAND_CHANNEL, comando)
-                return "SUCCESS"
-            # mi trovo in un nodo del percorso verso la stazione di ricarica
-            else:
-                print(f"[LogicController] Mi trovo in un nodo del percorso verso la stazione di ricarica: {self.blackboard.next_node}. Continuo a seguire il percorso...")
-                #invio il comando per partire verso il prossimo nodo del percorso
-                self.db.set_command(self.db.COMMAND_CHANNEL, comando)
-                #simulo la partenza
-                self.db.update_sensor_data("agv_sensors", {"am_i_in_a_node": False })
-                return "RUNNING"
-        #se non sono in un nodo, sto seguendo il percorso verso la stazione di ricarica
-        else:
-            #variabile per simulare l'arrivo in un nodo (DA RIMUOVERE)
-            arrivato_in_nodo = random.choices([True, False], weights=[30, 70], k=1)[0]
-            if arrivato_in_nodo:
-                #faccio una scrittura sul DB per simulare il body , verrà fatto dal sensore (DA RIMUOVERE)
-                #aggiorno la posizione attuale su redis
-                if len(self.blackboard.path_to_target)>0:
-                    aggiornamenti = {
-                        "current_position": self.blackboard.path_to_target[0], #aggiorno la posizione attuale al nodo appena raggiunto
-                    }
-                    if len(self.blackboard.path_to_target)>1:
-                        #aggiorno il next_node su redis
-                        aggiornamenti["next_node"] = self.blackboard.path_to_target[1] #aggiorno il next_node al nodo successivo del percorso
-                    else:
-                        aggiornamenti["next_node"] = None
-                    #aggiorno il path_to_target su redis
-                    aggiornamenti["path_to_target"] = self.blackboard.path_to_target[1:] #rimuovo il nodo appena raggiunto dal percorso verso la stazione di ricarica
-                    self.db.update_sensor_data("agv_sensors", aggiornamenti) #chiamata unica per aggiornare posizione, più veloce
-                #aggiorno l'arrivo a nodo su redis (singola chiamata per aggiornamento am_i_in_a_node, deve avvenire dopo le altre)
-                self.db.update_sensor_data("agv_sensors", {"am_i_in_a_node": True })
+            print(f"[LogicController] Partenza verso nodo {next_node} (target finale: {target_node}).")
             self.db.set_command(self.db.COMMAND_CHANNEL, comando)
+            self.db.update_sensor_data("agv_sensors", {"am_i_in_a_node": False })
             return "RUNNING"
+
+        self.db.set_command(self.db.COMMAND_CHANNEL, comando)
+        print(f"[LogicController] In transito verso {next_node} (target finale: {target_node}).")
+        return "RUNNING"
 
     #Metodo che simula la carica della batteria (VA RISCRITTO APPENA COLLEGHIAMO IL BODY)
     def recharge_battery(self) -> str:
         step_ricarica = 5.0 # percentuale di carica aggiunta ad ogni step
         if self.blackboard.battery_level < 100.0:
-            #aggiorno il livello della batteria su redis
-            self.db.update_sensor_data("agv_sensors", {"battery_level": min(self.blackboard.battery_level + step_ricarica, 100.0) })
+            nuova_batteria = min(100.0, self.blackboard.battery_level + step_ricarica)
+            self.db.update_sensor_data("agv_sensors", {"battery_level": nuova_batteria})
+            print(f"[LogicController] Ricaricando... Livello batteria: {nuova_batteria}%")
+            self.db.update_sensor_data("agv_sensors", {"is_charging": True})
             return "RUNNING"
         else:
+            self.db.update_sensor_data("agv_sensors", {"is_charging": False})
             return "SUCCESS"
+
+    #endregion
+
+    #region Metodi Nodi Operativi
+
+    #Metodo per leggere le richieste e i dati dei pacchetti
+    def download_mission_from_central_system(self)-> str:
+        info_pack = self.read_json_file("docs/info_pack.json")
+        plan = self.read_json_file("docs/plan.json")
+        if info_pack and plan:
+            self.blackboard.temp["info_pack"] = info_pack
+            self.blackboard.temp["plan"] = plan
+            return "SUCCESS"
+        else:
+            return "FAILURE"
+        
+        #Metodo per creare un piano ottimale a partire da infopack e plan
+    
+    #Metodo per creare un piano ottimale a partire da infopack e plan
+    def create_optimal_plan(self) -> str:
+
+        infopack = self.blackboard.temp.get("info_pack", [])
+        plan = self.blackboard.temp.get("plan", [])
+
+        if not isinstance(infopack, list) or not isinstance(plan, list):
+            print("[LogicController] Dati missione non validi (info_pack/plan).")
+            return "FAILURE"
+        
+        merge_result = self.merge_plan_infopack(plan, infopack)
+
+        if not merge_result:
+            print("[LogicController] Nessuna attività valida trovata dopo la fusione di plan e infopack.")
+            return "FAILURE"
+        
+        # ordiniamo la lista risultante in base alla priorità (dal più alto al più basso)
+        ordered_result = sorted(merge_result, key=lambda x: x.get("priority", 0), reverse=True)
+        aggiornamenti = {
+            "mission_queue": ordered_result
+        }
+
+        try:
+            self.db.update_sensor_data("agv_sensors", aggiornamenti)
+            print(f"[LogicController] Piano ottimale creato e mission queue aggiornata: {ordered_result}")
+            return "SUCCESS"
+        except Exception as e:
+            print(f"[LogicController] Errore nell'aggiornamento della mission queue su Redis: {e}")
+            return "FAILURE"
+
+    #endregion
+
+    #region Metodi Nodi Operativi - Prelievo e Consegna
+
+    def esegui_prelievo(self):
+        """ Metodo che simula l'esecuzione del prelievo (VA RISCRITTO APPENA COLLEGHIAMO IL BODY) """
+        print("[LogicController] Esecuzione prelievo in corso...")
+        self.db.set_command(self.db.COMMAND_CHANNEL, {"type": "PICKUP"})
+        print("[LogicController] Comando PICKUP inviato e stato is_load aggiornato a True.")
+
+    def esegui_consegna(self):
+        """ Metodo che simula l'esecuzione della consegna (VA RISCRITTO APPENA COLLEGHIAMO IL BODY) """
+        print("[LogicController] Esecuzione consegna in corso...")
+        self.db.set_command(self.db.COMMAND_CHANNEL, {"type": "DROP"})
+        print("[LogicController] Comando DROP inviato e stato is_load aggiornato a False.")
+
+    #endregion
+
+    #Metodo per trovare il percorso ottimo tra due nodi (generico)
+    def find_path(self, nodo_partenza: str, nodo_arrivo: str) -> list|bool:
+        """
+            restituisce una lista di nodi da attraversare per andare da nodo_partenza
+            a nodo_arrivo, o False se non esiste un percorso valido.
+        """
+        print(f"[LogicController] Trovando percorso da {nodo_partenza} a {nodo_arrivo}...")
+        percorso = self.navigatore.trova_percorso_minimo(nodo_partenza, nodo_arrivo)[0]
+        if percorso:
+            print(f"[LogicController] Percorso trovato: {percorso}")
+            return percorso
+        else:
+            print(f"[LogicController] Nessun percorso trovato da {nodo_partenza} a {nodo_arrivo}.")
+            return False
+    
 
     #Metodo per calcolare il percorso verso il target della missione in corso
     def calculate_path_to_current_target(self):
@@ -285,16 +351,6 @@ class LogicController:
             print(f"[LogicController] Errore nella lettura del file {file_path}: {e}")
             return {}
 
-    #Metodo per leggere le richieste e i dati dei pacchetti
-    def download_mission_from_central_system(self)-> str:
-        info_pack = self.read_json_file("docs/info_pack.json")
-        plan = self.read_json_file("docs/plan.json")
-        if info_pack and plan:
-            self.blackboard.temp["info_pack"] = info_pack
-            self.blackboard.temp["plan"] = plan
-            return "SUCCESS"
-        else:
-            return "FAILURE"
 
     #metodo per inviare un comando di movimento verso il prossimo nodo del percorso
     def move_towards(self, next_node: str):
@@ -361,39 +417,10 @@ class LogicController:
                 })
         return result
 
-    #Metodo per creare un piano ottimale a partire da infopack e plan
-    def create_optimal_plan(self) -> str:
-
-        infopack = self.blackboard.temp.get("info_pack", [])
-        plan = self.blackboard.temp.get("plan", [])
-
-        if not isinstance(infopack, list) or not isinstance(plan, list):
-            print("[LogicController] Dati missione non validi (info_pack/plan).")
-            return "FAILURE"
-        
-        merge_result = self.merge_plan_infopack(plan, infopack)
-
-        if not merge_result:
-            print("[LogicController] Nessuna attività valida trovata dopo la fusione di plan e infopack.")
-            return "FAILURE"
-        
-        # ordiniamo la lista risultante in base alla priorità (dal più alto al più basso)
-        ordered_result = sorted(merge_result, key=lambda x: x.get("priority", 0), reverse=True)
-        aggiornamenti = {
-            "mission_queue": ordered_result
-        }
-
-        try:
-            self.db.update_sensor_data("agv_sensors", aggiornamenti)
-            print(f"[LogicController] Piano ottimale creato e mission queue aggiornata: {ordered_result}")
-            return "SUCCESS"
-        except Exception as e:
-            print(f"[LogicController] Errore nell'aggiornamento della mission queue su Redis: {e}")
-            return "FAILURE"
-
     #Metodo per raggiungere il nodo target
     def navigate_to_current_target(self) -> str:
-        
+        target = self.blackboard.current_target
+        return self._navigate_to_target(target_node=target, send_stop_on_arrival=False)
 
 
 
