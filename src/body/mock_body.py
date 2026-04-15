@@ -4,12 +4,12 @@ import time
 import os
 import sys
 import signal
+import random
 
 REDIS_HOST = os.getenv("REDIS_HOST", "agv_redis")
-COMMAND_CHANNEL = "agv_command_channel" 
+COMMAND_CHANNEL = "agv_command_channel"
 SENSOR_KEY = "agv_sensors"
 
-# 1. FLAG PER LO SPEGNIMENTO PULITO
 is_running = True
 
 def signal_handler(sig, frame):
@@ -18,7 +18,6 @@ def signal_handler(sig, frame):
     is_running = False
     sys.exit(0)
 
-# Colleghiamo il segnale di chiusura alla nostra funzione
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
@@ -33,109 +32,175 @@ except Exception as e:
     print(f"❌ [MOCK BODY] Errore di connessione a Redis: {e}")
     sys.exit(1)
 
-stato_batteria = 15.0  # Partiamo con batteria scarica per testare l'emergenza!
-in_ricarica = False
+# --- STATE MACHINE VARIABLES ---
+current_action = None  # tipo di azione in corso: "MOVE_TO", "PICKUP", "DROP", "CHARGING"
+action_started_at = None  # timestamp di inizio
+action_ends_at = None  # timestamp di fine atteso
+next_node_destination = None  # nodo destinazione per MOVE_TO
 
-# 2. CICLO NON BLOCCANTE
-ultimo_nodo_destinazione = None
+# --- BATTERY STATE ---
+battery_level = 15.0
+is_charging = False
 
+# --- PERSON DETECTION STATE ---
+person_detected_time = None
+person_cooldown_until = None
+PERSON_DURATION = 2.0  # Persona presente per 2 secondi
+PERSON_COOLDOWN = 5.0  # Cooldown di 5 secondi tra i rilevamenti
+
+# --- ACTION DURATIONS ---
+MOVE_DURATION = 2.0
+PICKUP_DURATION = 3.0
+DROP_DURATION = 3.0
+
+def update_sensors(updates):
+    """Aggiorna i sensori su Redis con i dati forniti"""
+    try:
+        current_sensors = r.get(SENSOR_KEY)
+        sensors = json.loads(current_sensors) if current_sensors else {}
+        sensors.update(updates)
+        r.set(SENSOR_KEY, json.dumps(sensors))
+    except Exception:
+        pass
+
+def start_action(action_type, destination=None):
+    """Avvia una nuova azione"""
+    global current_action, action_started_at, action_ends_at, next_node_destination
+    current_action = action_type
+    action_started_at = time.time()
+    next_node_destination = destination
+
+    if action_type == "MOVE_TO":
+        action_ends_at = action_started_at + MOVE_DURATION
+        print(f"🚶 [MOCK BODY] In movimento verso {destination}...")
+    elif action_type == "PICKUP":
+        action_ends_at = action_started_at + PICKUP_DURATION
+        print(f"📦 [MOCK BODY] Inizio prelievo...")
+    elif action_type == "DROP":
+        action_ends_at = action_started_at + DROP_DURATION
+        print(f"📦 [MOCK BODY] Inizio consegna...")
+    elif action_type == "CHARGING":
+        action_ends_at = None  # Non ha una fine fissa
+        print(f"🔋 [MOCK BODY] Inizio ricarica...")
+
+def stop_action():
+    """Arresta immediatamente l'azione in corso"""
+    global current_action, action_started_at, action_ends_at
+    if current_action:
+        print(f"🛑 [MOCK BODY] Stop ricevuto. Interruzione di {current_action}.")
+        current_action = None
+        action_started_at = None
+        action_ends_at = None
+
+def complete_action():
+    """Completa l'azione in corso"""
+    global current_action
+
+    if current_action == "MOVE_TO":
+        print(f"📍 [MOCK BODY] Arrivato a destinazione: {next_node_destination}!")
+        update_sensors({
+            "current_position": next_node_destination,
+            "am_i_in_a_node": True
+        })
+    elif current_action == "PICKUP":
+        print(f"✅ [MOCK BODY] Prelievo completato!")
+        update_sensors({"is_load": True})
+    elif current_action == "DROP":
+        print(f"✅ [MOCK BODY] Consegna completata!")
+        update_sensors({"is_load": False})
+
+    current_action = None
+    action_started_at = None
+    action_ends_at = None
+
+    # Scartiamo tutti i messaggi duplicati rimasti in coda
+    while pubsub.get_message(ignore_subscribe_messages=True):
+        pass
+
+def simulate_person():
+    """Simula la comparsa di una persona durante il movimento o prima di partire"""
+    global person_detected_time, person_cooldown_until
+
+    now = time.time()
+
+    # Controlla se siamo in cooldown
+    if person_cooldown_until and now < person_cooldown_until:
+        return
+
+    # Persona rilevata attualmente?
+    if person_detected_time:
+        if now - person_detected_time > PERSON_DURATION:
+            # Fine della persona
+            person_detected_time = None
+            person_cooldown_until = now + PERSON_COOLDOWN
+            print(f"👤 [MOCK BODY] Persona scomparsa.")
+            update_sensors({"person_detected": False})
+        return
+
+    # Probabilità di rilevare una persona solo durante movimento
+    if current_action == "MOVE_TO":
+        if random.random() < 0.10:  # 10% di probabilità
+            person_detected_time = now
+            print(f"👤 [MOCK BODY] Rilevata una persona nel percorso!")
+            update_sensors({"person_detected": True})
+
+# --- MAIN LOOP ---
 while is_running:
-    # Leggiamo UN SOLO messaggio alla volta, senza svuotare la coda
-    message = pubsub.get_message(timeout=0.1)
-    
+    now = time.time()
+
+    # Leggi UN SOLO messaggio
+    message = pubsub.get_message(timeout=0.05)
+
     if message and message['type'] == 'message':
         try:
             raw_data = message['data'].replace("'", '"')
             comando = json.loads(raw_data)
-            tipo = comando.get("type")
+            cmd_type = comando.get("type")
 
-            if tipo == "START_CHARGE":
-                print("🔋 [MOCK BODY] Pin collegati. Inizio ricarica simulata...")
-                in_ricarica = True
+            if cmd_type == "STOP":
+                stop_action()
             
-            elif tipo == "STOP_CHARGE":
-                if in_ricarica:
+            elif cmd_type == "MOVE_TO" and not current_action:
+                destination = comando.get("next_node")
+                if destination:
+                    is_charging = False
+                    start_action("MOVE_TO", destination)
+
+            elif cmd_type == "PICKUP" and not current_action:
+                start_action("PICKUP")
+
+            elif cmd_type == "DROP" and not current_action:
+                start_action("DROP")
+
+            elif cmd_type == "START_CHARGE" and not current_action:
+                is_charging = True
+                start_action("CHARGING")
+
+            elif cmd_type == "STOP_CHARGE":
+                if is_charging:
+                    is_charging = False
+                    current_action = None
                     print("🔌 [MOCK BODY] Ricarica interrotta.")
-                    in_ricarica = False
 
-            if tipo == "MOVE_TO":
-                in_ricarica = False
-                destinazione = comando.get("next_node")
-                
-                if destinazione is None:
-                    continue
-                
-                # 3. CONTROLLO ANTI-SPAM (Se stiamo GIÀ andando lì, ignoriamo il messaggio)
-                if destinazione != ultimo_nodo_destinazione:
-                    print(f"🚶‍♂️ [MOCK BODY] Ricevuto ordine: MOVE_TO -> {destinazione}. In viaggio...")
-                    ultimo_nodo_destinazione = destinazione
-                    
-                    time.sleep(2.0) # Viaggio simulato
-                    
-                    print(f"📍 [MOCK BODY] Arrivato a destinazione: {destinazione}!")
+        except Exception:
+            pass  # Ignora errori di parsing
 
-                    # Scriviamo i sensori
-                    dati_grezzi = r.get(SENSOR_KEY)
-                    sensori_attuali = json.loads(dati_grezzi) if dati_grezzi else {}
-                    
-                    sensori_attuali["current_position"] = destinazione
-                    sensori_attuali["am_i_in_a_node"] = True
-                    
-                    r.set(SENSOR_KEY, json.dumps(sensori_attuali))
-                    print(f"✅ [MOCK BODY] Sensori aggiornati!")
-                    
-                    # SVUOTIAMO LA CODA *DOPO* IL VIAGGIO: 
-                    # Buttiamo via tutti i "MOVE_TO" ripetuti che il Brain ha urlato mentre dormivamo
-                    while pubsub.get_message(ignore_subscribe_messages=True):
-                        pass
+    # --- CHECK AZIONE IN CORSO ---
+    if current_action and action_ends_at:
+        if now >= action_ends_at:
+            complete_action()
 
-            elif tipo == "PICKUP":
-                print("📦 [MOCK BODY] Ricevuto ordine PICKUP. Alzando le forche...")
-                time.sleep(3.0) 
-                
-                dati_grezzi = r.get(SENSOR_KEY)
-                sensori_attuali = json.loads(dati_grezzi) if dati_grezzi else {}
-                sensori_attuali["carico_sollevato"] = True
-                r.set(SENSOR_KEY, json.dumps(sensori_attuali))
-                print("✅ [MOCK BODY] Prelievo completato! Sensori aggiornati.")
-                
-                ultimo_nodo_destinazione = None # Resettiamo la destinazione dopo un'azione
-                
-                while pubsub.get_message(ignore_subscribe_messages=True):
-                    pass
-            
-            elif tipo == "DROP":
-                print("📦 [MOCK BODY] Ricevuto ordine DROP. Abbassando le forche...")
-                time.sleep(3.0) # Tempo fisico simulato per abbassare le forche
-                
-                dati_grezzi = r.get(SENSOR_KEY)
-                sensori_attuali = json.loads(dati_grezzi) if dati_grezzi else {}
-                
-                # IL PACCO NON C'È PIÙ!
-                sensori_attuali["carico_sollevato"] = False 
-                r.set(SENSOR_KEY, json.dumps(sensori_attuali))
-                
-                print("✅ [MOCK BODY] Consegna completata! Sensori aggiornati.")
-                ultimo_nodo_destinazione = None
-                
-                # Svuotiamo la coda da eventuali spam
-                while pubsub.get_message(ignore_subscribe_messages=True): pass
-                
-        except Exception as e:
-            pass # Ignoriamo errori di decodifica silenziosamente
+    # --- SIMULAZIONE BATTERIA ---
+    if is_charging:
+        battery_level = min(100.0, battery_level + 5.0)
+        update_sensors({"battery_level": battery_level})
+    else:
+        # Consuma batteria durante il movimento
+        if current_action == "MOVE_TO":
+            battery_level = max(0.0, battery_level - 0.5)
+        update_sensors({"battery_level": battery_level})
 
-# --- SIMULAZIONE FISICA CONTINUA ---
-    if in_ricarica:
-        stato_batteria += 5.0 # Aggiunge 5% ogni ciclo
-        if stato_batteria >= 100.0:
-            stato_batteria = 100.0
-            
-        # Pubblica il nuovo livello su Redis usando il client 'r'
-        dati_grezzi = r.get(SENSOR_KEY)
-        sensori_attuali = json.loads(dati_grezzi) if dati_grezzi else {}
-        sensori_attuali["battery_level"] = stato_batteria
-        r.set(SENSOR_KEY, json.dumps(sensori_attuali))
-        
-    time.sleep(0.05) # Ritmo di aggiornamento del loop (ho tolto il doppio sleep che c'era alla fine)
-            
-    time.sleep(0.05)
+    # --- SIMULAZIONE PERSONE ---
+    simulate_person()
+
+    time.sleep(0.05)  # Ritmo del loop
