@@ -46,7 +46,7 @@ class LogicController:
         # Aggiorna la blackboard con i dati random (o reali se presenti)
         # NOTA: se la chiave non esiste, usiamo un valore di default
         self.blackboard.battery_level = sensor_data.get("battery_level", 10.0)#livello batteria
-        self.blackboard.person_detected = sensor_data.get("person_detected", random.choices([True, False], weights=[5, 95], k=1)[0])#persona rilevata
+        self.blackboard.person_detected = sensor_data.get("person_detected", False)#persona rilevata
         self.blackboard.pallet_list_empty = sensor_data.get("pallet_list_empty", False)#lista pallet vuota?
         self.blackboard.am_i_in_a_node = sensor_data.get("am_i_in_a_node", True)#sono in un nodo?
         self.blackboard.next_node = sensor_data.get("next_node", None)#prossimo nodo verso cui stiamo andando
@@ -56,6 +56,22 @@ class LogicController:
         self.blackboard.is_load = sensor_data.get("is_load", False)#sto trasportando un carico?
         #self.temp è nella blackboard, ma non è persistente su Redis
 
+    #region Metodi Nodi Sicurezza
+
+    #Metodo per stoppare l'AGV   
+    def execute_stop(self):
+        """ Invia il comando di stop. """
+        command = {
+            "type": "STOP",
+            "v": 0.0, 
+            "w": 0.0
+        }
+        self.db.set_command(self.db.COMMAND_CHANNEL, command)
+        print("[LogicController] Comando STOP inviato.")
+        return True
+
+    #endregion
+    
     #Metodo per settare la modalità di energia
     def set_energy_mode(self, mode: str):
         if mode == "CHARGE_MODE":
@@ -189,18 +205,6 @@ class LogicController:
             return "RUNNING"
         else:
             return "SUCCESS"
-
-    #Metodo per stoppare l'AGV   
-    def execute_stop(self):
-        """ Invia il comando di stop. """
-        command = {
-            "type": "STOP",
-            "v": 0.0, 
-            "w": 0.0
-        }
-        self.db.set_command(self.db.COMMAND_CHANNEL, command)
-        print("[LogicController] Comando STOP inviato.")
-        return True
 
     #Metodo per calcolare il percorso verso il target della missione in corso
     def calculate_path_to_current_target(self):
