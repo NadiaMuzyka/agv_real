@@ -1,10 +1,11 @@
-import redis
 import json
 import time
 import os
 import sys
 import signal
 import random
+
+from modules.connection.redis_interface import RedisInterface
 
 REDIS_HOST = os.getenv("REDIS_HOST", "agv_redis")
 COMMAND_CHANNEL = "agv_command_channel"
@@ -23,14 +24,17 @@ signal.signal(signal.SIGTERM, signal_handler)
 
 print(f"🦾 [MOCK BODY] Giacomino-Body avviato! Connessione a Redis su {REDIS_HOST}...")
 
-try:
-    r = redis.Redis(host=REDIS_HOST, port=6379, decode_responses=True)
-    pubsub = r.pubsub()
-    pubsub.subscribe(COMMAND_CHANNEL)
-    print(f"🎧 [MOCK BODY] Sintonizzato sulla frequenza: '{COMMAND_CHANNEL}'")
-except Exception as e:
-    print(f"❌ [MOCK BODY] Errore di connessione a Redis: {e}")
+redis_interface = RedisInterface()
+if not redis_interface.db:
+    print(f"❌ [MOCK BODY] Errore di connessione a Redis: impossibile inizializzare l'interfaccia.")
     sys.exit(1)
+
+pubsub = redis_interface.subscribe_to_commands()
+if not pubsub:
+    print(f"❌ [MOCK BODY] Errore di connessione a Redis: impossibile creare la sottoscrizione ai comandi.")
+    sys.exit(1)
+
+print(f"🎧 [MOCK BODY] Sintonizzato sulla frequenza: '{COMMAND_CHANNEL}'")
 
 # --- STATE MACHINE VARIABLES ---
 current_action = None  # tipo di azione in corso: "MOVE_TO", "PICKUP", "DROP", "CHARGING"
@@ -53,15 +57,13 @@ MOVE_DURATION = 2.0
 PICKUP_DURATION = 3.0
 DROP_DURATION = 3.0
 
+def get_sensors():
+    """Restituisce lo stato corrente dei sensori letto da Redis."""
+    return redis_interface.get_sensor_data(SENSOR_KEY)
+
 def update_sensors(updates):
     """Aggiorna i sensori su Redis con i dati forniti"""
-    try:
-        current_sensors = r.get(SENSOR_KEY)
-        sensors = json.loads(current_sensors) if current_sensors else {}
-        sensors.update(updates)
-        r.set(SENSOR_KEY, json.dumps(sensors))
-    except Exception:
-        pass
+    redis_interface.update_sensor_data(SENSOR_KEY, updates)
 
 def start_action(action_type, destination=None):
     """Avvia una nuova azione"""
@@ -73,6 +75,7 @@ def start_action(action_type, destination=None):
     if action_type == "MOVE_TO":
         action_ends_at = action_started_at + MOVE_DURATION
         print(f"🚶 [MOCK BODY] In movimento verso {destination}...")
+        update_sensors({"am_i_in_a_node": False})
         
     elif action_type == "PICKUP":
         action_ends_at = action_started_at + PICKUP_DURATION
@@ -98,11 +101,29 @@ def complete_action():
     global current_action
 
     if current_action == "MOVE_TO":
-        print(f"📍 [MOCK BODY] Arrivato a destinazione: {next_node_destination}!")
-        update_sensors({
-            "current_position": next_node_destination,
-            "am_i_in_a_node": True
-        })
+        sensors = get_sensors()
+        path_to_target = sensors.get("path_to_target", [])
+
+        if isinstance(path_to_target, list) and len(path_to_target) > 0:
+            aggiornamenti = {
+                "current_position": path_to_target[0],
+                "path_to_target": path_to_target[1:]
+            }
+            if len(path_to_target) > 1:
+                aggiornamenti["next_node"] = path_to_target[1]
+            else:
+                aggiornamenti["next_node"] = None
+
+            print(f"📍 [MOCK BODY] Arrivato al nodo: {path_to_target[0]}!")
+            update_sensors(aggiornamenti)
+        else:
+            print(f"📍 [MOCK BODY] Arrivato a destinazione: {next_node_destination}!")
+            update_sensors({
+                "current_position": next_node_destination,
+                "next_node": None
+            })
+
+        update_sensors({"am_i_in_a_node": True})
     elif current_action == "PICKUP":
         print(f"✅ [MOCK BODY] Prelievo completato!")
         update_sensors({"is_load": True})
@@ -177,12 +198,6 @@ while is_running:
                 is_charging = True
                 start_action("START_CHARGE")
 
-            elif cmd_type == "STOP_CHARGE":
-                if is_charging:
-                    is_charging = False
-                    current_action = None
-                    print("🔌 [MOCK BODY] Ricarica interrotta.")
-
         except Exception:
             pass  # Ignora errori di parsing
 
@@ -195,6 +210,10 @@ while is_running:
     if is_charging:
         battery_level = min(100.0, battery_level + 5.0)
         update_sensors({"battery_level": battery_level})
+        if battery_level >= 100.0:
+            print(f"🔋 [MOCK BODY] Batteria completamente carica!")
+            is_charging = False
+            current_action = None
     else:
         # Consuma batteria durante il movimento
         if current_action == "MOVE_TO":

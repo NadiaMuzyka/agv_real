@@ -146,7 +146,7 @@ class LogicController:
             if self.blackboard.current_position == "ER":
                 print("[LogicController] Arrivati alla stazione di ricarica. Inizio ricarica...")
                 comando = {
-                    "type": "START_CHARGE"
+                    "type": "STOP"
                 }
                 self.db.set_command(self.db.COMMAND_CHANNEL, comando)
                 return "SUCCESS"
@@ -160,25 +160,6 @@ class LogicController:
                 return "RUNNING"
         #se non sono in un nodo, sto seguendo il percorso verso la stazione di ricarica
         else:
-            #variabile per simulare l'arrivo in un nodo (DA RIMUOVERE)
-            arrivato_in_nodo = random.choices([True, False], weights=[30, 70], k=1)[0]
-            if arrivato_in_nodo:
-                #faccio una scrittura sul DB per simulare il body , verrà fatto dal sensore (DA RIMUOVERE)
-                #aggiorno la posizione attuale su redis
-                if len(self.blackboard.path_to_target)>0:
-                    aggiornamenti = {
-                        "current_position": self.blackboard.path_to_target[0], #aggiorno la posizione attuale al nodo appena raggiunto
-                    }
-                    if len(self.blackboard.path_to_target)>1:
-                        #aggiorno il next_node su redis
-                        aggiornamenti["next_node"] = self.blackboard.path_to_target[1] #aggiorno il next_node al nodo successivo del percorso
-                    else:
-                        aggiornamenti["next_node"] = None
-                    #aggiorno il path_to_target su redis
-                    aggiornamenti["path_to_target"] = self.blackboard.path_to_target[1:] #rimuovo il nodo appena raggiunto dal percorso verso la stazione di ricarica
-                    self.db.update_sensor_data("agv_sensors", aggiornamenti) #chiamata unica per aggiornare posizione, più veloce
-                #aggiorno l'arrivo a nodo su redis (singola chiamata per aggiornamento am_i_in_a_node, deve avvenire dopo le altre)
-                self.db.update_sensor_data("agv_sensors", {"am_i_in_a_node": True })
             self.db.set_command(self.db.COMMAND_CHANNEL, comando)
             return "RUNNING"
 
@@ -186,10 +167,13 @@ class LogicController:
     def recharge_battery(self) -> str:
         step_ricarica = 5.0 # percentuale di carica aggiunta ad ogni step
         if self.blackboard.battery_level < 100.0:
-            #aggiorno il livello della batteria su redis
-            self.db.update_sensor_data("agv_sensors", {"battery_level": min(self.blackboard.battery_level + step_ricarica, 100.0) })
+            nuova_batteria = min(100.0, self.blackboard.battery_level + step_ricarica)
+            self.db.update_sensor_data("agv_sensors", {"battery_level": nuova_batteria})
+            print(f"[LogicController] Ricaricando... Livello batteria: {nuova_batteria}%")
+            self.db.update_sensor_data("agv_sensors", {"is_charging": True})
             return "RUNNING"
         else:
+            self.db.update_sensor_data("agv_sensors", {"is_charging": False})
             return "SUCCESS"
 
     #endregion
