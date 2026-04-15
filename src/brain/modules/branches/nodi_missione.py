@@ -159,10 +159,7 @@ class GeneraPianoOttimale(py_trees.behaviour.Behaviour):
     def __init__(self):
         super(GeneraPianoOttimale, self).__init__(name="Genera Piano Ottimale")
         self.blackboard = py_trees.blackboard.Client(name=self.name)
-        self.blackboard.register_key(key="current_position", access=py_trees.common.Access.READ)
-        self.blackboard.register_key(key="mission_queue", access=py_trees.common.Access.WRITE)
         self.blackboard.register_key(key="logic_controller", access=py_trees.common.Access.READ)
-        self.blackboard.register_key(key="temp", access=py_trees.common.Access.WRITE) # Variabile temporanea per salvare dati vari, non persistente su Redis
 
     def update(self):
 
