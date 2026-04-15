@@ -111,7 +111,7 @@ class RiceviListaPallet(py_trees.behaviour.Behaviour):
         
 
         # # Anti-Tick Fantasma: aspettiamo che l'AGV sia "sveglio" e connesso a Redis
-        # sensori = lc.db.get_sensor_data("agv_sensors")
+        # sensori = lc.db.get_sensor_data("brain_memory")
         # if not sensori:
         #     return py_trees.common.Status.RUNNING
 

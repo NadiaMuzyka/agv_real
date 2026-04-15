@@ -9,7 +9,7 @@ from modules.connection.redis_interface import RedisInterface
 
 REDIS_HOST = os.getenv("REDIS_HOST", "agv_redis")
 COMMAND_CHANNEL = "agv_command_channel"
-SENSOR_KEY = "agv_sensors"
+SENSOR_KEY = "brain_memory"
 
 is_running = True
 last_battery_log_at = 0.0

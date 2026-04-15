@@ -6,7 +6,7 @@ Questo documento definisce il "Contratto di Interfaccia" e le best practice per 
 
 Il sistema usa un approccio ibrido su Redis:
 * **Comandi (Da Brain a Body):** Inviati tramite **Pub/Sub** sul canale `agv_command_channel`. I comandi sono eventi istantanei ("Fai questo ora").
-* **Sensori (Da Body a Brain):** Salvati tramite normale **Key-Value** (GET/SET) sulla chiave `agv_sensors`. I sensori rappresentano lo stato persistente del robot.
+* **Sensori (Da Body a Brain):** Salvati tramite normale **Key-Value** (GET/SET) sulla chiave `brain_memory`. I sensori rappresentano lo stato persistente del robot.
 
 ---
 
@@ -20,7 +20,7 @@ Il Body deve mettersi in ascolto su `agv_command_channel` e aspettarsi dizionari
 * Arresto: `{"type": "STOP"}`
 
 ### Cosa deve scrivere il Body (Stato Sensori)
-Ad ogni ciclo utile, il Body deve aggiornare la chiave `agv_sensors` con un JSON che descrive la realtà fisica del simulatore:
+Ad ogni ciclo utile, il Body deve aggiornare la chiave `brain_memory` con un JSON che descrive la realtà fisica del simulatore:
 ```json
 {
   "current_position": "I6", 

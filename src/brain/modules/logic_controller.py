@@ -121,10 +121,10 @@ class LogicController:
                 next_node_vecchio_percorso = self.blackboard.next_node
                 nodo_attuale = self.blackboard.current_position
                 aggiornamenti["path_to_target"] = [next_node_vecchio_percorso, nodo_attuale] + path
-            self.db.update_sensor_data("agv_sensors", aggiornamenti)     
+            self.db.update_sensor_data("brain_memory", aggiornamenti)     
             return True 
         else:
-            self.db.update_sensor_data("agv_sensors",{"next_node": None})
+            self.db.update_sensor_data("brain_memory",{"next_node": None})
             print("[LogicController] Mission queue vuota. Nessun target da assegnare.")
             return False
         #NOTA: non cambio mission_queue, quella viene sospesa finché non ricarico la batteria
@@ -171,7 +171,6 @@ class LogicController:
         if self.blackboard.am_i_in_a_node:
             print(f"[LogicController] Partenza verso nodo {next_node} (target finale: {target_node}).")
             self.db.set_command(self.db.COMMAND_CHANNEL, comando)
-            self.db.update_sensor_data("agv_sensors", {"am_i_in_a_node": False })
             return "RUNNING"
 
         self.db.set_command(self.db.COMMAND_CHANNEL, comando)
@@ -183,12 +182,12 @@ class LogicController:
         step_ricarica = 5.0 # percentuale di carica aggiunta ad ogni step
         if self.blackboard.battery_level < 100.0:
             nuova_batteria = min(100.0, self.blackboard.battery_level + step_ricarica)
-            self.db.update_sensor_data("agv_sensors", {"battery_level": nuova_batteria})
+            self.db.update_sensor_data("brain_memory", {"battery_level": nuova_batteria})
             print(f"[LogicController] Ricaricando... Livello batteria: {nuova_batteria}%")
-            self.db.update_sensor_data("agv_sensors", {"is_charging": True})
+            self.db.update_sensor_data("brain_memory", {"is_charging": True})
             return "RUNNING"
         else:
-            self.db.update_sensor_data("agv_sensors", {"is_charging": False})
+            self.db.update_sensor_data("brain_memory", {"is_charging": False})
             return "SUCCESS"
 
     #endregion
@@ -231,7 +230,7 @@ class LogicController:
         }
 
         try:
-            self.db.update_sensor_data("agv_sensors", aggiornamenti)
+            self.db.update_sensor_data("brain_memory", aggiornamenti)
             print(f"[LogicController] Piano ottimale creato e mission queue aggiornata: {ordered_result}")
             return "SUCCESS"
         except Exception as e:
@@ -292,7 +291,7 @@ class LogicController:
                             "next_node": esito[1] if len(esito)>1 else None
                         }
                         try:
-                            self.db.update_sensor_data("agv_sensors", aggiornamenti)
+                            self.db.update_sensor_data("brain_memory", aggiornamenti)
                             return "SUCCESS"
                         except Exception as e:
                             print(f"[LogicController] Errore nell'aggiornamento del percorso verso il target su Redis: {e}")
@@ -323,7 +322,7 @@ class LogicController:
                             "next_node": esito[1] if len(esito)>1 else None
                         }
                         try:
-                            self.db.update_sensor_data("agv_sensors", aggiornamenti)
+                            self.db.update_sensor_data("brain_memory", aggiornamenti)
                             return "SUCCESS"
                         except Exception as e:
                             print(f"[LogicController] Errore nell'aggiornamento del percorso verso il target su Redis: {e}")
@@ -371,7 +370,7 @@ class LogicController:
             "next_node": next_node,
             "path_to_target": path_to_target
         }
-        self.db.update_sensor_data("agv_sensors", aggiornamenti)
+        self.db.update_sensor_data("brain_memory", aggiornamenti)
 
     #metodo per calcolare la distanza stimata tra due nodi (usato per ottimizzazione e scheduling, non modifica lo stato)
     def calcola_distanza_stimata(self, nodo_partenza: str, nodo_arrivo: str) -> float:
