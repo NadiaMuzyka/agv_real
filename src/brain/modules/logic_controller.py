@@ -37,7 +37,7 @@ class LogicController:
         """ 
             Legge i dati dei sensori da Redis e aggiorna la blackboard. 
         """
-        SENSORS_KEY = "agv_sensors"
+        SENSORS_KEY = "brain_memory"  # Chiave Redis dove sono salvati i dati dei sensori
         sensor_data = self.db.get_sensor_data(SENSORS_KEY) or {}
         print(f"[LogicController] Letti dati REALI da Redis: {sensor_data}") 
         

@@ -8,3 +8,6 @@ Sim 7: x=8.999, y=9.622, gamma=-90.12, dist=1.0701 m
 Sim 8: x=8.999, y=9.624, gamma=-90.14, dist=1.0737 m
 Sim 9: x=9.000, y=9.608, gamma=-90.01, dist=1.0664 m
 Sim 10: x=9.000, y=9.552, gamma=-90.01, dist=1.0002 m
+
+
+docker compose -f docker-compose.yml -f docker-compose.mock.yml up --build
