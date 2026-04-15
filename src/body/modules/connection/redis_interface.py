@@ -65,3 +65,11 @@ class RedisInterface:
 
         current_data.update(partial_data)
         self.db.set(key, json.dumps(current_data))
+
+    def get_sensor_data(self, key: str) -> dict:
+        """ Legge lo stato (Belief State futuro). """
+        if self.db:
+            data = self.db.get(key)
+            if data:
+                return json.loads(data)
+        return {}

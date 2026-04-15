@@ -1,6 +1,6 @@
 from modules.connection.coppelia_connector import CoppeliaConnector
 from modules.sensors.generic_sensor import GenericSensor
-from modules.redis_interface import RedisInterface 
+from modules.connection.redis_interface import RedisInterface 
 import threading
 import time
 
@@ -50,9 +50,8 @@ class ColorSensor(GenericSensor):
         """Legge i dati, struttura il dizionario e aggiorna Redis."""
         color_val = self.read_rgb255()
         
-        sensor_data = {
-            self.name: color_val
-        }
+        sensor_data = {self.name: color_val}
+
         
         # Aggiorna il Belief State su Redis
         self.redis_client.update_sensor_data(SENSORS_KEY, sensor_data)

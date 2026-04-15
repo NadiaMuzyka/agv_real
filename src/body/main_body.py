@@ -2,11 +2,10 @@ import time
 import json
 import logging
 
+from modules.sensors.sensor_manager import SensorManager
 from modules.connection.coppelia_connector import CoppeliaConnector
 from modules.sensors.color_sensor import ColorSensor
-from modules.actuators.wheel_actuator import WheelsActuator
 from modules.controllers.low_level_manager import LowLevelManager
-from modules.controllers.navigation_controller import NavigationController
 
 #docker compose up --build body
 
@@ -20,13 +19,13 @@ logger = logging.getLogger(__name__)
 
 class RobotController:
     """
-    Gestisce l'orchestrazione pura (Sensing hardware -> Action hardware
+    Gestisce l'orchestrazione pura (Sensing hardware -> Action hardware)
     """
     
     # --- COSTANTI DI CONFIGURAZIONE ---
-    SENSORS_KEY = "agv_sensors"
-    TARGET_SPEED = 0.05
-    LOOP_HZ = 20
+    LEFT_SENSOR_NAME = "/Robot/leftColorSensor"
+    CENTRAL_SENSOR_NAME = "/Robot/centralColorSensor"
+    RIGHT_SENSOR_NAME = "/Robot/rightColorSensor"
 
     queue = ["RIGHT", "LEFT", "STOP"] #simulazione coda di navigazione (Redis/Brain)
     
@@ -34,8 +33,7 @@ class RobotController:
         logger.info("Inizializzazione RobotController")
         
         # 1. Connessioni
-        #Mi connetto a CoppeliaSim tramite il Singleton CoppeliaConnector, che gestisce la connessione condivisa a CoppeliaSim.
-        #self.sim è l'oggetto che utilizzerò per interagire con le API di Coppelia in tutto il codice 
+        #Mi connetto a CoppeliaSim tramite il Multiton CoppeliaConnector, che gestisce la connessione condivisa a CoppeliaSim.
         self.sim = CoppeliaConnector().get_sim()
 
         if not self.sim:
@@ -46,35 +44,21 @@ class RobotController:
         # 2. Sottosistemi Hardware
         self.manager = LowLevelManager(self.sim) 
 
-        self.left_sensor = ColorSensor("/Robot/leftColorSensor")
-        self.central_sensor = ColorSensor("/Robot/centralColorSensor") 
-        self.right_sensor = ColorSensor("/Robot/rightColorSensor")
-        
+        #Hanno connessioni isolate a CoppeliaSim grazie al Multiton CoppeliaConnector
+        self.left_sensor = ColorSensor(self.LEFT_SENSOR_NAME)
+        self.central_sensor = ColorSensor(self.CENTRAL_SENSOR_NAME)
+        self.right_sensor = ColorSensor(self.RIGHT_SENSOR_NAME)
 
-        # 3. Controller Mente Decisionale
-        self.nav = NavigationController(target_speed=self.TARGET_SPEED)
+        self.sensor_manager = SensorManager(sensor_names=[self.LEFT_SENSOR_NAME, self.CENTRAL_SENSOR_NAME, self.RIGHT_SENSOR_NAME])
 
 
     def run(self):
-        """Ciclo di vita principale."""
-        logger.info(f"Main loop avviato a {self.LOOP_HZ}Hz.")
-        loop_delay = 1.0 / self.LOOP_HZ
 
         #Avvio i thread dei sensori (che leggono e aggiornano Redis in background)
         self.left_sensor.start()
         self.central_sensor.start()
         self.right_sensor.start()
-        
-        try:
-            while True:                
-                
-                time.sleep(loop_delay)
-                
-        except KeyboardInterrupt:
-            logger.warning("Interruzione terminale.")
-
-        except Exception as e:
-            logger.error(f"Eccezione: {e}", exc_info=True)
+        self.sensor_manager.start()
 
 
 def main():
