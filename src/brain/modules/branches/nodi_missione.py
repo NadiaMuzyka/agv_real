@@ -111,7 +111,7 @@ class RiceviListaPallet(py_trees.behaviour.Behaviour):
         
 
         # # Anti-Tick Fantasma: aspettiamo che l'AGV sia "sveglio" e connesso a Redis
-        # sensori = lc.db.get_sensor_data("agv_sensors")
+        # sensori = lc.db.get_sensor_data("brain_memory")
         # if not sensori:
         #     return py_trees.common.Status.RUNNING
 
@@ -211,6 +211,7 @@ class GeneraPianoOttimale(py_trees.behaviour.Behaviour):
 
 class NavigaVersoTarget(py_trees.behaviour.Behaviour):
     def __init__(self):
+        super(NavigaVersoTarget, self).__init__(name="Naviga Verso Target")
         print("Inizializzo nodo NavigaVersoTarget")
         self.blackboard = py_trees.blackboard.Client(name=self.name)
         self.blackboard.register_key(key="logic_controller", access=py_trees.common.Access.READ)
