@@ -37,6 +37,7 @@ graph TD
             PATH_CTR[<b>PATH CONTROLLER</b>]:::body
             DELIVERY_CTR[<b>DELIVERY CONTROLLER</b>]:::body
             MANEUVER_CTR[<b>MANEUVER CONTROLLER</b>]:::body
+            PID[<b>PID CONTROLLER</b>]:::body
             style CONTROLLER fill:#e1f5fe,stroke:#01579b,stroke-width:2px
         end
 
@@ -78,6 +79,10 @@ graph TD
     COLOR_SENSOR_RIGHT -.-> BODY_MEMORY
     COLOR_SENSOR_CENTER -.-> BODY_MEMORY
 
+    COLOR_SENSOR_LEFT -.-> PID
+    COLOR_SENSOR_RIGHT -.-> PID
+    COLOR_SENSOR_CENTER -.-> PID
+
     BODY_MEMORY -.-> SENSOR_MANAGER
 
     SENSOR_MANAGER -.-> |"Dati sensori elaborati"|BRAIN_MEMORY
@@ -100,7 +105,9 @@ graph TD
         %%--- FLUSSO MANEUVER
         TASK_CONTROLLER --> PATH_CTR
         PATH_CTR --> MANEUVER_CTR
+        MANEUVER_CTR --> PID
         MANEUVER_CTR --> WHEEL_ACT
+        PID --> WHEEL_ACT
         WHEEL_ACT --> CONNECT_WHEEL_ACT
         CONNECT_WHEEL_ACT --> SIM_ACTUATOR_WHEEL
 

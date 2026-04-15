@@ -31,6 +31,7 @@ class ColorSensor(GenericSensor):
         self.frequenza_lettura = 0.1 # 10 Hz
         self._running = False
         self._thread = None
+        self.last_color = [255, 255, 255] # Default bianco
 
     def start(self):
         """Avvia il thread del sensore."""
@@ -49,6 +50,7 @@ class ColorSensor(GenericSensor):
     def read(self):
         """Legge i dati, struttura il dizionario e aggiorna Redis."""
         color_val = self.read_rgb255()
+        self.last_color = color_val #Aggiorno l'ultimo colore letto, accessibile da fuori (es. PIDController)
         
         sensor_data = {self.name: color_val}
 
