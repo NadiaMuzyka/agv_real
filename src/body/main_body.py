@@ -35,9 +35,8 @@ class RobotController:
         
         # 1. Connessioni
         #Mi connetto a CoppeliaSim tramite il Singleton CoppeliaConnector, che gestisce la connessione condivisa a CoppeliaSim.
-        connector = CoppeliaConnector()
         #self.sim è l'oggetto che utilizzerò per interagire con le API di Coppelia in tutto il codice 
-        self.sim = connector.get_sim()
+        self.sim = CoppeliaConnector().get_sim()
 
         if not self.sim:
             logger.error("Impossibile connettersi a Coppelia.")
@@ -46,9 +45,10 @@ class RobotController:
 
         # 2. Sottosistemi Hardware
         self.manager = LowLevelManager(self.sim) 
-        self.left_sensor = ColorSensor(self.sim, "/Robot/leftColorSensor")
-        self.central_sensor = ColorSensor(self.sim, "/Robot/centralColorSensor") 
-        self.right_sensor = ColorSensor(self.sim, "/Robot/rightColorSensor")
+
+        self.left_sensor = ColorSensor("/Robot/leftColorSensor")
+        self.central_sensor = ColorSensor("/Robot/centralColorSensor") 
+        self.right_sensor = ColorSensor("/Robot/rightColorSensor")
         
 
         # 3. Controller Mente Decisionale
@@ -68,19 +68,6 @@ class RobotController:
         try:
             while True:                
                 
-                # --- 2.1. GESTIONE CODA DI NAVIGAZIONE ---
-                #Qui avverrà la lettura dei comandi di navigazione (simulati o reali da Redis/Brain)
-                if self.queue:
-                    command = self.queue.pop(0)
-                else:
-                    command = None
-
-                '''
-                # --- 4. ATTUAZIONE ---
-                if command is not None:
-                    v_target, w_target = self.manager.execute_command(command)
-                    self.wheels.move(v_target, w_target)
-                '''
                 time.sleep(loop_delay)
                 
         except KeyboardInterrupt:
