@@ -81,11 +81,11 @@ class LogicController:
             return False
 
     #Metodo per trovare il percorso ottimo tra due nodi (generico)
-    """
-        restituisce una lista di nodi da attraversare per andare da nodo_partenza
-        a nodo_arrivo, o False se non esiste un percorso valido.
-    """
     def find_path(self, nodo_partenza: str, nodo_arrivo: str) -> list|bool:
+        """
+            restituisce una lista di nodi da attraversare per andare da nodo_partenza
+            a nodo_arrivo, o False se non esiste un percorso valido.
+        """
         print(f"[LogicController] Trovando percorso da {nodo_partenza} a {nodo_arrivo}...")
         percorso = self.navigatore.trova_percorso_minimo(nodo_partenza, nodo_arrivo)[0]
         if percorso:
@@ -292,6 +292,7 @@ class LogicController:
         else:
             return "FAILURE"
 
+    #metodo per inviare un comando di movimento verso il prossimo nodo del percorso
     def move_towards(self, next_node: str):
         """ Invia un comando di movimento verso il prossimo nodo. """
         command = {
@@ -303,6 +304,7 @@ class LogicController:
         self.db.set_command(self.db.COMMAND_CHANNEL, command)
         print(f"[LogicController] Comando MOVE_TO inviato per nodo: {next_node}")
 
+    #metodo per aggiornare il percorso verso il target e il prossimo nodo su Redis
     def update_path_in_redis(self, next_node: str, path_to_target: list):
         """ Sincronizza il nuovo nodo e il percorso rimanente su Redis """
         aggiornamenti = {
@@ -311,6 +313,7 @@ class LogicController:
         }
         self.db.update_sensor_data("agv_sensors", aggiornamenti)
 
+    #metodo per calcolare la distanza stimata tra due nodi (usato per ottimizzazione e scheduling, non modifica lo stato)
     def calcola_distanza_stimata(self, nodo_partenza: str, nodo_arrivo: str) -> float:
         """
         Calcola la lunghezza del percorso minimo tra due nodi SENZA modificare lo stato.
@@ -332,7 +335,6 @@ class LogicController:
         except Exception as e:
             print(f"[LogicController] Errore nel calcolo distanza stimata: {e}")
             return 99999.0
-
 
     # Metodo ausiliario per unire le informazioni del piano e dell'infopack (esempio di elaborazione dati)
     def merge_plan_infopack(self, plan: dict, infopack: list) -> list:
