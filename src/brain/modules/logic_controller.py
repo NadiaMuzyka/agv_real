@@ -71,13 +71,15 @@ class LogicController:
         return True
 
     #endregion
-    
+
+    #region Metodi Nodi Energia
+
     #Metodo per settare la modalità di energia
     def set_energy_mode(self, mode: str):
         if mode == "CHARGE_MODE":
-            self.db.update_sensor_data("agv_sensors", {"is_charging": True})
+            self.db.update_sensor_data("brain_memory", {"is_charging": True})
         else:
-            self.db.update_sensor_data("agv_sensors", {"is_charging": False})
+            self.db.update_sensor_data("brain_memory", {"is_charging": False})
 
     #Metodo per trovare il percorso ottimo tra due nodi (per la ricarica)
     def find_path_to_recharge(self, nodo_partenza: str, nodo_arrivo: str) -> bool:
@@ -95,22 +97,6 @@ class LogicController:
         else:
             print(f"[LogicController] Nessun percorso trovato da {nodo_partenza} a {nodo_arrivo}.")
             return False
-
-    #Metodo per trovare il percorso ottimo tra due nodi (generico)
-    def find_path(self, nodo_partenza: str, nodo_arrivo: str) -> list|bool:
-        """
-            restituisce una lista di nodi da attraversare per andare da nodo_partenza
-            a nodo_arrivo, o False se non esiste un percorso valido.
-        """
-        print(f"[LogicController] Trovando percorso da {nodo_partenza} a {nodo_arrivo}...")
-        percorso = self.navigatore.trova_percorso_minimo(nodo_partenza, nodo_arrivo)[0]
-        if percorso:
-            print(f"[LogicController] Percorso trovato: {percorso}")
-            return percorso
-        else:
-            print(f"[LogicController] Nessun percorso trovato da {nodo_partenza} a {nodo_arrivo}.")
-            return False
-    
     #Metodo per aggiornare mission queue e current target
     def update_mission_for_recharge(self, path: list)-> bool:
         """ Aggiorna la mission queue e il current target sulla blackboard. """
@@ -160,7 +146,7 @@ class LogicController:
             if self.blackboard.current_position == "ER":
                 print("[LogicController] Arrivati alla stazione di ricarica. Inizio ricarica...")
                 comando = {
-                    "type": "STOP"
+                    "type": "START_CHARGE"
                 }
                 self.db.set_command(self.db.COMMAND_CHANNEL, comando)
                 return "SUCCESS"
@@ -205,6 +191,24 @@ class LogicController:
             return "RUNNING"
         else:
             return "SUCCESS"
+
+    #endregion
+
+    #Metodo per trovare il percorso ottimo tra due nodi (generico)
+    def find_path(self, nodo_partenza: str, nodo_arrivo: str) -> list|bool:
+        """
+            restituisce una lista di nodi da attraversare per andare da nodo_partenza
+            a nodo_arrivo, o False se non esiste un percorso valido.
+        """
+        print(f"[LogicController] Trovando percorso da {nodo_partenza} a {nodo_arrivo}...")
+        percorso = self.navigatore.trova_percorso_minimo(nodo_partenza, nodo_arrivo)[0]
+        if percorso:
+            print(f"[LogicController] Percorso trovato: {percorso}")
+            return percorso
+        else:
+            print(f"[LogicController] Nessun percorso trovato da {nodo_partenza} a {nodo_arrivo}.")
+            return False
+    
 
     #Metodo per calcolare il percorso verso il target della missione in corso
     def calculate_path_to_current_target(self):

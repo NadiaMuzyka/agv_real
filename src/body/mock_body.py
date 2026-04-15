@@ -73,13 +73,14 @@ def start_action(action_type, destination=None):
     if action_type == "MOVE_TO":
         action_ends_at = action_started_at + MOVE_DURATION
         print(f"🚶 [MOCK BODY] In movimento verso {destination}...")
+        
     elif action_type == "PICKUP":
         action_ends_at = action_started_at + PICKUP_DURATION
         print(f"📦 [MOCK BODY] Inizio prelievo...")
     elif action_type == "DROP":
         action_ends_at = action_started_at + DROP_DURATION
         print(f"📦 [MOCK BODY] Inizio consegna...")
-    elif action_type == "CHARGING":
+    elif action_type == "START_CHARGE":
         action_ends_at = None  # Non ha una fine fissa
         print(f"🔋 [MOCK BODY] Inizio ricarica...")
 
@@ -174,7 +175,7 @@ while is_running:
 
             elif cmd_type == "START_CHARGE" and not current_action:
                 is_charging = True
-                start_action("CHARGING")
+                start_action("START_CHARGE")
 
             elif cmd_type == "STOP_CHARGE":
                 if is_charging:
