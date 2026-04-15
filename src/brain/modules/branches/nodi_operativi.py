@@ -72,7 +72,7 @@ class EseguiPrelievo(py_trees.behaviour.Behaviour):
             lc = self.blackboard.logic_controller
             print(f"[{self.name}] 📦 Invio comando di PICKUP ai motori...")
             
-            #lc.esegui_prelievo()  # Metodo che imposta il comando di PICKUP sul DB, da cui il Mock Body leggerà
+            lc.esegui_prelievo()  # Metodo che imposta il comando di PICKUP sul DB, da cui il Mock Body leggerà
             
         except KeyError:
             print(f"[{self.name}] ERRORE: Logic Controller non trovato sulla Blackboard!")
@@ -158,7 +158,7 @@ class EseguiConsegna(py_trees.behaviour.Behaviour):
             lc = self.blackboard.logic_controller
             print(f"[{self.name}] 📦 Invio comando di DROP ai motori...")
             
-            #lc.esegui_consegna()  # Metodo che imposta il comando di DROP sul DB, da cui il Mock Body leggerà
+            lc.esegui_consegna()  # Metodo che imposta il comando di DROP sul DB, da cui il Mock Body leggerà
             
         except KeyError:
             print(f"[{self.name}] ERRORE: Logic Controller non trovato sulla Blackboard!")

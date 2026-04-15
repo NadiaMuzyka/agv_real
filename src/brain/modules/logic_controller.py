@@ -240,6 +240,22 @@ class LogicController:
 
     #endregion
 
+    #region Metodi Nodi Operativi - Prelievo e Consegna
+
+    def esegui_prelievo(self):
+        """ Metodo che simula l'esecuzione del prelievo (VA RISCRITTO APPENA COLLEGHIAMO IL BODY) """
+        print("[LogicController] Esecuzione prelievo in corso...")
+        self.db.set_command(self.db.COMMAND_CHANNEL, {"type": "PICKUP"})
+        print("[LogicController] Comando PICKUP inviato e stato is_load aggiornato a True.")
+
+    def esegui_consegna(self):
+        """ Metodo che simula l'esecuzione della consegna (VA RISCRITTO APPENA COLLEGHIAMO IL BODY) """
+        print("[LogicController] Esecuzione consegna in corso...")
+        self.db.set_command(self.db.COMMAND_CHANNEL, {"type": "DROP"})
+        print("[LogicController] Comando DROP inviato e stato is_load aggiornato a False.")
+
+    #endregion
+
     #Metodo per trovare il percorso ottimo tra due nodi (generico)
     def find_path(self, nodo_partenza: str, nodo_arrivo: str) -> list|bool:
         """
