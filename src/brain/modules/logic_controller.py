@@ -74,6 +74,7 @@ class LogicController:
         self.blackboard.is_load = sensor_data.get("is_load", False)#sto trasportando un carico?
         #self.temp è nella blackboard, ma non è persistente su Redis
 
+
     #region Metodi Nodi Sicurezza
     #Metodo per stoppare l'AGV   
     def execute_stop(self):
