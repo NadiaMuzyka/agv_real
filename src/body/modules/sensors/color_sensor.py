@@ -28,7 +28,7 @@ class ColorSensor(GenericSensor):
             print(f"[{self.name}] Redis non raggiungibile.")
             raise ConnectionError("Redis err")
         
-        self.frequenza_lettura = 0.1 # 10 Hz
+        self.frequenza_lettura = 0.05 # 20 Hz
         self._running = False
         self._thread = None
         self.last_color = [255, 255, 255] # Default bianco

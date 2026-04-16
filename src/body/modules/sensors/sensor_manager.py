@@ -61,6 +61,9 @@ class SensorManager:
         # 3. Logica finale: tutti e tre devono aver visto il target
         is_in_node = (detect_count == len(self.sensor_names))
 
+        if(is_in_node):
+            print(f"[SensorManager] Nodo rilevato!")
+
         # 4. Scrive il risultato nello spazio "brain_memory"
         self.redis_client.update_sensor_data(self.BRAIN_KEY, {self.NODE_KEY: is_in_node})
 

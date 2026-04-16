@@ -2,7 +2,7 @@ import threading
 import time
 
 class PIDController:
-    def __init__(self, sensors_dict, wheels_actuator, base_speed=0.1):
+    def __init__(self, sensors_dict, wheels_actuator, base_speed=0.07):
         """
         :param sensors_dict: Dizionario con le istanze dei sensori {'left': obj, 'center': obj, 'right': obj}
         """
@@ -11,9 +11,9 @@ class PIDController:
         self.base_speed = base_speed
         
         # Parametri PID (sensori discreti = no Kd)
-        self.kp = 0.1  # Ridotto per curve più dolci
+        self.kp = 0.1  # Aumentato per ridurre settling distance
         self.ki = 0.0   # Disabilitato per evitare drift
-        self.kd = 0.05  # Disabilitato: amplifica il rumore discreto
+        self.kd = 0.1  # Disabilitato: amplifica il rumore discreto
         
         # Stato interno
         self.prev_error = 0.0
@@ -60,9 +60,9 @@ class PIDController:
             if len(self.error_buffer) > 3:
                 self.error_buffer.pop(0)
             error = sum(self.error_buffer) / len(self.error_buffer)
-            
+
             # Solo termine proporzionale
-            self.w = -(self.kp * error + self.kd * (error - self.prev_error))
+            self.w = -(self.kp * error )
             self.v = self.base_speed * max(0.2, 1 - abs(error))
 
             # 4. COMANDO AI MOTORI (Nuova chiamata)
