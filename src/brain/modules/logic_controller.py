@@ -43,7 +43,6 @@ class LogicController:
         
         
         print(f"[LogicController] Aggiornamento blackboard con dati REALI da Redis: {sensor_data}")
-        # Aggiorna la blackboard con i dati random (o reali se presenti)
         # NOTA: se la chiave non esiste, usiamo un valore di default
         self.blackboard.battery_level = sensor_data.get("battery_level", 10.0)#livello batteria
         self.blackboard.person_detected = sensor_data.get("person_detected", False)#persona rilevata
@@ -51,13 +50,14 @@ class LogicController:
         self.blackboard.am_i_in_a_node = sensor_data.get("am_i_in_a_node", True)#sono in un nodo?
         self.blackboard.next_node = sensor_data.get("next_node", None)#prossimo nodo verso cui stiamo andando
         self.blackboard.current_position = sensor_data.get("current_position", "I3")#posizione attuale dell'AGV
+        self.blackboard.mission_queue = sensor_data.get("mission_queue", [])#lista dei nodi dove svolgere la missione
         self.blackboard.path_to_target = sensor_data.get("path_to_target", [])#percorso completo verso il target
         self.blackboard.is_charging = sensor_data.get("is_charging", False)#sono in modalità ricarica?
+        self.blackboard.current_target = sensor_data.get("current_target", None)#nodo target della missione in corso, None se non c'è missione in corso 
         self.blackboard.is_load = sensor_data.get("is_load", False)#sto trasportando un carico?
         #self.temp è nella blackboard, ma non è persistente su Redis
 
     #region Metodi Nodi Sicurezza
-
     #Metodo per stoppare l'AGV   
     def execute_stop(self):
         """ Invia il comando di stop. """
@@ -69,7 +69,6 @@ class LogicController:
         self.db.set_command(self.db.COMMAND_CHANNEL, command)
         print("[LogicController] Comando STOP inviato.")
         return True
-
     #endregion
 
     #region Metodi Nodi Energia
@@ -424,22 +423,3 @@ class LogicController:
     def navigate_to_current_target(self) -> str:
         target = self.blackboard.current_target
         return self._navigate_to_target(target_node=target, send_stop_on_arrival=False)
-
-
-
-
-
-
-    # METODI DI ESEMPIO
-    #------------------------------------------------------------------------
-    def execute_line_follow(self, line_error: float):
-        """ Invia l'errore di linea al Body, delegando il controllo PID al basso livello. """
-        # Pubblica un comando di tipo "LINE_FOLLOW" con l'errore
-        command = {
-            "type": "LINE_FOLLOW",
-            "error": line_error,
-            "target_speed": 0.5 # Velocità desiderata
-        }
-        self.db.set_command(self.db.COMMAND_CHANNEL, command)
-
-    #------------------------------------------------------------------------
