@@ -60,7 +60,6 @@ class PIDController:
             if len(self.error_buffer) > 3:
                 self.error_buffer.pop(0)
             error = sum(self.error_buffer) / len(self.error_buffer)
-            print(f"[PID] Errore: {error:.3f}, Buffer: {[round(e, 3) for e in self.error_buffer]}")
 
             # Solo termine proporzionale
             self.w = -(self.kp * error )
