@@ -12,8 +12,7 @@ COMMAND_CHANNEL = "agv_command_channel"
 SENSOR_KEY = "brain_memory"
 
 is_running = True
-last_battery_log_at = 0.0
-BATTERY_LOG_INTERVAL = 1.0
+
 
 def log_event(message):
     timestamp = time.strftime("%H:%M:%S")
@@ -48,9 +47,6 @@ action_started_at = None  # timestamp di inizio
 action_ends_at = None  # timestamp di fine atteso
 next_node_destination = None  # nodo destinazione per MOVE_TO
 
-# --- BATTERY STATE ---
-battery_level = 15.0
-is_charging = False
 
 # --- PERSON DETECTION STATE ---
 person_detected_time = None
@@ -63,22 +59,32 @@ MOVE_DURATION = 2.0
 PICKUP_DURATION = 3.0
 DROP_DURATION = 3.0
 
+
+#region get/update sensors (Utilizzano Redis Interface)
 def get_sensors():
     """Restituisce lo stato corrente dei sensori letto da Redis."""
-    return redis_interface.get_sensor_data(SENSOR_KEY)
+    return redis_interface.get_sensor_data(SENSOR_KEY) or {}
 
 def update_sensors(updates):
     """Aggiorna i sensori su Redis con i dati forniti"""
-    global last_battery_log_at
     redis_interface.update_sensor_data(SENSOR_KEY, updates)
-    now = time.time()
-    if "battery_level" in updates and len(updates) == 1:
-        if now - last_battery_log_at >= BATTERY_LOG_INTERVAL:
-            last_battery_log_at = now
-            log_event(f"📡 [MOCK BODY] Sensori aggiornati: {updates}")
-    else:
-        log_event(f"📡 [MOCK BODY] Sensori aggiornati: {updates}")
+    log_event(f"📡 [MOCK BODY] Sensori aggiornati: {updates}")
+#endregion
 
+#region STOP action (Interruzione immediata)
+def stop_action():
+    """Arresta immediatamente l'azione in corso"""
+    global current_action, action_started_at, action_ends_at
+    if current_action:
+        log_event(f"🛑 [MOCK BODY] Stop ricevuto. Interruzione di {current_action}.")
+        current_action = None
+        action_started_at = None
+        action_ends_at = None
+    else:
+        log_event("🛑 [MOCK BODY] STOP ricevuto ma nessuna azione era attiva.")
+#endregion
+
+#region START/COMPLETE action
 def start_action(action_type, destination=None):
     """Avvia una nuova azione"""
     global current_action, action_started_at, action_ends_at, next_node_destination
@@ -97,55 +103,62 @@ def start_action(action_type, destination=None):
     elif action_type == "DROP":
         action_ends_at = action_started_at + DROP_DURATION
         log_event("📦 [MOCK BODY] Inizio consegna...")
-    elif action_type == "START_CHARGE":
-        action_ends_at = None  # Non ha una fine fissa
-        log_event("🔋 [MOCK BODY] Inizio ricarica...")
-
-def stop_action():
-    """Arresta immediatamente l'azione in corso"""
-    global current_action, action_started_at, action_ends_at
-    if current_action:
-        log_event(f"🛑 [MOCK BODY] Stop ricevuto. Interruzione di {current_action}.")
-        current_action = None
-        action_started_at = None
-        action_ends_at = None
-    else:
-        log_event("🛑 [MOCK BODY] STOP ricevuto ma nessuna azione era attiva.")
 
 def complete_action():
     """Completa l'azione in corso"""
-    global current_action
+    global current_action 
+    
+    # Quantità di batteria consumata per ogni azione
+    battery_consumption = 1.0
+
+    # LETTURA SENSORI
+    sensors = get_sensors()
+
+    # CALCOLO CONSUMO BATTERIA
+    current_BATTERY = sensors.get("battery_level", 100.0)
+    new_battery = max(0.0, current_BATTERY - battery_consumption)  # Consumo fisso per semplicità
 
     if current_action == "MOVE_TO":
-        sensors = get_sensors()
         path_to_target = sensors.get("path_to_target", [])
 
+        # se sto ancora navigando verso il nodo target, aggiorno la posizione al nodo successivo
         if isinstance(path_to_target, list) and len(path_to_target) > 0:
             aggiornamenti = {
                 "current_position": path_to_target[0],
-                "path_to_target": path_to_target[1:]
+                "path_to_target": path_to_target[1:],
+                "am_i_in_a_node": True,
+                "battery_level": new_battery
             }
             if len(path_to_target) > 1:
                 aggiornamenti["next_node"] = path_to_target[1]
             else:
                 aggiornamenti["next_node"] = None
-
             log_event(f"📍 [MOCK BODY] Arrivato al nodo: {path_to_target[0]}!")
             update_sensors(aggiornamenti)
+
+        # altrimenti, se non ho più nodi in path_to_target, arrivo a destinazione
         else:
             log_event(f"📍 [MOCK BODY] Arrivato a destinazione: {next_node_destination}!")
             update_sensors({
                 "current_position": next_node_destination,
-                "next_node": None
+                "next_node": None,
+                "am_i_in_a_node": True,
+                "battery_level": new_battery
             })
 
         update_sensors({"am_i_in_a_node": True})
     elif current_action == "PICKUP":
         log_event("✅ [MOCK BODY] Prelievo completato!")
-        update_sensors({"is_load": True})
+        update_sensors({
+            "is_load": True,
+            "battery_level": new_battery
+        })
     elif current_action == "DROP":
         log_event("✅ [MOCK BODY] Consegna completata!")
-        update_sensors({"is_load": False})
+        update_sensors({
+            "is_load": False,
+            "battery_level": new_battery
+        })
 
     current_action = None
     action_started_at = None
@@ -154,7 +167,9 @@ def complete_action():
     # Scartiamo tutti i messaggi duplicati rimasti in coda
     while pubsub.get_message(ignore_subscribe_messages=True):
         pass
+#endregion
 
+#region simulate person detection
 def simulate_person():
     """Simula la comparsa di una persona durante il movimento o prima di partire"""
     global person_detected_time, person_cooldown_until
@@ -181,6 +196,7 @@ def simulate_person():
             person_detected_time = now
             log_event("👤 [MOCK BODY] Rilevata una persona nel percorso!")
             update_sensors({"person_detected": True})
+#endregion
 
 # --- MAIN LOOP ---
 while is_running:
@@ -191,11 +207,13 @@ while is_running:
 
     if message and message['type'] == 'message':
         try:
-            log_event(f"📨 [MOCK BODY] Messaggio ricevuto su {COMMAND_CHANNEL}: {message.get('data')}")
             raw_data = message['data'].replace("'", '"')
             comando = json.loads(raw_data)
             cmd_type = comando.get("type")
-            log_event(f"🧭 [MOCK BODY] Comando interpretato: {cmd_type} | payload={comando}")
+
+            # log dei comandi ricevuti
+            if cmd_type in ["MOVE_TO", "STOP", "PICKUP", "DROP"]:
+                log_event(f"📥 [MOCK BODY] Comando ricevuto: {cmd_type}")
 
             if cmd_type == "STOP":
                 stop_action()
@@ -206,7 +224,6 @@ while is_running:
                     continue
                 destination = comando.get("next_node")
                 if destination:
-                    is_charging = False
                     start_action("MOVE_TO", destination)
                 else:
                     log_event("⚠️ [MOCK BODY] MOVE_TO senza next_node: comando ignorato.")
@@ -223,21 +240,6 @@ while is_running:
                     continue
                 start_action("DROP")
 
-            elif cmd_type == "START_CHARGE":
-                if current_action:
-                    log_event(f"⏭️ [MOCK BODY] START_CHARGE ignorato: azione in corso ({current_action}).")
-                    continue
-                is_charging = True
-                start_action("START_CHARGE")
-
-            elif cmd_type == "STOP_CHARGE":
-                if is_charging:
-                    is_charging = False
-                    current_action = None
-                    log_event("🔌 [MOCK BODY] Ricarica interrotta da STOP_CHARGE.")
-                else:
-                    log_event("🔌 [MOCK BODY] STOP_CHARGE ricevuto ma non ero in ricarica.")
-
             else:
                 log_event(f"⚠️ [MOCK BODY] Comando non riconosciuto: {cmd_type}")
 
@@ -248,20 +250,6 @@ while is_running:
     if current_action and action_ends_at:
         if now >= action_ends_at:
             complete_action()
-
-    # --- SIMULAZIONE BATTERIA ---
-    if is_charging:
-        battery_level = min(100.0, battery_level + 5.0)
-        update_sensors({"battery_level": battery_level})
-        if battery_level >= 100.0:
-            log_event("🔋 [MOCK BODY] Batteria completamente carica!")
-            is_charging = False
-            current_action = None
-    else:
-        # Consuma batteria durante il movimento
-        if current_action == "MOVE_TO":
-            battery_level = max(0.0, battery_level - 0.5)
-        update_sensors({"battery_level": battery_level})
 
     # --- SIMULAZIONE PERSONE ---
     simulate_person()

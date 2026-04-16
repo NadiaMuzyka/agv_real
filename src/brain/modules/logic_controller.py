@@ -171,6 +171,7 @@ class LogicController:
         if self.blackboard.am_i_in_a_node:
             print(f"[LogicController] Partenza verso nodo {next_node} (target finale: {target_node}).")
             self.db.set_command(self.db.COMMAND_CHANNEL, comando)
+
             return "RUNNING"
 
         self.db.set_command(self.db.COMMAND_CHANNEL, comando)
@@ -182,9 +183,12 @@ class LogicController:
         step_ricarica = 5.0 # percentuale di carica aggiunta ad ogni step
         if self.blackboard.battery_level < 100.0:
             nuova_batteria = min(100.0, self.blackboard.battery_level + step_ricarica)
-            self.db.update_sensor_data("brain_memory", {"battery_level": nuova_batteria})
+            aggiornamenti = {
+                "battery_level": nuova_batteria,
+                "is_charging": True
+            }
+            self.db.update_sensor_data("brain_memory", aggiornamenti)
             print(f"[LogicController] Ricaricando... Livello batteria: {nuova_batteria}%")
-            self.db.update_sensor_data("brain_memory", {"is_charging": True})
             return "RUNNING"
         else:
             self.db.update_sensor_data("brain_memory", {"is_charging": False})
