@@ -40,8 +40,25 @@ class LogicController:
         SENSORS_KEY = "brain_memory"  # Chiave Redis dove sono salvati i dati dei sensori
         sensor_data = self.db.get_sensor_data(SENSORS_KEY) or {}
         print(f"[LogicController] Letti dati REALI da Redis: {sensor_data}") 
-        
-        
+
+        #se REDIS  è vuoto all'inizio
+        if not sensor_data:
+            sensor_data = {
+                "battery_level": 10.0,
+                "person_detected": False,
+                "pallet_list_empty": False,
+                "am_i_in_a_node": True,
+                "next_node": None,
+                "current_position": "I3",
+                "mission_queue": [],
+                "path_to_target": [],
+                "is_charging": False,
+                "current_target": None,
+                "is_load": False
+            }
+            #scrittura dell'universo iniziale su Redis secondo quello che penso sia
+            self.db.update_sensor_data(SENSORS_KEY, sensor_data)
+
         print(f"[LogicController] Aggiornamento blackboard con dati REALI da Redis: {sensor_data}")
         # NOTA: se la chiave non esiste, usiamo un valore di default
         self.blackboard.battery_level = sensor_data.get("battery_level", 10.0)#livello batteria
@@ -192,11 +209,9 @@ class LogicController:
         else:
             self.db.update_sensor_data("brain_memory", {"is_charging": False})
             return "SUCCESS"
-
     #endregion
 
     #region Metodi Nodi Operativi
-
     #Metodo per leggere le richieste e i dati dei pacchetti
     def download_mission_from_central_system(self)-> str:
         info_pack = self.read_json_file("docs/info_pack.json")
@@ -239,11 +254,9 @@ class LogicController:
         except Exception as e:
             print(f"[LogicController] Errore nell'aggiornamento della mission queue su Redis: {e}")
             return "FAILURE"
-
     #endregion
 
     #region Metodi Nodi Operativi - Prelievo e Consegna
-
     def esegui_prelievo(self):
         """ Metodo che simula l'esecuzione del prelievo (VA RISCRITTO APPENA COLLEGHIAMO IL BODY) """
         print("[LogicController] Esecuzione prelievo in corso...")
@@ -255,7 +268,6 @@ class LogicController:
         print("[LogicController] Esecuzione consegna in corso...")
         self.db.set_command(self.db.COMMAND_CHANNEL, {"type": "DROP"})
         print("[LogicController] Comando DROP inviato e stato is_load aggiornato a False.")
-
     #endregion
 
     #Metodo per trovare il percorso ottimo tra due nodi (generico)
