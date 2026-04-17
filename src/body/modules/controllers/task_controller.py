@@ -58,20 +58,11 @@ class TaskController:
         
         command = None
         command_type = None
-        last_message_data = None  # Traccia l'ultimo messaggio processato
 
         while self._running:
             # 1. Legge l'obiettivo dal Brain (NON bloccante)
             message = self.pubsub.get_message()
             if message and message['type'] == 'message':
-                # Salta se è lo stesso messaggio di prima
-                if message['data'] == last_message_data:
-                    print("🧠 [TaskController] Messaggio già processato, salto.")
-                    time.sleep(self.frequenza_loop)
-                    continue
-                
-                last_message_data = message['data']  # Ricorda questo messaggio
-                
                 try:
                     # Parsa il comando da JSON
                     command_data = json.loads(message['data'])
@@ -83,6 +74,8 @@ class TaskController:
                     print(f"⚠️ [TaskController] Comando non valido (non JSON): {message['data']}")
                     command = None
                     command_type = None
+            else:
+                print(f"🧠 [TaskController] Nessun comando ricevuto. Continuo a monitorare...")
 
             in_node = self.redis_client.get_sensor_data(self.BRAIN_MEMORY).get("am_i_in_a_node", False)
 
@@ -91,13 +84,14 @@ class TaskController:
                 #Se ho un comando di movimento e sono in un nodo, faccio la manovra
                 #Se ho un comando di movimento e non sono in un nodo, seguo la linea
 
-                print(f"🧠 [TaskController] Stato: {self.current_state}, Comando ricevuto: {command_type}")
+                print(f"🧠 [TaskController] Sto in IDLE")
 
                 if command_type in self.commands:
                     if command_type == "STOP":
                         #Se ricevo un comando di STOP, mi fermo e rimango in IDLE
                         pass
                     else:
+                        print(f"🧠 [TaskController] Transizione a FOLLOWING")
                         self.current_state = FOLLOWING_STATE
 
             elif self.current_state == NODE_STATE:
@@ -105,18 +99,18 @@ class TaskController:
                 #Se ricevo un comando di delivery, passo a DELIVERY_STATE
                 #Se ricevo un comando di STOP, mi fermo e passo a IDLE
 
-                print(f"🧠 [TaskController] Stato: {self.current_state}, Comando ricevuto: {command_type}")
+                print(f"🧠 [TaskController] Sto in NODE")
 
                 
             elif self.current_state == FOLLOWING_STATE:
                 #Se arrivo ad un nodo, passo a NODE_STATE
                 #Se ricevo un comando di STOP, mi fermo e passo a IDLE
 
-                print(f"🧠 [TaskController] Stato: {self.current_state}, Comando ricevuto: {command_type}")
+                print(f"🧠 [TaskController] Sto in FOLLOWING")
 
                 if command_type in self.commands:
                     if command_type == "STOP":
-                        print("🧠 [TaskController] Comando STOP ricevuto. Fermando il robot.")
+                        print(f"🧠 [TaskController] Transizione a IDLE")
                         self.current_state = IDLE_STATE
 
                 
