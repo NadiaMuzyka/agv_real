@@ -43,6 +43,8 @@ class ENodoDiPrelievo(py_trees.behaviour.Behaviour):
         if is_load:
             return py_trees.common.Status.FAILURE
         
+        #NOTA: se qui lavoriamo con current_target,invece di mission_queue[pick_up_position]
+        #poi dobbiamo aggiornare current_target 
         if pos_attuale == target and am_i_in_a_node:
             #print(f"[ENodoDiPrelievo] ✅ CONFERMATO: Siamo fisicamente sul nodo di prelievo {target.get('id')}.")
             return py_trees.common.Status.SUCCESS
@@ -59,6 +61,7 @@ class EseguiPrelievo(py_trees.behaviour.Behaviour):
         self.blackboard = py_trees.blackboard.Client(name=self.name)
         
         # Registriamo le chiavi in lettura
+        self.blackboard.register_key(key="current_target", access=py_trees.common.Access.READ)
         self.blackboard.register_key(key="logic_controller", access=py_trees.common.Access.READ)
         self.blackboard.register_key(key="is_load", access=py_trees.common.Access.READ)
 
@@ -86,12 +89,18 @@ class EseguiPrelievo(py_trees.behaviour.Behaviour):
             return py_trees.common.Status.FAILURE
         
         # 1. Se le forche non sono ancora alzate, stiamo in silenzio e aspettiamo
-        if is_load:
+        if not is_load:
             return py_trees.common.Status.RUNNING
+        
+        else:
+            esito = self.blackboard.logic_controller.aggiorna_stato_dopo_prelievo()  # Metodo che aggiorna lo stato interno del Logic Controller dopo il prelievo, se necessario 
+            if esito:
+                print(f"[{self.name}] ✅ Feedback ricevuto: Forche alzate con successo, carico a bordo!")
+                return py_trees.common.Status.SUCCESS
+            else:
+                print(f"[{self.name}] ❌ Feedback ricevuto: C'è stato un problema durante il prelievo. Verificare i sensori e lo stato del carico.")
+                return py_trees.common.Status.FAILURE
             
-        # 2. Il Mock Body ha aggiornato il sensore! Il prelievo è completato!
-        print(f"[{self.name}] ✅ Feedback ricevuto: Forche alzate con successo, carico a bordo!")
-        return py_trees.common.Status.SUCCESS
 
 
 class ENodoDiConsegna(py_trees.behaviour.Behaviour):

@@ -90,7 +90,6 @@ class LogicController:
     #endregion
 
     #region Metodi Nodi Energia
-
     #Metodo per settare la modalità di energia
     def set_energy_mode(self, mode: str):
         if mode == "CHARGE_MODE":
@@ -263,6 +262,28 @@ class LogicController:
         print("[LogicController] Esecuzione prelievo in corso...")
         self.db.set_command(self.db.COMMAND_CHANNEL, {"type": "PICKUP"})
         print("[LogicController] Comando PICKUP inviato e stato is_load aggiornato a True.")
+
+    # Metodo che aggiorna lo stato dopo ilprelievo
+    def aggiorna_stato_dopo_prelievo(self) -> bool:
+        """ 
+        Metodo chiamato dal BT quando il prelievo è confermato dai sensori.
+        Resetta il target e il percorso per forzare il ricalcolo verso la consegna.
+        """
+        try:
+            # Svuotiamo il target e il percorso attuale su Redis
+            # Questo obbligherà il nodo 'Il Percorso È Stato Calcolato' a restituire FAILURE
+            # e quindi farà scattare il nodo 'Calcola Percorso'.
+            aggiornamenti = {
+                "current_target": None,
+                "path_to_target": [],
+                "next_node": None
+            }
+            self.db.update_sensor_data("brain_memory", aggiornamenti)
+            print("[LogicController] Stato post-prelievo sincronizzato. Target resettato per ricalcolo percorso.")
+            return True
+        except Exception as e:
+            print(f"[LogicController] Errore critico durante l'aggiornamento post-prelievo: {e}")
+            return False
 
     def esegui_consegna(self):
         """ Metodo che simula l'esecuzione della consegna (VA RISCRITTO APPENA COLLEGHIAMO IL BODY) """
