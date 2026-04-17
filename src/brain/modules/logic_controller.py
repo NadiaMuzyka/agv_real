@@ -204,24 +204,26 @@ class LogicController:
             return "FAILURE"
 
         if self.blackboard.am_i_in_a_node and self.blackboard.current_position == target_node:
+            # ========================================================
+            # CONTROLLO FINE MISSIONE
+            # ========================================================
+            # Usiamo getattr per evitare errori se la variabile non dovesse esistere
+            if getattr(self.blackboard, "mission_finished", False):
+                print("\n" + "="*50)
+                print("🎉 [FINE TURNO] Tutte le missioni completate!")
+                print("🔋 [FINE TURNO] L'AGV è rientrato alla base. Spegnimento in corso... Addio!")
+                print("="*50 + "\n")
+                    
+                # 1. Mandiamo il comando di morte al Body
+                self.db.set_command(self.db.COMMAND_CHANNEL, {"type": "SHUTDOWN"})
+                    
+                # 2. Spegniamo il Brain
+                import sys
+                sys.exit(0)
+            # ========================================================
+            
             if send_stop_on_arrival:
-                # ========================================================
-                # CONTROLLO FINE MISSIONE
-                # ========================================================
-                # Usiamo getattr per evitare errori se la variabile non dovesse esistere
-                if getattr(self.blackboard, "mission_finished", False):
-                    print("\n" + "="*50)
-                    print("🎉 [FINE TURNO] Tutte le missioni completate!")
-                    print("🔋 [FINE TURNO] L'AGV è rientrato alla base. Spegnimento in corso... Addio!")
-                    print("="*50 + "\n")
-                    
-                    # 1. Mandiamo il comando di morte al Body
-                    self.db.set_command(self.db.COMMAND_CHANNEL, {"type": "SHUTDOWN"})
-                    
-                    # 2. Spegniamo il Brain
-                    import sys
-                    sys.exit(0)
-                # ========================================================
+                
                 self.db.set_command(self.db.COMMAND_CHANNEL, {"type": "STOP"})
                 print("[LogicController] Arrivato in ER: comando STOP inviato.")
             else:
@@ -412,6 +414,31 @@ class LogicController:
 
     #Metodo per calcolare il percorso verso il target della missione in corso
     def calculate_path_to_current_target(self):
+        #Gestisco il caso in cui la missione sia finita
+        nodo_partenza = self.blackboard.current_position
+        if getattr(self.blackboard, "mission_finished", False):
+            #posizione del nodo di ricarica
+            #------------------------------------
+            nodo_arrivo = "ER"
+            #------------------------------------
+            print(f"[LogicController] Turno finito! Ritorno alla base: {nodo_arrivo}")
+            esito = self.find_path(nodo_partenza, nodo_arrivo)
+            if esito != False:
+                aggiornamenti = {
+                    "current_target": nodo_arrivo,
+                    "path_to_target": esito,
+                    "next_node": esito[1] if len(esito)>1 else None
+                }
+                try:
+                    self.db.update_sensor_data("brain_memory", aggiornamenti)
+                    return "SUCCESS"
+                except Exception as e:
+                    print(f"[LogicController] Errore nell'aggiornamento del percorso verso il target su Redis: {e}")
+                    return "FAILURE"
+            else:
+                print("[LogicController] Errore: percorso verso il target non trovato.")
+                return "FAILURE"
+
         #controllo se ho un carico da trasportare a bordo,
         # se si,mi trovo in un nodo e il targhet sarà la destinazione
         # dove devo consegnare il carico
@@ -517,29 +544,6 @@ class LogicController:
             "path_to_target": path_to_target
         }
         self.db.update_sensor_data("brain_memory", aggiornamenti)
-
-    #metodo per calcolare la distanza stimata tra due nodi (usato per ottimizzazione e scheduling, non modifica lo stato)
-    def calcola_distanza_stimata(self, nodo_partenza: str, nodo_arrivo: str) -> float:
-        """
-        Calcola la lunghezza del percorso minimo tra due nodi SENZA modificare lo stato.
-        Uso esclusivo per algoritmi di ottimizzazione e scheduling (Read-Only).
-        """
-        if nodo_partenza == nodo_arrivo:
-            return 0.0
-            
-        try:
-            percorso, distanza = self.navigatore.trova_percorso_minimo(nodo_partenza, nodo_arrivo)
-            
-            if percorso is None:
-                return 99999.0 # Nessuna rotta trovata, diamo una penalità massima
-                
-            distanza = float(len(percorso))
-            
-            return distanza
-            
-        except Exception as e:
-            print(f"[LogicController] Errore nel calcolo distanza stimata: {e}")
-            return 99999.0
 
     # Metodo ausiliario per unire le informazioni del piano e dell'infopack (esempio di elaborazione dati)
     def merge_plan_infopack(self, plan: dict, infopack: list) -> list:
