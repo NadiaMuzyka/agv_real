@@ -14,7 +14,7 @@ class ENodoDiPrelievo(py_trees.behaviour.Behaviour):
     def __init__(self):
         super(ENodoDiPrelievo, self).__init__(name="E' Nodo di Prelievo?")
         self.blackboard = py_trees.blackboard.Client(name=self.name)
-        self.blackboard.register_key(key="current_target", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="mission_queue", access=py_trees.common.Access.READ)
         self.blackboard.register_key(key="current_position", access=py_trees.common.Access.READ)
         self.blackboard.register_key(key="am_i_in_a_node", access=py_trees.common.Access.READ)
         self.blackboard.register_key(key="is_load", access=py_trees.common.Access.READ)
@@ -28,7 +28,7 @@ class ENodoDiPrelievo(py_trees.behaviour.Behaviour):
 
     def update(self):
         try:
-            target = self.blackboard.current_target
+            target = self.blackboard.mission_queue[0].get('pick_up_position') if self.blackboard.mission_queue else None
             pos_attuale = self.blackboard.current_position
             am_i_in_a_node = self.blackboard.am_i_in_a_node
             is_load = self.blackboard.is_load
@@ -110,7 +110,7 @@ class ENodoDiConsegna(py_trees.behaviour.Behaviour):
     def __init__(self):
         super(ENodoDiConsegna, self).__init__(name="È Nodo di Consegna")
         self.blackboard = py_trees.blackboard.Client(name=self.name)
-        self.blackboard.register_key(key="current_target", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="mission_queue", access=py_trees.common.Access.READ)
         self.blackboard.register_key(key="current_position", access=py_trees.common.Access.READ)
         self.blackboard.register_key(key="am_i_in_a_node", access=py_trees.common.Access.READ)
         self.blackboard.register_key(key="is_load", access=py_trees.common.Access.READ)
@@ -124,7 +124,7 @@ class ENodoDiConsegna(py_trees.behaviour.Behaviour):
 
     def update(self):
         try:
-            target = self.blackboard.current_target
+            target = self.blackboard.mission_queue[0].get('destination') if self.blackboard.mission_queue else None
             pos_attuale = self.blackboard.current_position
             am_i_in_a_node = self.blackboard.am_i_in_a_node
             is_load = self.blackboard.is_load
