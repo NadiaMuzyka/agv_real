@@ -215,7 +215,7 @@ class LogicController:
     #Metodo per leggere le richieste e i dati dei pacchetti
     def download_mission_from_central_system(self)-> str:
         info_pack = self.read_json_file("docs/info_pack.json")
-        plan = self.read_json_file("docs/plan.json")
+        plan = self.read_json_file("docs/plan.json", reset_after_read=True)
         if info_pack and plan:
             self.blackboard.temp["info_pack"] = info_pack
             self.blackboard.temp["plan"] = plan
@@ -376,12 +376,19 @@ class LogicController:
     
     
     #Metodo per leggere un file JSON 
-    def read_json_file(self, file_path: str)-> dict:
-        """ Legge un file JSON e restituisce il contenuto come dizionario. """
+    def read_json_file(self, file_path: str, reset_after_read: bool = False):
+        """ Legge un file JSON e restituisce il contenuto (lista o dizionario). """
         try:
             with open(file_path, 'r') as file:
                 data = json.load(file)
                 print(f"[LogicController] Dati letti da {file_path}: {data}")
+
+                if reset_after_read:
+                    empty_payload = [] if isinstance(data, list) else {}
+                    with open(file_path, 'w') as reset_file:
+                        json.dump(empty_payload, reset_file, indent=4)
+                    print(f"[LogicController] File {file_path} resettato dopo la lettura.")
+
                 return data
         except Exception as e:
             print(f"[LogicController] Errore nella lettura del file {file_path}: {e}")
