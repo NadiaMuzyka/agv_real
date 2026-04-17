@@ -1,6 +1,7 @@
 import time
 import json
 import logging
+import os
 
 from modules.sensors.sensor_manager import SensorManager
 from modules.connection.coppelia_connector import CoppeliaConnector
@@ -37,7 +38,7 @@ class RobotController:
         logger.info("Inizializzazione RobotController")
 
         self.task_controller = TaskController() 
-        self.task_controller.start() #Avvio il thread del TaskController (che legge i comandi dal Brain e gestisce la logica di alto livello)
+        #self.task_controller.start() #Avvio il thread del TaskController (che legge i comandi dal Brain e gestisce la logica di alto livello)
 
         
         # 1. Connessioni
@@ -72,9 +73,12 @@ class RobotController:
         self.right_sensor.start()
         self.sensor_manager.start()
 
-        time.sleep(1) #Attendo un attimo per assicurarmi che i sensori abbiano iniziato a pubblicare su Redis
+        self.task_controller.start()
         
-        
+        # TUTTI I THREAD SONO PRONTI - Creiamo un file di segnalazione per il health check
+        ready_file = "/tmp/body_ready"
+        open(ready_file, 'a').close()
+        logger.info(f"✅ Body completamente avviato. File di ready creato: {ready_file}")
 
         try:
             while True:                
@@ -83,6 +87,8 @@ class RobotController:
                 
         except KeyboardInterrupt:
             logger.warning("Interruzione terminale.")
+            if os.path.exists(ready_file):
+                os.remove(ready_file)
 
         except Exception as e:
             logger.error(f"Eccezione: {e}", exc_info=True)

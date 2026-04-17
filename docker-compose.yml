@@ -16,8 +16,10 @@ services:
     build: ./src/brain
     container_name: agv_brain
     depends_on:
-      - redis
-      - body
+      redis:
+        condition: service_started
+      body:
+        condition: service_healthy
     volumes:
       - ./src/brain:/app
       # MONTAGGIO ZMQ: Montiamo la cartella radice delle librerie esterne.
@@ -49,6 +51,11 @@ services:
     networks:
       - agv_net
     command: ["python", "-u", "main_body.py"]
+    healthcheck:
+      test: ["CMD", "test", "-f", "/tmp/body_ready"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
 
 networks:
   agv_net:
