@@ -43,6 +43,8 @@ class ENodoDiPrelievo(py_trees.behaviour.Behaviour):
         if is_load:
             return py_trees.common.Status.FAILURE
         
+        #NOTA: se qui lavoriamo con current_target,invece di mission_queue[pick_up_position]
+        #poi dobbiamo aggiornare current_target 
         if pos_attuale == target and am_i_in_a_node:
             #print(f"[ENodoDiPrelievo] ✅ CONFERMATO: Siamo fisicamente sul nodo di prelievo {target.get('id')}.")
             return py_trees.common.Status.SUCCESS
@@ -59,6 +61,7 @@ class EseguiPrelievo(py_trees.behaviour.Behaviour):
         self.blackboard = py_trees.blackboard.Client(name=self.name)
         
         # Registriamo le chiavi in lettura
+        self.blackboard.register_key(key="current_target", access=py_trees.common.Access.READ)
         self.blackboard.register_key(key="logic_controller", access=py_trees.common.Access.READ)
         self.blackboard.register_key(key="is_load", access=py_trees.common.Access.READ)
 
@@ -86,12 +89,18 @@ class EseguiPrelievo(py_trees.behaviour.Behaviour):
             return py_trees.common.Status.FAILURE
         
         # 1. Se le forche non sono ancora alzate, stiamo in silenzio e aspettiamo
-        if is_load:
+        if not is_load:
             return py_trees.common.Status.RUNNING
+        
+        else:
+            esito = self.blackboard.logic_controller.aggiorna_stato_dopo_prelievo()  # Metodo che aggiorna lo stato interno del Logic Controller dopo il prelievo, se necessario 
+            if esito:
+                print(f"[{self.name}] ✅ Feedback ricevuto: Forche alzate con successo, carico a bordo!")
+                return py_trees.common.Status.SUCCESS
+            else:
+                print(f"[{self.name}] ❌ Feedback ricevuto: C'è stato un problema durante il prelievo. Verificare i sensori e lo stato del carico.")
+                return py_trees.common.Status.FAILURE
             
-        # 2. Il Mock Body ha aggiornato il sensore! Il prelievo è completato!
-        print(f"[{self.name}] ✅ Feedback ricevuto: Forche alzate con successo, carico a bordo!")
-        return py_trees.common.Status.SUCCESS
 
 
 class ENodoDiConsegna(py_trees.behaviour.Behaviour):
@@ -162,18 +171,24 @@ class EseguiConsegna(py_trees.behaviour.Behaviour):
             
         except KeyError:
             print(f"[{self.name}] ERRORE: Logic Controller non trovato sulla Blackboard!")
-            pass 
 
     def update(self):
         """ Eseguito CONTINUAMENTE finché restituisce RUNNING. Lettura sensori. """
         try:
             is_load = self.blackboard.is_load
+            lc = self.blackboard.logic_controller
         except KeyError:
             return py_trees.common.Status.FAILURE
          
+        #Finchè abbiamo il carico a bordo, l'azione di DROP è ancora in corso, aspettiamo che venga rilasciato
         if is_load:
             return py_trees.common.Status.RUNNING
-            
-        # La conferma avviene quando forche_abbassate diventa True, segnalando che il carico è stato rilasciato.
-        print(f"[{self.name}] ✅ Feedback ricevuto: Forche abbassate con successo, carico rilasciato!")
-        return py_trees.common.Status.SUCCESS
+
+        else:
+            esito = lc.aggiorna_stato_dopo_consegna()
+            if esito:
+                print(f"[{self.name}] ✅ Feedback ricevuto: Forche abbassate con successo, carico rilasciato!")
+                return py_trees.common.Status.SUCCESS
+            else:
+                print(f"[{self.name}] ❌ Errore durante l'aggiornamento post-consegna.")
+                return py_trees.common.Status.FAILURE
