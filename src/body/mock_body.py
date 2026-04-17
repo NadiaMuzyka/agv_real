@@ -212,8 +212,12 @@ while is_running:
             cmd_type = comando.get("type")
 
             # log dei comandi ricevuti
-            if cmd_type in ["MOVE_TO", "STOP", "PICKUP", "DROP"]:
+            if cmd_type in ["MOVE_TO", "STOP", "PICKUP", "DROP", "SHUTDOWN"]:
                 log_event(f"📥 [MOCK BODY] Comando ricevuto: {cmd_type}")
+
+            if cmd_type == "SHUTDOWN":
+                log_event("\n🛑 [MOCK BODY] Ricevuto comando di SHUTDOWN. Fine del turno. Addio!\n")
+                sys.exit(0)
 
             if cmd_type == "STOP":
                 stop_action()

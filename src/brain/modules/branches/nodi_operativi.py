@@ -171,18 +171,24 @@ class EseguiConsegna(py_trees.behaviour.Behaviour):
             
         except KeyError:
             print(f"[{self.name}] ERRORE: Logic Controller non trovato sulla Blackboard!")
-            pass 
 
     def update(self):
         """ Eseguito CONTINUAMENTE finché restituisce RUNNING. Lettura sensori. """
         try:
             is_load = self.blackboard.is_load
+            lc = self.blackboard.logic_controller
         except KeyError:
             return py_trees.common.Status.FAILURE
          
+        #Finchè abbiamo il carico a bordo, l'azione di DROP è ancora in corso, aspettiamo che venga rilasciato
         if is_load:
             return py_trees.common.Status.RUNNING
-            
-        # La conferma avviene quando forche_abbassate diventa True, segnalando che il carico è stato rilasciato.
-        print(f"[{self.name}] ✅ Feedback ricevuto: Forche abbassate con successo, carico rilasciato!")
-        return py_trees.common.Status.SUCCESS
+
+        else:
+            esito = lc.aggiorna_stato_dopo_consegna()
+            if esito:
+                print(f"[{self.name}] ✅ Feedback ricevuto: Forche abbassate con successo, carico rilasciato!")
+                return py_trees.common.Status.SUCCESS
+            else:
+                print(f"[{self.name}] ❌ Errore durante l'aggiornamento post-consegna.")
+                return py_trees.common.Status.FAILURE
