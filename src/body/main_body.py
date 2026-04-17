@@ -7,6 +7,7 @@ from modules.connection.coppelia_connector import CoppeliaConnector
 from modules.sensors.color_sensor import ColorSensor
 from modules.controllers.pid_controller import PIDController
 from modules.actuators.wheel_actuator import WheelsActuator
+from modules.controllers.task_controller import TaskController
 
 #docker compose up --build body
 
@@ -34,6 +35,10 @@ class RobotController:
     
     def __init__(self):
         logger.info("Inizializzazione RobotController")
+
+        self.task_controller = TaskController() 
+        self.task_controller.start() #Avvio il thread del TaskController (che legge i comandi dal Brain e gestisce la logica di alto livello)
+
         
         # 1. Connessioni
         #Mi connetto a CoppeliaSim tramite il Multiton CoppeliaConnector, che gestisce la connessione condivisa a CoppeliaSim.
@@ -51,17 +56,7 @@ class RobotController:
 
         self.sensor_manager = SensorManager(sensor_names=[self.LEFT_SENSOR_NAME, self.CENTRAL_SENSOR_NAME, self.RIGHT_SENSOR_NAME])
 
-        self.wheels_actuator = WheelsActuator() #Attuatore con connessione isolata a CoppeliaSim
 
-        #Inizializzazione del PID
-        self.pid_controller = PIDController(
-            sensors_dict={
-                'left': self.left_sensor,
-                'center': self.central_sensor,
-                'right': self.right_sensor
-            },
-            wheels_actuator=self.wheels_actuator
-        )
 
 
     def run(self):
@@ -77,7 +72,9 @@ class RobotController:
         self.right_sensor.start()
         self.sensor_manager.start()
 
-        self.pid_controller.start() #Avvio il thread del PID 
+        time.sleep(1) #Attendo un attimo per assicurarmi che i sensori abbiano iniziato a pubblicare su Redis
+        
+        
 
         try:
             while True:                

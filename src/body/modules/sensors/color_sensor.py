@@ -12,7 +12,7 @@ class ColorSensor(GenericSensor):
         super().__init__(name)
         
         # 1. Connessione a CoppeliaSim (Isolata e sicura grazie al Multiton)
-        self.connector = CoppeliaConnector(name=f"conn_{self.name}")
+        self.connector = CoppeliaConnector(name=f"{self.name}")
         self.sim = self.connector.get_sim()
         
         # Recuperiamo l'handle dell'oggetto da CoppeliaSim

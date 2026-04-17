@@ -6,7 +6,7 @@ from .intersection_handler import IntersectionHandler
 
 logger = logging.getLogger(__name__)
 
-
+#Classe giocattolo 
 class NavigationController:
     """
     Gestisce la logica decisionale e la strategia di navigazione del robot.
