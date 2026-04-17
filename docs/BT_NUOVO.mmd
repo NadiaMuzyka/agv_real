@@ -21,7 +21,7 @@ graph TD
     
     %% RAMO 2: ENERGIA (Energy) - Aggiornato con Navigazione
     BatterySeq[<h1><b>--></b></h1><b>Sequenza</b>: Gestione Energia]:::sequence
-    BatterySeq --> IsLowBat{Cond: Batteria < 20%?}:::condition
+    BatterySeq --> IsLowBat{Cond: Batteria sotto 20?}:::condition
     BatterySeq --> PlanCharge[Az: Calcola Percorso Ricarica]:::action
     BatterySeq --> MoveToCharge[Az: Vai al Punto di Ricarica]:::action
     BatterySeq --> Dock[Az: Ricarica]:::action
