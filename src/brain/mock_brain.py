@@ -1,0 +1,60 @@
+# FILE: src/brain/main_brain.py (VERSIONE SEMPLICE)
+import time
+import sys
+import os
+import signal
+
+sys.path.append(os.path.join(os.path.dirname(__file__), 'modules'))
+
+from modules.redis_interface import RedisInterface 
+
+def main():
+    print("🧠 Avvio MOCK BRAIN. Pubblicazione comandi su Redis...")
+    
+    redis_manager = RedisInterface() 
+    if not redis_manager.db:
+        print("[BRAIN] Errore critico: Uscita per mancata connessione a Redis.")
+        return 
+
+    def spegnimento_sicuro(signum, frame):
+        print("\n[BRAIN] Ricevuto segnale di spegnimento da Docker (SIGTERM)!")
+        raise KeyboardInterrupt()
+
+    signal.signal(signal.SIGTERM, spegnimento_sicuro)
+
+    print("[BRAIN] Inizio pubblicazione comandi...")
+    
+    try:
+        # Comando 1: STOP
+        print("\n1️⃣ Pubblicando STOP...")
+        command = {"type": "STOP"}
+        redis_manager.set_command(redis_manager.COMMAND_CHANNEL, command)
+        time.sleep(3)
+        
+        # Comando 2: MOVE_TO
+        print("\n2️⃣ Pubblicando MOVE_TO...")
+        command = {
+            "type": "MOVE_TO",
+            "next_node": "E2",
+            "current_position": "I3",
+            "am_i_in_a_node": True
+        }
+        redis_manager.set_command(redis_manager.COMMAND_CHANNEL, command)
+        time.sleep(3)
+        
+        # Comando 3: STOP
+        print("\n3️⃣ Pubblicando STOP...")
+        command = {"type": "STOP"}
+        redis_manager.set_command(redis_manager.COMMAND_CHANNEL, command)
+        
+        print("\n✅ Tutti i comandi pubblicati!")
+        time.sleep(3)
+
+    except KeyboardInterrupt:
+        print("Spegnimento Brain...")
+
+    while True:
+        time.sleep(1)
+
+if __name__ == "__main__":
+    main()

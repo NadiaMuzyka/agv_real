@@ -73,3 +73,24 @@ class RedisInterface:
             if data:
                 return json.loads(data)
         return {}
+
+    def set_command(self, channel: str, command):
+        """ Pubblica un comando sul canale specificato. """
+        if not self.db:
+            print(f"[{self.__class__.__name__}] ❌ Redis non disponibile!")
+            return False
+        
+        try:
+            # Se il comando è un dizionario, lo converte in JSON
+            if isinstance(command, dict):
+                command_json = json.dumps(command)
+            else:
+                command_json = str(command)
+            
+            # Pubblica il comando sul canale
+            num_subscribers = self.db.publish(channel, command_json)
+            print(f"[{self.__class__.__name__}] Comando pubblicato su {channel}: {command_json} (subscribers: {num_subscribers})")
+            return True
+        except Exception as e:
+            print(f"[{self.__class__.__name__}] ❌ Errore nella pubblicazione del comando: {e}")
+            return False

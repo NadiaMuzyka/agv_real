@@ -17,6 +17,7 @@ services:
     container_name: agv_brain
     depends_on:
       - redis
+      - body
     volumes:
       - ./src/brain:/app
       # MONTAGGIO ZMQ: Montiamo la cartella radice delle librerie esterne.

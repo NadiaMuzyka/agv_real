@@ -4,6 +4,7 @@ from typing import Any, Tuple
 
 logger = logging.getLogger(__name__)
 
+#Classe giocattolo
 class IntersectionHandler:
     """
     Gestisce la manovra di svolta agli incroci.
