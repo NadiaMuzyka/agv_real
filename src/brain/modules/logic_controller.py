@@ -61,6 +61,45 @@ class LogicController:
             #scrittura dell'universo iniziale su Redis secondo quello che penso sia
             self.db.update_sensor_data(SENSORS_KEY, sensor_data)
 
+        # ========================================================
+        # 2. EDGE DETECTION: Sincronizzazione istantanea dello stato
+        # ========================================================
+        try:
+            vecchio_is_load = self.blackboard.is_load
+        except KeyError:
+            vecchio_is_load = False
+
+        nuovo_is_load = sensor_data.get("is_load", False)
+
+        # TRANSIZIONE 1: Da False a True -> PRELIEVO COMPLETATO
+        if vecchio_is_load == False and nuovo_is_load == True:
+            print("[LogicController] ⚡ Edge Detection: Prelievo completato! Svuoto il target per calcolare la consegna.")
+            sensor_data["current_target"] = None
+            sensor_data["path_to_target"] = []
+            sensor_data["next_node"] = None
+            self.db.update_sensor_data(SENSORS_KEY, sensor_data)
+
+        # TRANSIZIONE 2: Da True a False -> CONSEGNA COMPLETATA
+        elif vecchio_is_load == True and nuovo_is_load == False:
+            print("[LogicController] ⚡ Edge Detection: Consegna completata! Aggiorno la coda missioni.")
+            coda = sensor_data.get("mission_queue", [])
+            
+            if len(coda) > 0:
+                finita = coda.pop(0)
+                print(f"[LogicController] Missione {finita.get('id')} completata e rimossa.")
+            
+            mission_over = (len(coda) == 0)
+            
+            sensor_data["mission_queue"] = coda
+            sensor_data["current_target"] = None
+            sensor_data["path_to_target"] = []
+            sensor_data["next_node"] = None
+            sensor_data["pallet_list_empty"] = mission_over
+            sensor_data["mission_finished"] = mission_over
+            
+            self.db.update_sensor_data(SENSORS_KEY, sensor_data)
+        # ========================================================
+
         print(f"[LogicController] Aggiornamento blackboard con dati REALI da Redis: {sensor_data}")
         # NOTA: se la chiave non esiste, usiamo un valore di default
         self.blackboard.battery_level = sensor_data.get("battery_level", 10.0)#livello batteria
