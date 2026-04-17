@@ -25,6 +25,7 @@ class LogicController:
         self.blackboard.register_key(key="is_charging", access=py_trees.common.Access.WRITE)#sto ricaricando?
         self.blackboard.register_key(key="current_target", access=py_trees.common.Access.WRITE)#nodo target della missione in corso, None se non c'è missione in corso
         self.blackboard.register_key(key="is_load", access=py_trees.common.Access.WRITE)#sto trasportando un carico?
+        self.blackboard.register_key(key="mission_finished", access=py_trees.common.Access.WRITE)#la missione è stata completata?
         self.blackboard.register_key(key="temp", access=py_trees.common.Access.WRITE)#variabile temporanea per salvare dati vari, non persistente su Redis
         self.navigatore = NavigatoreGrafo() 
 
@@ -54,7 +55,8 @@ class LogicController:
                 "path_to_target": [],
                 "is_charging": False,
                 "current_target": None,
-                "is_load": False
+                "is_load": False,
+                "mission_finished": False
             }
             #scrittura dell'universo iniziale su Redis secondo quello che penso sia
             self.db.update_sensor_data(SENSORS_KEY, sensor_data)
@@ -72,6 +74,7 @@ class LogicController:
         self.blackboard.is_charging = sensor_data.get("is_charging", False)#sono in modalità ricarica?
         self.blackboard.current_target = sensor_data.get("current_target", None)#nodo target della missione in corso, None se non c'è missione in corso 
         self.blackboard.is_load = sensor_data.get("is_load", False)#sto trasportando un carico?
+        self.blackboard.mission_finished = sensor_data.get("mission_finished", False)#la missione è stata completata?
         #self.temp è nella blackboard, ma non è persistente su Redis
 
 
@@ -163,6 +166,23 @@ class LogicController:
 
         if self.blackboard.am_i_in_a_node and self.blackboard.current_position == target_node:
             if send_stop_on_arrival:
+                # ========================================================
+                # CONTROLLO FINE MISSIONE
+                # ========================================================
+                # Usiamo getattr per evitare errori se la variabile non dovesse esistere
+                if getattr(self.blackboard, "mission_finished", False):
+                    print("\n" + "="*50)
+                    print("🎉 [FINE TURNO] Tutte le missioni completate!")
+                    print("🔋 [FINE TURNO] L'AGV è rientrato alla base. Spegnimento in corso... Addio!")
+                    print("="*50 + "\n")
+                    
+                    # 1. Mandiamo il comando di morte al Body
+                    self.db.set_command(self.db.COMMAND_CHANNEL, {"type": "SHUTDOWN"})
+                    
+                    # 2. Spegniamo il Brain
+                    import sys
+                    sys.exit(0)
+                # ========================================================
                 self.db.set_command(self.db.COMMAND_CHANNEL, {"type": "STOP"})
                 print("[LogicController] Arrivato in ER: comando STOP inviato.")
             else:
@@ -194,6 +214,7 @@ class LogicController:
         print(f"[LogicController] In transito verso {next_node} (target finale: {target_node}).")
         return "RUNNING"
 
+
     #Metodo che simula la carica della batteria (VA RISCRITTO APPENA COLLEGHIAMO IL BODY)
     def recharge_battery(self) -> str:
         step_ricarica = 5.0 # percentuale di carica aggiunta ad ogni step
@@ -214,6 +235,11 @@ class LogicController:
     #region Metodi Nodi Operativi
     #Metodo per leggere le richieste e i dati dei pacchetti
     def download_mission_from_central_system(self)-> str:
+        # --- FIX: Evita il loop infinito se abbiamo già finito le missioni ---
+        if getattr(self.blackboard, "mission_finished", False):
+            print("[LogicController] 🛑 Turno finito, rifiuto di scaricare nuove missioni.")
+            return "FAILURE"
+        # ------------------------------------------------------------------
         info_pack = self.read_json_file("docs/info_pack.json")
         plan = self.read_json_file("docs/plan.json")
         if info_pack and plan:
@@ -290,6 +316,43 @@ class LogicController:
         print("[LogicController] Esecuzione consegna in corso...")
         self.db.set_command(self.db.COMMAND_CHANNEL, {"type": "DROP"})
         print("[LogicController] Comando DROP inviato e stato is_load aggiornato a False.")
+
+    def aggiorna_stato_dopo_consegna(self) -> bool:
+        """ 
+        Metodo chiamato dal BT quando la consegna è confermata dai sensori.
+        Rimuove la missione completata dalla coda e resetta i target.
+        """
+        try:
+            coda_attuale = self.blackboard.mission_queue
+            
+            # Rimuoviamo la missione appena completata (la prima della lista)
+            if len(coda_attuale) > 0:
+                missione_finita = coda_attuale.pop(0)
+                print(f"[LogicController] Missione {missione_finita.get('id')} completata e rimossa dalla coda.")
+
+            #Abbiamo finito tutte le missioni?
+            mission_over = False
+            if len(coda_attuale) == 0:
+                print("[LogicController] 🛑 Tutte le missioni sono state completate! Magazzino svuotato.")
+                mission_over = True
+            
+            # Salviamo la nuova coda (più corta) e resettiamo i parametri di navigazione
+            aggiornamenti = {
+                "mission_queue": coda_attuale,
+                "current_target": None,
+                "path_to_target": [],
+                "next_node": None,
+                "pallet_list_empty": mission_over,  # la missione è finita se la coda è vuota, quindi anche la lista dei pallet è vuota
+                "mission_finished": mission_over
+            }
+            
+            self.db.update_sensor_data("brain_memory", aggiornamenti)
+            print("[LogicController] Stato post-consegna sincronizzato. In attesa della prossima missione.")
+            return True
+            
+        except Exception as e:
+            print(f"[LogicController] Errore critico durante l'aggiornamento post-consegna: {e}")
+            return False
     #endregion
 
     #Metodo per trovare il percorso ottimo tra due nodi (generico)
