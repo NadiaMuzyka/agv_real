@@ -34,15 +34,19 @@ class TaskController:
         # Stato interno
         self._running = False
         self._thread = None
-        self.frequenza_loop = 0.05  # 20 Hz
+        self.frequenza_loop = 0.1  # 20 Hz
 
         self.current_state = IDLE_STATE 
+        print(f"🧠 [TaskController] Sto in IDLE")
         self.commands = ["MOVE_TO", "STOP", "PICKUP", "DROP"]
         self.maneuver = False #Qui andrà l'istanza
         self.pubsub = self.redis_client.subscribe_to_commands()
         
         # Coda per i comandi
         self.commands_queue = queue.Queue()
+        
+        # Memorizza l'ultimo comando per ignorare i duplicati
+        self.last_command = None
 
 
     def start(self):
@@ -69,52 +73,76 @@ class TaskController:
                     command_type = command_data.get("type")
                     command = command_data
                     if command is not None:
-                        print(f"🧠 [TaskController] Comando ricevuto: {command_type} - {command}")
+                        # Ignora il comando se è identico al precedente
+                        if command == self.last_command:
+                            print(f"🧠 [TaskController] Comando duplicato ignorato: {command_type}")
+                            command = None
+                            command_type = None
+                        else:
+                            print(f"🧠 [TaskController] Comando ricevuto: {command_type} - {command}")
+                            self.last_command = command
                 except json.JSONDecodeError:
                     print(f"⚠️ [TaskController] Comando non valido (non JSON): {message['data']}")
                     command = None
                     command_type = None
-            else:
-                print(f"🧠 [TaskController] Nessun comando ricevuto. Continuo a monitorare...")
 
-            in_node = self.redis_client.get_sensor_data(self.BRAIN_MEMORY).get("am_i_in_a_node", False)
+            in_node = self.redis_client.get_sensor_data(self.BRAIN_MEMORY).get("am_i_in_a_node")
+            next_node = self.redis_client.get_sensor_data(self.BRAIN_MEMORY).get("next_node", None)
+            target_node = command.get("target_node") if command else None
 
             # 2. LOGICA DELLA MACCHINA A STATI
             if self.current_state == IDLE_STATE:
                 #Se ho un comando di movimento e sono in un nodo, faccio la manovra
                 #Se ho un comando di movimento e non sono in un nodo, seguo la linea
 
-                print(f"🧠 [TaskController] Sto in IDLE")
+                if command_type in self.commands:
+                    if command_type == "MOVE_TO" and not in_node:
+                        print(f"🧠 [TaskController] Devo continuare a seguire la linea. Sto in FOLLOWING")
+                        self.current_state = FOLLOWING_STATE
+                    if command_type == "STOP":
+                        self.current_state = IDLE_STATE
+                    elif(command_type in ["PICKUP", "DROP"]):
+                        print(f"🧠 [TaskController] Comando PICKUP/DROP ricevuto ma non sono nel nodo finale. Sto in ERROR_STATE")
+                        self.current_state = ERROR_STATE
+                elif in_node:
+                    print(f"🧠 [TaskController] Ho rilevato un incrocio. Sto in NODE")
+                    self.current_state = NODE_STATE
+                    
+
+            elif self.current_state == NODE_STATE:
 
                 if command_type in self.commands:
                     if command_type == "STOP":
-                        #Se ricevo un comando di STOP, mi fermo e rimango in IDLE
-                        pass
-                    else:
-                        print(f"🧠 [TaskController] Transizione a FOLLOWING")
-                        self.current_state = FOLLOWING_STATE
-
-            elif self.current_state == NODE_STATE:
-                #Se ricevo un comando di movimento, passo a State MANEUVERING
-                #Se ricevo un comando di delivery, passo a DELIVERY_STATE
-                #Se ricevo un comando di STOP, mi fermo e passo a IDLE
-
-                print(f"🧠 [TaskController] Sto in NODE")
+                        print(f"🧠 [TaskController] Ho ricevuto il comando di stop. Sto in IDLE")
+                        self.current_state = IDLE_STATE
+                    elif command_type == "MOVE_TO" and next_node == target_node:
+                        print(f"🧠 [TaskController] Il prossimo nodo è il target. Faccio retromarcia.Sto in REVERSE_STATE")
+                        self.current_state = REVERSE_STATE
+                    elif command_type == "MOVE_TO":
+                        print(f"🧠 [TaskController] Devo eseguire una manovra di svolta. Sto in MANEUVERING")
+                        self.current_state = MANEUVERING_STATE
+                    elif command_type in ["PICKUP", "DROP"]:
+                        print(f"🧠 [TaskController] Non sto nel nodo finale. Sto in ERROR_STATE")
+                        self.current_state = ERROR_STATE
 
                 
             elif self.current_state == FOLLOWING_STATE:
                 #Se arrivo ad un nodo, passo a NODE_STATE
                 #Se ricevo un comando di STOP, mi fermo e passo a IDLE
 
-                print(f"🧠 [TaskController] Sto in FOLLOWING")
-
                 if command_type in self.commands:
                     if command_type == "STOP":
-                        print(f"🧠 [TaskController] Transizione a IDLE")
+                        #Se ricevo un comando di STOP, mi fermo e rimango in IDLE
+                        print(f"🧠 [TaskController] Ho ricevuto il comando di stop. Sto in IDLE")
                         self.current_state = IDLE_STATE
-
-                
-                
+                    elif(command_type in ["PICKUP", "DROP"]):
+                        print(f"🧠 [TaskController] Comando PICKUP/DROP ricevuto ma non sono nel nodo finale. Sto in ERROR_STATE")
+                        self.current_state = ERROR_STATE
+                    elif command_type == "MOVE_TO" and not in_node:
+                        self.current_state = FOLLOWING_STATE
+                elif in_node:
+                    print(f"🧠 [TaskController] Mi sono imbattuto in un incrocio. Sto in NODE")
+                    self.current_state = NODE_STATE
 
 
             time.sleep(self.frequenza_loop)

@@ -10,11 +10,17 @@ from modules.redis_interface import RedisInterface
 
 def main():
     print("🧠 Avvio MOCK BRAIN. Pubblicazione comandi su Redis...")
+
+    BRAIN_KEY = "brain_memory"
+    NODE_KEY = "am_i_in_a_node"
     
     redis_manager = RedisInterface() 
     if not redis_manager.db:
         print("[BRAIN] Errore critico: Uscita per mancata connessione a Redis.")
         return 
+    
+    redis_manager.update_sensor_data(BRAIN_KEY, {NODE_KEY: False})
+    print("[BRAIN] Stato iniziale: Non sono in un nodo.")
 
     def spegnimento_sicuro(signum, frame):
         print("\n[BRAIN] Ricevuto segnale di spegnimento da Docker (SIGTERM)!")
@@ -32,11 +38,36 @@ def main():
         time.sleep(3)
         
         # Comando 2: MOVE_TO
-        print("\n2️⃣ Pubblicando MOVE_TO...")
+        print("\n2️⃣ Pubblicando MOVE_TO E2...")
         command = {
             "type": "MOVE_TO",
             "next_node": "E2",
             "current_position": "I3",
+            "am_i_in_a_node": True
+        }
+        redis_manager.set_command(redis_manager.COMMAND_CHANNEL, command)
+        time.sleep(3)
+
+        # Comando 2: MOVE_TO
+        print("\n2️⃣ Pubblicando MOVE_TO E2...")
+        command = {
+            "type": "MOVE_TO",
+            "next_node": "E2",
+            "current_position": "I3",
+            "am_i_in_a_node": True
+        }
+        redis_manager.set_command(redis_manager.COMMAND_CHANNEL, command)
+        time.sleep(3)
+
+        redis_manager.update_sensor_data(BRAIN_KEY, {NODE_KEY: True})
+        print("\n3️⃣ Il sensore ha aggiornato che siamo in un nodo. ")
+        time.sleep(3)
+
+        print("\n2️⃣ Pubblicando MOVE_TO I6...")
+        command = {
+            "type": "MOVE_TO",
+            "next_node": "I6",
+            "current_position": "I4",
             "am_i_in_a_node": True
         }
         redis_manager.set_command(redis_manager.COMMAND_CHANNEL, command)

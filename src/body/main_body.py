@@ -68,10 +68,10 @@ class RobotController:
         
 
         #Avvio i thread dei sensori (che leggono e aggiornano Redis in background)
-        self.left_sensor.start()
-        self.central_sensor.start()
-        self.right_sensor.start()
-        self.sensor_manager.start()
+        #self.left_sensor.start()
+        #self.central_sensor.start()
+        #self.right_sensor.start()
+        #self.sensor_manager.start()
 
         self.task_controller.start()
         
