@@ -3,6 +3,7 @@ import time
 import json
 import queue
 from modules.connection.redis_interface import RedisInterface
+from modules.controllers.manuever_controller import ManueverController
 from modules.controllers.pid_controller import PIDController
 
 IDLE_STATE = "IDLE"
@@ -25,6 +26,8 @@ class TaskController:
             print(f"[{self.name}] Redis non raggiungibile.")
             raise ConnectionError("Redis err")
         
+        # Inizializza la body_memory
+        self.redis_client.initialize_body_memory()
         
         # Chiavi Redis per la comunicazione col Brain e col SensorManager
         self.BODY_MEMORY = "body_memory"
@@ -39,11 +42,9 @@ class TaskController:
         self.current_state = IDLE_STATE 
         print(f"🧠 [TaskController] Sto in IDLE")
         self.commands = ["MOVE_TO", "STOP", "PICKUP", "DROP"]
-        self.maneuver = False #Qui andrà l'istanza
         self.pubsub = self.redis_client.subscribe_to_commands()
         
-        # Coda per i comandi
-        self.commands_queue = queue.Queue()
+        self.maneuver = ManueverController(self.redis_client)
         
         # Memorizza l'ultimo comando per ignorare i duplicati
         self.last_command = None
@@ -87,8 +88,9 @@ class TaskController:
                     command_type = None
 
             in_node = self.redis_client.get_sensor_data(self.BRAIN_MEMORY).get("am_i_in_a_node")
-            next_node = self.redis_client.get_sensor_data(self.BRAIN_MEMORY).get("next_node", None)
-            target_node = command.get("target_node") if command else None
+            next_node = self.redis_client.get_sensor_data(self.BRAIN_MEMORY).get("next_node")
+            target_node = self.redis_client.get_sensor_data(self.BRAIN_MEMORY).get("target_node")
+            
 
             # 2. LOGICA DELLA MACCHINA A STATI
             if self.current_state == IDLE_STATE:
@@ -143,6 +145,35 @@ class TaskController:
                 elif in_node:
                     print(f"🧠 [TaskController] Mi sono imbattuto in un incrocio. Sto in NODE")
                     self.current_state = NODE_STATE
+
+
+            elif self.current_state == MANEUVERING_STATE:
+
+                manuever_state = self.redis_client.get_sensor_data(self.BODY_MEMORY).get("maneuver_state")
+                
+                if manuever_state == "NOT_STARTED":
+
+                    self.redis_client.update_sensor_data(self.BODY_MEMORY, {"maneuver_state": "IN_PROGRESS"})
+                    self.maneuver.execute_maneuver(command_type, command)
+                    #chiamo il manueverController e gli passo la manovra da fare (MOVE_TO, PICKUP, DROP) e i nodi coinvolti
+                    pass
+                    
+                
+                elif manuever_state == "IN_PROGRESS":
+
+                    if command_type == "STOP":
+                        #Se ricevo un comando di STOP, mi fermo e vado in ERROR (perché non posso interrompere una manovra a metà)
+                        
+                        #TODO:Gestire meglio questa situazione
+
+                        print(f"🧠 [TaskController] Ho ricevuto il comando di interruzione della manovra. Sto in ERROR")
+                        self.current_state = ERROR_STATE
+
+                elif manuever_state == "COMPLETED":
+                    self.redis_client.update_sensor_data(self.BODY_MEMORY, {"maneuver_state": "NOT_STARTED"})
+                    print(f"🧠 [TaskController] Manovra completata. Sto in IDLE")
+                    self.current_state = IDLE_STATE
+    
 
 
             time.sleep(self.frequenza_loop)

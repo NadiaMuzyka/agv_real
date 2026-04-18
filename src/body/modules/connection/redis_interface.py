@@ -74,6 +74,19 @@ class RedisInterface:
                 return json.loads(data)
         return {}
 
+    def initialize_body_memory(self):
+        """Inizializza la body_memory con i valori di default."""
+        if not self.db:
+            print(f"[{self.__class__.__name__}] ❌ Redis non disponibile per l'inizializzazione!")
+            return
+        
+        initial_state = {
+            "maneuver_state": "NOT_STARTED",
+        }
+        
+        self.set_sensor_data("body_memory", initial_state)
+        print(f"[{self.__class__.__name__}] ✅ Body memory inizializzata con stato di default.")
+
     def set_command(self, channel: str, command):
         """ Pubblica un comando sul canale specificato. """
         if not self.db:
