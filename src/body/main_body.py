@@ -7,7 +7,6 @@ from modules.sensors.sensor_manager import SensorManager
 from modules.connection.coppelia_connector import CoppeliaConnector
 from modules.sensors.color_sensor import ColorSensor
 from modules.controllers.pid_controller import PIDController
-from modules.actuators.wheel_actuator import WheelsActuator
 from modules.controllers.task_controller import TaskController
 
 #docker compose up --build body
@@ -37,7 +36,6 @@ class RobotController:
     def __init__(self):
         logger.info("Inizializzazione RobotController")
 
-        self.task_controller = TaskController() 
         #self.task_controller.start() #Avvio il thread del TaskController (che legge i comandi dal Brain e gestisce la logica di alto livello)
 
         
@@ -57,6 +55,11 @@ class RobotController:
 
         self.sensor_manager = SensorManager(sensor_names=[self.LEFT_SENSOR_NAME, self.CENTRAL_SENSOR_NAME, self.RIGHT_SENSOR_NAME])
 
+        
+
+        self.pid = PIDController({"left": self.left_sensor, "center": self.central_sensor, "right": self.right_sensor})
+
+        self.task_controller = TaskController(pid=self.pid)
 
 
 
@@ -68,10 +71,10 @@ class RobotController:
         
 
         #Avvio i thread dei sensori (che leggono e aggiornano Redis in background)
-        #self.left_sensor.start()
-        #self.central_sensor.start()
-        #self.right_sensor.start()
-        #self.sensor_manager.start()
+        self.left_sensor.start()
+        self.central_sensor.start()
+        self.right_sensor.start()
+        self.sensor_manager.start()
 
         self.task_controller.start()
         

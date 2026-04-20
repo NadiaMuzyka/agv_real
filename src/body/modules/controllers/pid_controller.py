@@ -1,14 +1,17 @@
 import threading
 import time
 
+from modules.controllers.manuever_controller import ManueverController
+
 class PIDController:
-    def __init__(self, sensors_dict, wheels_actuator, base_speed=0.07):
+    def __init__(self, sensors_dict,  base_speed=0.07):
         """
         :param sensors_dict: Dizionario con le istanze dei sensori {'left': obj, 'center': obj, 'right': obj}
         """
         self.sensors = sensors_dict
-        self.actuator = wheels_actuator # Salviamo il riferimento all'attuatore
         self.base_speed = base_speed
+
+        self.manuever_controller = ManueverController(None) 
         
         # Parametri PID (sensori discreti = no Kd)
         self.kp = 0.1  # Aumentato per ridurre settling distance
@@ -66,7 +69,8 @@ class PIDController:
             self.v = self.base_speed * max(0.2, 1 - abs(error))
 
             # 4. COMANDO AI MOTORI (Nuova chiamata)
-            self.actuator.move(self.v, self.w)
+            self.manuever_controller.set_velocity(self.v, self.w)  # Usa il metodo del ManueverController per muovere i motori
+            #self.actuator.move(self.v, self.w)
             
             self.prev_error = error
             last_time = now
@@ -92,6 +96,9 @@ class PIDController:
     def stop(self):
         """Ferma il thread in modo pulito."""
         self._running = False
+        try:
+            self.manuever_controller.set_velocity(0.0, 0.0)  # Con lock, safe
+        except Exception as e:
+            print(f"⚠️ [PID] Errore in stop: {e}")
         if self._thread:
-            self._thread.join()
-            print("[PID] Thread fermato.")
+            self._thread.join(timeout=0.5)  # Aspetta che il thread finisca

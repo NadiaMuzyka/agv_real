@@ -46,19 +46,19 @@ def main():
             "am_i_in_a_node": True
         }
         redis_manager.set_command(redis_manager.COMMAND_CHANNEL, command)
-        time.sleep(3)
-
+        time.sleep(10)
+        
         # Comando 2: MOVE_TO
-        print("\n2️⃣ Pubblicando MOVE_TO E2...")
+        print("\n2️⃣ Pubblicando MOVE_TO I2...")
         command = {
             "type": "MOVE_TO",
-            "next_node": "E2",
+            "next_node": "I2",
             "current_position": "I3",
             "am_i_in_a_node": True
         }
         redis_manager.set_command(redis_manager.COMMAND_CHANNEL, command)
         time.sleep(3)
-
+        '''
         redis_manager.update_sensor_data(BRAIN_KEY, {NODE_KEY: True})
         print("\n3️⃣ Il sensore ha aggiornato che siamo in un nodo. ")
         time.sleep(3)
@@ -77,7 +77,7 @@ def main():
         print("\n3️⃣ Pubblicando STOP...")
         command = {"type": "STOP"}
         redis_manager.set_command(redis_manager.COMMAND_CHANNEL, command)
-        
+        '''
         print("\n✅ Tutti i comandi pubblicati!")
         time.sleep(3)
 

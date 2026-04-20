@@ -81,7 +81,8 @@ class RedisInterface:
             return
         
         initial_state = {
-            "maneuver_state": "NOT_STARTED",
+            "maneuver_state": "NONE",  # Può essere "NONE", "IN_PROGRESS", "COMPLETED"
+            "pid_active": False
         }
         
         self.set_sensor_data("body_memory", initial_state)
