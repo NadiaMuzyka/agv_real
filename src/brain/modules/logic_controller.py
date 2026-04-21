@@ -21,6 +21,7 @@ class LogicController:
         self.blackboard.register_key(key="path_to_target", access=py_trees.common.Access.WRITE)#percorso completo verso il target
         self.blackboard.register_key(key="mission_queue", access=py_trees.common.Access.WRITE)#lista dei nodi dove svolgere la missione
         self.blackboard.register_key(key="current_position", access=py_trees.common.Access.WRITE)#posizione attuale dell'AGV
+        self.blackboard.register_key(key="previous_node", access=py_trees.common.Access.WRITE)#nodo precedente
         self.blackboard.register_key(key="am_i_in_a_node", access=py_trees.common.Access.WRITE)#sono in un nodo?
         self.blackboard.register_key(key="is_charging", access=py_trees.common.Access.WRITE)#sto ricaricando?
         self.blackboard.register_key(key="current_target", access=py_trees.common.Access.WRITE)#nodo target della missione in corso, None se non c'è missione in corso
@@ -50,6 +51,7 @@ class LogicController:
                 "pallet_list_empty": False,
                 "am_i_in_a_node": True,
                 "next_node": None,
+                "previous_node": None,
                 "current_position": "I3",
                 "mission_queue": [],
                 "path_to_target": [],
@@ -108,6 +110,7 @@ class LogicController:
         self.blackboard.am_i_in_a_node = sensor_data.get("am_i_in_a_node", True)#sono in un nodo?
         self.blackboard.next_node = sensor_data.get("next_node", None)#prossimo nodo verso cui stiamo andando
         self.blackboard.current_position = sensor_data.get("current_position", "I3")#posizione attuale dell'AGV
+        self.blackboard.previous_node = sensor_data.get("previous_node", None)#nodo precedente da cui siamo arrivati al current_position
         self.blackboard.mission_queue = sensor_data.get("mission_queue", [])#lista dei nodi dove svolgere la missione
         self.blackboard.path_to_target = sensor_data.get("path_to_target", [])#percorso completo verso il target
         self.blackboard.is_charging = sensor_data.get("is_charging", False)#sono in modalità ricarica?
@@ -242,6 +245,7 @@ class LogicController:
             "type": "MOVE_TO",
             "next_node": next_node,  # Nodo verso cui stiamo andando
             "current_position": self.blackboard.current_position, # Nodo in cui siamo attualmente
+            "previous_node": self.blackboard.previous_node, # Nodo da cui siamo arrivati al current_position
             "am_i_in_a_node": self.blackboard.am_i_in_a_node # Flag che indica se siamo in un nodo
         }
 
@@ -427,7 +431,8 @@ class LogicController:
                 aggiornamenti = {
                     "current_target": nodo_arrivo,
                     "path_to_target": esito,
-                    "next_node": esito[1] if len(esito)>1 else None
+                    "next_node": esito[1] if len(esito)>1 else None,
+                    "previous_node": nodo_partenza
                 }
                 try:
                     self.db.update_sensor_data("brain_memory", aggiornamenti)
@@ -454,7 +459,8 @@ class LogicController:
                         aggiornamenti = {
                             "current_target": nodo_arrivo,
                             "path_to_target": esito,
-                            "next_node": esito[1] if len(esito)>1 else None
+                            "next_node": esito[1] if len(esito)>1 else None,
+                            "previous_node": nodo_partenza
                         }
                         try:
                             self.db.update_sensor_data("brain_memory", aggiornamenti)
@@ -485,7 +491,8 @@ class LogicController:
                         aggiornamenti = {
                             "current_target": nodo_arrivo,
                             "path_to_target": esito,
-                            "next_node": esito[1] if len(esito)>1 else None
+                            "next_node": esito[1] if len(esito)>1 else None,
+                            "previous_node": nodo_partenza
                         }
                         try:
                             self.db.update_sensor_data("brain_memory", aggiornamenti)
@@ -531,6 +538,7 @@ class LogicController:
             "type": "MOVE_TO",
             "next_node": next_node,
             "current_position": self.blackboard.current_position,
+            "previous_node": self.blackboard.previous_node,
             "am_i_in_a_node": self.blackboard.am_i_in_a_node
         }
         self.db.set_command(self.db.COMMAND_CHANNEL, command)
