@@ -1,7 +1,20 @@
 class PathController:
-    """Prende in input il nodo attuale e il nodo successivo e decide la direzione da comunicare al TaskController."""
+    """Controller basato su tabelle statiche di svolta.
 
-    TURN_TABLE = {
+    Tabella principale (get_next_step2):
+    TURN_TABLE[current_node][next_node][previous_node] -> direction
+
+    Dove:
+    - current_node: nodo in cui si trova il robot
+    - next_node: nodo verso cui il robot deve uscire
+    - previous_node: nodo da cui il robot e' entrato in current_node
+    - direction: LEFT | STRAIGHT | RIGHT
+
+    La tabella include solo combinazioni coerenti con il grafo attuale.
+    Se una combinazione non e' presente, il fallback e' STRAIGHT.
+    """
+
+    LEGACY_TURN_TABLE = {
         "I1": {"E1": "LEFT", "I2": "STRAIGHT", "I3": "RIGHT"},
         "I2": {"E2": "LEFT", "I1": "STRAIGHT", "I6": "RIGHT"},
         "I3": {"I1": "LEFT", "I4": "STRAIGHT", "I7": "RIGHT"},
@@ -17,15 +30,65 @@ class PathController:
         "EC": {"I7": "STRAIGHT"},
     }
 
-    def get_next_step(self, current_node: str, target_node: str) -> str:
-        """
-        Logica semplificata per decidere la direzione da prendere.
-        In un caso reale, questa funzione potrebbe essere molto più complessa e basata su una mappa del percorso.
-        """
-        # TODO: Implementare la logica di calcolo del percorso e della direzione da prendere.
-        # Per ora, ritorniamo una direzione fittizia basata su una semplice ["STRAIGHT", "LEFT", "RIGHT"]
+    TURN_TABLE = {
+        "I1": {
+            "E1": {"I2": "LEFT", "I3": "LEFT"},
+            "I2": {"E1": "STRAIGHT", "I3": "STRAIGHT"},
+            "I3": {"E1": "RIGHT", "I2": "RIGHT"},
+        },
+        "I2": {
+            "E2": {"I1": "LEFT", "I6": "LEFT"},
+            "I1": {"E2": "STRAIGHT", "I6": "STRAIGHT"},
+            "I6": {"E2": "RIGHT", "I1": "RIGHT"},
+        },
+        "I3": {
+            "I1": {"I4": "LEFT", "I7": "LEFT"},
+            "I4": {"I1": "STRAIGHT", "I7": "STRAIGHT"},
+            "I7": {"I1": "RIGHT", "I4": "RIGHT"},
+        },
+        "I4": {
+            "I3": {"E3": "LEFT", "I5": "LEFT"},
+            "E3": {"I3": "STRAIGHT", "I5": "STRAIGHT"},
+            "I5": {"I3": "RIGHT", "E3": "RIGHT"},
+        },
+        "I5": {
+            "I4": {"E4": "LEFT", "I6": "LEFT"},
+            "E4": {"I4": "STRAIGHT", "I6": "STRAIGHT"},
+            "I6": {"I4": "RIGHT", "E4": "RIGHT"},
+        },
+        "I6": {
+            "I2": {"ER": "LEFT", "I7": "LEFT"},
+            "ER": {"I2": "STRAIGHT", "I7": "STRAIGHT"},
+            "I7": {"I2": "RIGHT", "ER": "RIGHT"},
+        },
+        "I7": {
+            "I3": {"EC": "LEFT", "I6": "LEFT"},
+            "EC": {"I3": "STRAIGHT", "I6": "STRAIGHT"},
+            "I6": {"I3": "RIGHT", "EC": "RIGHT"},
+        },
+        "E1": {
+            "I1": {"I1": "STRAIGHT"},
+        },
+        "E2": {
+            "I2": {"I2": "STRAIGHT"},
+        },
+        "E3": {
+            "I4": {"I4": "STRAIGHT"},
+        },
+        "E4": {
+            "I5": {"I5": "STRAIGHT"},
+        },
+        "ER": {
+            "I6": {"I6": "STRAIGHT"},
+        },
+        "EC": {
+            "I7": {"I7": "STRAIGHT"},
+        },
+    }
 
-        return "STRAIGHT"
+    def get_next_step(self, current_node: str, target_node: str) -> str:
+        """Compatibilita' con codice legacy senza previous_node."""
+        return self.LEGACY_TURN_TABLE.get(current_node, {}).get(target_node, "STRAIGHT")
 
     def get_next_step2(
         self,
@@ -33,14 +96,5 @@ class PathController:
         target_node: str,
         previous_node: str | None = None,
     ) -> str:
-        """
-        Versione basata su tabella di verità sul grafo noto.
-
-        Il parametro previous_node è opzionale e viene introdotto per compatibilità
-        con l'evoluzione futura della logica di navigazione.
-        """
-        if current_node == target_node:
-            return "STOP"
-
-        node_turns = self.TURN_TABLE.get(current_node, {})
-        return node_turns.get(target_node, "STRAIGHT")
+        """Metodo stupido: sola lettura da TURN_TABLE[current][next][previous]."""
+        return self.TURN_TABLE.get(current_node, {}).get(target_node, {}).get(previous_node, "STRAIGHT")
