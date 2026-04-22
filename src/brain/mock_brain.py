@@ -20,7 +20,9 @@ def main():
         return 
     
     redis_manager.update_sensor_data(BRAIN_KEY, {NODE_KEY: False})
-    print("[BRAIN] Stato iniziale: Non sono in un nodo.")
+    redis_manager.update_sensor_data(BRAIN_KEY, {"target_node": "E2"})
+    redis_manager.update_sensor_data(BRAIN_KEY, {"current_node": "EC"})
+    print("[BRAIN] Stato iniziale: Sono patita da EC. (test)")
 
     def spegnimento_sicuro(signum, frame):
         print("\n[BRAIN] Ricevuto segnale di spegnimento da Docker (SIGTERM)!")

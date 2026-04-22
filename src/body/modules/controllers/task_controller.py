@@ -94,6 +94,8 @@ class TaskController:
             in_node = self.redis_client.get_sensor_data(self.BRAIN_MEMORY).get("am_i_in_a_node")
             next_node = self.redis_client.get_sensor_data(self.BRAIN_MEMORY).get("next_node")
             target_node = self.redis_client.get_sensor_data(self.BRAIN_MEMORY).get("target_node")
+
+            #print(f"🧠 [TaskController] Stato attuale: Next node: {next_node}, Target node: {target_node}")
             
 
             # 2. LOGICA DELLA MACCHINA A STATI

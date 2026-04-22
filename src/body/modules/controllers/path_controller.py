@@ -88,7 +88,7 @@ class PathController:
 
     def get_next_step(self, current_node: str, target_node: str) -> str:
         """Compatibilita' con codice legacy senza previous_node."""
-        return self.LEGACY_TURN_TABLE.get(current_node, {}).get(target_node, "STRAIGHT")
+        return self.LEGACY_TURN_TABLE.get(current_node, {}).get(target_node, "LEFT")
 
     def get_next_step2(
         self,
