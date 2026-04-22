@@ -29,6 +29,7 @@ class TaskController:
         
         # Inizializza la body_memory
         self.redis_client.initialize_body_memory()
+        self.redis_client.initialize_brain_memory()
         
         # Chiavi Redis per la comunicazione col Brain e col SensorManager
         self.BODY_MEMORY = "body_memory"

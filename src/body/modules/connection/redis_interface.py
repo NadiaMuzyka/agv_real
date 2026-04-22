@@ -88,6 +88,21 @@ class RedisInterface:
         self.set_sensor_data("body_memory", initial_state)
         print(f"[{self.__class__.__name__}] ✅ Body memory inizializzata con stato di default.")
 
+    def initialize_brain_memory(self):
+        """Inizializza la brain_memory con i valori di default."""
+        if not self.db:
+            print(f"[{self.__class__.__name__}] ❌ Redis non disponibile per l'inizializzazione!")
+            return
+        
+        initial_state = {
+            "person_detected": False,  
+            "am_i_in_a_node": False,
+            "is_load": False
+        }
+        
+        self.set_sensor_data("brain_memory", initial_state)
+        print(f"[{self.__class__.__name__}] ✅ Brain memory inizializzata con stato di default.")
+
     def set_command(self, channel: str, command):
         """ Pubblica un comando sul canale specificato. """
         if not self.db:

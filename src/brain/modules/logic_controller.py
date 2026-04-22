@@ -44,8 +44,9 @@ class LogicController:
 
         #se REDIS  è vuoto all'inizio
         if not sensor_data:
+            print("[LogicController] Redis vuoto, inizializzo con dati di default.")
             sensor_data = {
-                "battery_level": 10.0,
+                "battery_level": 100.0,
                 "person_detected": False,
                 "pallet_list_empty": False,
                 "am_i_in_a_node": True,
@@ -102,7 +103,7 @@ class LogicController:
 
         print(f"[LogicController] Aggiornamento blackboard con dati REALI da Redis: {sensor_data}")
         # NOTA: se la chiave non esiste, usiamo un valore di default
-        self.blackboard.battery_level = sensor_data.get("battery_level", 10.0)#livello batteria
+        self.blackboard.battery_level = sensor_data.get("battery_level", 100.0)#livello batteria
         self.blackboard.person_detected = sensor_data.get("person_detected", False)#persona rilevata
         self.blackboard.pallet_list_empty = sensor_data.get("pallet_list_empty", False)#lista pallet vuota?
         self.blackboard.am_i_in_a_node = sensor_data.get("am_i_in_a_node", True)#sono in un nodo?
