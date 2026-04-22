@@ -41,7 +41,7 @@ class LogicController:
         """
         SENSORS_KEY = "brain_memory"  # Chiave Redis dove sono salvati i dati dei sensori
         sensor_data = self.db.get_sensor_data(SENSORS_KEY) or {}
-        print(f"[LogicController] Letti dati REALI da Redis: {sensor_data}") 
+        #print(f"[LogicController] Letti dati REALI da Redis: {sensor_data}") 
 
         #se REDIS  è vuoto all'inizio
         if not sensor_data:
@@ -53,7 +53,7 @@ class LogicController:
                 "am_i_in_a_node": True,
                 "next_node": None,
                 "previous_node": None,
-                "current_position": "I3",
+                "current_position": "ER",
                 "mission_queue": [],
                 "path_to_target": [],
                 "is_charging": False,
@@ -110,7 +110,7 @@ class LogicController:
         self.blackboard.pallet_list_empty = sensor_data.get("pallet_list_empty", False)#lista pallet vuota?
         self.blackboard.am_i_in_a_node = sensor_data.get("am_i_in_a_node", True)#sono in un nodo?
         self.blackboard.next_node = sensor_data.get("next_node", None)#prossimo nodo verso cui stiamo andando
-        self.blackboard.current_position = sensor_data.get("current_position", "I3")#posizione attuale dell'AGV
+        self.blackboard.current_position = sensor_data.get("current_position", "ER")#posizione attuale dell'AGV
         self.blackboard.previous_node = sensor_data.get("previous_node", None)#nodo precedente da cui siamo arrivati al current_position
         self.blackboard.mission_queue = sensor_data.get("mission_queue", [])#lista dei nodi dove svolgere la missione
         self.blackboard.path_to_target = sensor_data.get("path_to_target", [])#percorso completo verso il target
