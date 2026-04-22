@@ -1,6 +1,4 @@
 import time
-import json
-import logging
 import os
 
 from modules.sensors.sensor_manager import SensorManager
@@ -11,13 +9,6 @@ from modules.controllers.task_controller import TaskController
 
 #docker compose up --build body
 
-# Configurazione del Logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] [AGV Node] %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-logger = logging.getLogger(__name__)
 
 class RobotController:
     """
@@ -34,7 +25,7 @@ class RobotController:
     queue = ["RIGHT", "LEFT", "STOP"] #simulazione coda di navigazione (Redis/Brain)
     
     def __init__(self):
-        logger.info("Inizializzazione RobotController")
+        print("Inizializzazione RobotController")
 
         #self.task_controller.start() #Avvio il thread del TaskController (che legge i comandi dal Brain e gestisce la logica di alto livello)
 
@@ -44,7 +35,7 @@ class RobotController:
         self.sim = CoppeliaConnector().get_sim()
 
         if not self.sim:
-            logger.error("Impossibile connettersi a Coppelia.")
+            print("Impossibile connettersi a Coppelia.")
             raise ConnectionError("Coppelia err")
 
 
@@ -66,7 +57,7 @@ class RobotController:
     def run(self):
 
         """Ciclo di vita principale."""
-        logger.info(f"Main loop avviato a {self.LOOP_HZ}Hz.")
+        print(f"Main loop avviato a {self.LOOP_HZ}Hz.")
         loop_delay = 1.0 / self.LOOP_HZ
         
 
@@ -81,7 +72,7 @@ class RobotController:
         # TUTTI I THREAD SONO PRONTI - Creiamo un file di segnalazione per il health check
         ready_file = "/tmp/body_ready"
         open(ready_file, 'a').close()
-        logger.info(f"✅ Body completamente avviato. File di ready creato: {ready_file}")
+        print(f"✅ Body completamente avviato. File di ready creato: {ready_file}")
 
         try:
             while True:                
@@ -89,12 +80,12 @@ class RobotController:
                 time.sleep(loop_delay)
                 
         except KeyboardInterrupt:
-            logger.warning("Interruzione terminale.")
+            print("Interruzione terminale.")
             if os.path.exists(ready_file):
                 os.remove(ready_file)
 
         except Exception as e:
-            logger.error(f"Eccezione: {e}", exc_info=True)
+            print(f"Eccezione: {e}", exc_info=True)
 
 
 def main():
@@ -102,7 +93,7 @@ def main():
         controller = RobotController()
         controller.run()
     except Exception as e:
-        logger.critical(f"Chiusura forzata: {e}")
+        print(f"Chiusura forzata: {e}")
 
 if __name__ == "__main__":
     main()
