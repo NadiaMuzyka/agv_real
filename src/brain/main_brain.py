@@ -2,6 +2,7 @@
 import time
 import sys
 import os
+import shutil
 import py_trees
 import signal # Per gestire l'interruzione del processo con Ctrl+C
 
@@ -13,6 +14,16 @@ from modules.logic_controller import LogicController
 
 def main():
     print("🧠 Avvio BRAIN. Implementazione Logic Controller su Redis Pub/Sub...")
+    
+    # --- RIPRISTINO INFO_PACK DAL BACKUP ---
+    info_pack_path = os.path.join(os.path.dirname(__file__), 'docs', 'info_pack.json')
+    backup_path = os.path.join(os.path.dirname(__file__), 'docs', 'info_pack_backup.json')
+    try:
+        if os.path.exists(backup_path):
+            shutil.copy2(backup_path, info_pack_path)
+            print(f"✓ info_pack.json ripristinato dal backup")
+    except Exception as e:
+        print(f"⚠ Avviso: Impossibile ripristinare info_pack.json dal backup: {e}")
     
     redis_manager = RedisInterface() 
     if not redis_manager.db:
