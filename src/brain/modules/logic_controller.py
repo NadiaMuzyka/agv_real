@@ -206,7 +206,7 @@ class LogicController:
         if target_node is None:
             print("[LogicController] Navigazione fallita: target mancante.")
             return "FAILURE"
-
+        print(f"[LogicController] Sto nel nodo?: {self.blackboard.am_i_in_a_node}")
         if self.blackboard.am_i_in_a_node and self.blackboard.current_position == target_node:
             # ========================================================
             # CONTROLLO FINE MISSIONE
