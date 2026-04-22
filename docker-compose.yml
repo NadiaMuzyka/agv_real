@@ -5,13 +5,19 @@ services:
     container_name: agv_redis
     ports:
       - "6379:6379"
-    volumes:
-      - redis_data:/data
+    # VOLUMI DISABILITATI: Redis manterrà i dati solo in memoria. Se vuoi persistenza, decommenta qui + la sezione dei volumi in fondo.
+    #volumes:
+    #  - redis_data:/data
     networks:
       - agv_net
     restart: always
+    #Impedisco a redis di cercare di salvare i dati sul disco
+    #redis infatti prima di spegnersi cerca di salvare i dati su disco chiamando il file dump.rdb all'interno del container, se il container non viene distrutto, ma solo fermato, 
+    # quando viene riavviato, riesce a leggere i dati da disco e riprendere da dove era rimasto. 
+    #Se invece il container viene distrutto, quando redis cerca di salvare i dati su disco, non riesce a trovare il file dump.rdb, e si spegne con un errore. 
+    #Se invece disabilitiamo la persistenza dei dati su disco,
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
 
-  # --- 2. IL CERVELLO (Logic & BT) ---
   brain:
     build: ./src/brain
     container_name: agv_brain
@@ -61,5 +67,8 @@ networks:
   agv_net:
     driver: bridge
 
-volumes:
-  redis_data:
+# VOLUMI PER PERSISTENZA DATI (es. Redis)
+#commento il volume, in questo modo redis non salva i dati su disco, ma li mantiene solo in memoria. 
+#Se vuoi mantenere i dati anche dopo che il container viene fermato, puoi decommentare questa sezione.
+#volumes:
+#  redis_data:

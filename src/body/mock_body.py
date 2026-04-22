@@ -116,7 +116,8 @@ def complete_action():
 
     # CALCOLO CONSUMO BATTERIA
     current_BATTERY = sensors.get("battery_level", 100.0)
-    new_battery = max(0.0, current_BATTERY - battery_consumption)  # Consumo fisso per semplicità
+    #new_battery = max(0.0, current_BATTERY - battery_consumption)  # Consumo fisso per semplicità
+    new_battery = 100.0 # Per test, manteniamo la batteria sempre al massimo
 
     if current_action == "MOVE_TO":
         path_to_target = sensors.get("path_to_target", [])
