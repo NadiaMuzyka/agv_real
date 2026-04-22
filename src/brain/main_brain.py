@@ -16,8 +16,8 @@ def main():
     print("🧠 Avvio BRAIN. Implementazione Logic Controller su Redis Pub/Sub...")
     
     # --- RIPRISTINO INFO_PACK DAL BACKUP ---
-    info_pack_path = os.path.join(os.path.dirname(__file__), 'docs', 'info_pack.json')
-    backup_path = os.path.join(os.path.dirname(__file__), 'docs', 'info_pack_backup.json')
+    info_pack_path = os.path.join(os.path.dirname(__file__), 'docs', 'plan.json')
+    backup_path = os.path.join(os.path.dirname(__file__), 'docs', 'plan-backup.json')
     try:
         if os.path.exists(backup_path):
             shutil.copy2(backup_path, info_pack_path)
