@@ -210,7 +210,7 @@ class LogicController:
             print("[LogicController] Navigazione fallita: target mancante.")
             return "FAILURE"
 
-        # 2. Controllo Arrivo al traguardo
+        # 2. Controllo Arrivo al target: se sono in un nodo e quel nodo è il target, sono arrivato a destinazione!
         if self.blackboard.am_i_in_a_node and self.blackboard.current_position == target_node:
             # ========================================================
             # CONTROLLO FINE MISSIONE
@@ -237,6 +237,7 @@ class LogicController:
         target_next_node = self.blackboard.next_node
 
         # 3. GESTIONE DEL PERCORSO
+        # se sono in un nodo ma non è il nodo target
         if self.blackboard.am_i_in_a_node and self.blackboard.current_position != target_node:
             
             # Se abbiamo raggiunto il checkpoint che stavamo puntando
@@ -245,6 +246,7 @@ class LogicController:
                 
                 path_to_target = self.blackboard.path_to_target
                 
+                # CASO A: Il percorso ha ancora nodi da consumare
                 if isinstance(path_to_target, list) and len(path_to_target) > 0:
                     if self.blackboard.current_position == path_to_target[0]:
                         nuovo_path = path_to_target[1:]
@@ -252,25 +254,31 @@ class LogicController:
                         nuovo_path = path_to_target 
                     
                     nuovo_next = nuovo_path[0] if len(nuovo_path) > 0 else target_node
+                
+                # CASO B: Il percorso è ESAURITO, l'ultimo step è il target finale!
+                else:
+                    nuovo_path = []
+                    nuovo_next = target_node
+                    print(f"[LogicController] Percorso esaurito! Ultimo salto diretto verso il target: {target_node}")
                     
-                    # ========================================================
-                    # AGGIORNAMENTO SOLO SU REDIS. La Blackboard non si tocca!
-                    # Si aggiornerà automaticamente al prossimo ciclo BT.
-                    # ========================================================
-                    aggiornamenti = {
-                        "path_to_target": nuovo_path,
-                        "next_node": nuovo_next
-                    }
-                    self.db.update_sensor_data("brain_memory", aggiornamenti)
-                    print(f"[LogicController] Checkpoint {self.blackboard.current_position} superato. Prossima direzione: {nuovo_next}")
-                    
-                    # Aggiorniamo la nostra variabile locale per inviare l'ordine corretto al Body ORA
-                    target_next_node = nuovo_next
+                # ========================================================
+                # AGGIORNAMENTO SOLO SU REDIS. La Blackboard non si tocca!
+                # Si aggiornerà automaticamente al prossimo ciclo BT.
+                # ========================================================
+                aggiornamenti = {
+                    "path_to_target": nuovo_path,
+                    "next_node": nuovo_next
+                }
+                self.db.update_sensor_data("brain_memory", aggiornamenti)
+                print(f"[LogicController] Checkpoint {self.blackboard.current_position} superato. Prossima direzione: {nuovo_next}")
+                
+                # Aggiorniamo la nostra variabile locale per inviare l'ordine corretto al Body ORA
+                target_next_node = nuovo_next
 
 
         # 4. INVIO COMANDO DI MOVIMENTO
         if not target_next_node:
-            print(f"[LogicController] Navigazione fallita: next_node vuoto, ma target {target_node} non raggiunto.")
+            print(f"[LogicController] Navigazione fallita: target_next_node vuoto, ma target {target_node} non raggiunto.")
             return "FAILURE"
         
         comando = {
@@ -284,16 +292,14 @@ class LogicController:
         if self.blackboard.am_i_in_a_node:
             print(f"[LogicController] Partenza verso nodo {target_next_node} (target finale: {target_node}).")
         else:
-            # Opzionale, puoi de-commentarlo per debuggare in transito
+            # Opzionale, decommentalo se vuoi loggare il transito continuo
             # print(f"[LogicController] In transito verso {target_next_node}...")
             pass
 
         self.db.set_command(self.db.COMMAND_CHANNEL, comando)
         return "RUNNING"
 
-
     #Metodo che simula la carica della batteria (VA RISCRITTO APPENA COLLEGHIAMO IL BODY)
-    
     def recharge_battery(self) -> str:
         step_ricarica = 5.0 # percentuale di carica aggiunta ad ogni step
         if self.blackboard.battery_level < 100.0:
