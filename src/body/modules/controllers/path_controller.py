@@ -30,41 +30,43 @@ class PathController:
         "EC": {"I7": "STRAIGHT"},
     }
 
+    # TURN_TABLE[current_node][next_node][previous_node] -> direction
     TURN_TABLE = {
         "I1": {
-            "E1": {"I2": "LEFT", "I3": "LEFT"},
-            "I2": {"E1": "STRAIGHT", "I3": "STRAIGHT"},
-            "I3": {"E1": "RIGHT", "I2": "RIGHT"},
+            "E1": {"I2": "RIGHT", "I3": "LEFT"},
+            "I2": {"E1": "LEFT", "I3": "STRAIGHT"},
+            "I3": {"E1": "RIGHT", "I2": "STRAIGHT"},
         },
         "I2": {
-            "E2": {"I1": "LEFT", "I6": "LEFT"},
-            "I1": {"E2": "STRAIGHT", "I6": "STRAIGHT"},
-            "I6": {"E2": "RIGHT", "I1": "RIGHT"},
+            "E2": {"I1": "LEFT", "I6": "RIGHT"},
+            "I1": {"E2": "RIGHT", "I6": "STRAIGHT"},
+            "I6": {"E2": "LEFT", "I1": "STRAIGHT"},
         },
         "I3": {
-            "I1": {"I4": "LEFT", "I7": "LEFT"},
-            "I4": {"I1": "STRAIGHT", "I7": "STRAIGHT"},
-            "I7": {"I1": "RIGHT", "I4": "RIGHT"},
+            "I1": {"I4": "LEFT", "I7": "RIGHT"},
+            "I4": {"I1": "RIGHT", "I7": "LEFT"},
+            "I7": {"I1": "STRAIGHT", "I4": "RIGHT"},
         },
         "I4": {
-            "I3": {"E3": "LEFT", "I5": "LEFT"},
-            "E3": {"I3": "STRAIGHT", "I5": "STRAIGHT"},
-            "I5": {"I3": "RIGHT", "E3": "RIGHT"},
+            "I3": {"E3": "RIGHT", "I5": "RIGHT"},
+            "E3": {"I3": "LEFT", "I5": "RIGHT"},
+            "I5": {"I3": "STRAIGHT", "E3": "RIGHT"},
         },
         "I5": {
-            "I4": {"E4": "LEFT", "I6": "LEFT"},
-            "E4": {"I4": "STRAIGHT", "I6": "STRAIGHT"},
-            "I6": {"I4": "RIGHT", "E4": "RIGHT"},
+            "I4": {"E4": "RIGHT", "I6": "STRAIGHT"},
+            "E4": {"I4": "LEFT", "I6": "RIGHT"},
+            "I6": {"I4": "STRAIGHT", "E4": "LEFT"},
         },
         "I6": {
-            "I2": {"ER": "LEFT", "I7": "LEFT"},
-            "ER": {"I2": "STRAIGHT", "I7": "STRAIGHT"},
-            "I7": {"I2": "RIGHT", "ER": "RIGHT"},
+            "I2": {"EC": "LEFT", "I7": "STRAIGHT", "I5": "RIGHT"},
+            "EC": {"I2": "RIGHT", "I7": "LEFT", "I5": "STRAIGHT"},
+            "I7": {"I2": "STRAIGHT", "EC": "RIGHT", "I5": "LEFT"},
+            "I5": {"I2": "LEFT", "EC": "STRAIGHT", "I7": "RIGHT"},
         },
         "I7": {
-            "I3": {"EC": "LEFT", "I6": "LEFT"},
-            "EC": {"I3": "STRAIGHT", "I6": "STRAIGHT"},
-            "I6": {"I3": "RIGHT", "EC": "RIGHT"},
+            "I3": {"ER": "RIGHT", "I6": "STRAIGHT"},
+            "ER": {"I3": "LEFT", "I6": "RIGHT"},
+            "I6": {"I3": "STRAIGHT", "ER": "LEFT"},
         },
         "E1": {
             "I1": {"I1": "STRAIGHT"},
