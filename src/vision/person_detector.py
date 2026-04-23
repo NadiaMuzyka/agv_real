@@ -8,6 +8,12 @@ class PersonDetectorNode:
     Microservizio di Percezione: 
     Analizza il flusso video e aggiorna in tempo reale Redis se rileva una persona.
     """
+
+    # --- COSTANTI TECNICHE ---
+    FOCALE_WEBCAM = 1100.0  # Valore stimato per 720p (FOV 60°)
+    LARGHEZZA_SPALLE = 0.5   # Metri (W)
+    SOGLIA_STOP = 3.0        # Metri (Soglia di sicurezza)
+
     def __init__(self, redis_host='localhost', redis_port=6379, redis_db=0):
         # 1. Inizializzazione della connessione a Redis
         try:
@@ -31,36 +37,28 @@ class PersonDetectorNode:
         # Memorizziamo l'ultimo stato per evitare di spammare Redis a ogni millisecondo
         self.ultimo_stato_inviato = None
 
-    def aggiorna_redis(self, persona_rilevata: bool):
+    def aggiorna_redis(self, persona_rilevata: bool, distanza: float = 0.0):
         """ 
-        Legge il JSON attuale da Redis, modifica solo il campo person_detected e lo riscrive.
+        Legge il JSON, aggiorna rilevamento e distanza, e riscrive.
         """
-        # Se lo stato non è cambiato dal frame precedente, non disturbiamo Redis
-        if persona_rilevata == self.ultimo_stato_inviato:
+        # Se lo stato non è cambiato e la distanza è simile, potremmo evitare l'update.
+        # Ma per ora aggiorniamo sempre se c'è una persona per avere la distanza fresca.
+        if persona_rilevata == False and self.ultimo_stato_inviato == False:
             return
 
         chiave_memoria = "brain_memory"
-        
-        # Lettura sicura dello stato attuale
         memoria_str = self.r.get(chiave_memoria)
-        if memoria_str:
-            try:
-                memoria = json.loads(memoria_str)
-            except json.JSONDecodeError:
-                memoria = {}
-        else:
-            memoria = {}
+        memoria = json.loads(memoria_str) if memoria_str else {}
 
-        # Aggiornamento del sensore
+        # Aggiornamento dati
         memoria["person_detected"] = persona_rilevata
+        memoria["person_distance"] = round(distanza, 2) if persona_rilevata else 0.0
         
-        # Scrittura su Redis
+        # Logica di STOP forzato se troppo vicino
+        if persona_rilevata and distanza < self.SOGLIA_STOP:
+            print(f"[VisionNode] 🛑 EMERGENZA: Persona a {distanza:.2f}m! Sotto soglia {self.SOGLIA_STOP}m.")
+        
         self.r.set(chiave_memoria, json.dumps(memoria))
-        
-        # Log visivo sul terminale
-        stato_txt = "⚠️ RILEVATA!" if persona_rilevata else "✅ Nessuno."
-        print(f"[VisionNode] 🔄 Stato aggiornato su Redis: Persona {stato_txt}")
-        
         self.ultimo_stato_inviato = persona_rilevata
 
     def run(self):
@@ -77,27 +75,25 @@ class PersonDetectorNode:
                 # Inferenza YOLO ottimizzata
                 risultati = self.model(frame, stream=True, verbose=False)
                 persona_trovata = False
+                distanza_rilevata = 0.0
 
                 for r in risultati:
                     for box in r.boxes:
                         id_classe = int(box.cls[0])
-                        # Estraiamo la confidenza (YOLO la restituisce come tensore, la convertiamo in float)
                         confidenza = float(box.conf[0])
                         
-                        # Accettiamo la rilevazione solo se è una persona (0) E la confidenza è > 60%
                         if id_classe == 0 and confidenza > 0.60:
+                            # CALCOLO DISTANZA
+                            x1, y1, x2, y2 = box.xyxy[0]
+                            w_pixel = float(x2 - x1)
+                            
+                            # Formula: D = (W * f) / w
+                            distanza_rilevata = (self.LARGHEZZA_SPALLE * self.FOCALE_WEBCAM) / w_pixel
                             persona_trovata = True
-                            break
+                            break # Gestiamo la persona più vicina
 
-                # Sincronizza con il resto del robot
-                #print(f"[VisionNode] {'⚠️ Persona Rilevata!' if persona_trovata else '✅ Nessuno in vista.'}")
-                self.aggiorna_redis(persona_trovata)
-
-                # NOTA: Per le massime performance in produzione, rimuovi queste righe di imshow.
-                # L'interfaccia grafica consuma CPU e nei container Docker senza monitor farà crashare lo script.
-                # cv2.imshow("Debug Visivo AGV", frame)
-                # if cv2.waitKey(1) & 0xFF == ord('q'):
-                #     break
+                # Invio dati a Redis
+                self.aggiorna_redis(persona_trovata, distanza_rilevata)
 
         except KeyboardInterrupt:
             print("\n[VisionNode] Spegnimento del nodo richiesto dall'utente.")
