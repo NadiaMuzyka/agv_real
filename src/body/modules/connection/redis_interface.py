@@ -81,6 +81,7 @@ class RedisInterface:
             return
         
         initial_state = {
+            "current_position": "ER",
             "maneuver_state": "NONE",  # Può essere "NONE", "IN_PROGRESS", "COMPLETED"
             "pid_active": False
         }
