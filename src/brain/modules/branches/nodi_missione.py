@@ -108,49 +108,7 @@ class RiceviListaPallet(py_trees.behaviour.Behaviour):
         else:
             print(f"[{self.name}] Lista pallet scaricata con successo: {esito}")
             return py_trees.common.Status.SUCCESS
-        
-
-        # # Anti-Tick Fantasma: aspettiamo che l'AGV sia "sveglio" e connesso a Redis
-        # sensori = lc.db.get_sensor_data("brain_memory")
-        # if not sensori:
-        #     return py_trees.common.Status.RUNNING
-
-        # print(f"[{self.name}] Contatto il Fleet Manager...")
-        
-        # try:
-        #     # =========================================================
-        #     # CODICE PER DOMANI (Scommentare quando Simone è pronto)
-        #     # risposta = requests.get(self.api_url, timeout=2.0)
-        #     # if risposta.status_code == 200:
-        #     #     missioni_scaricate = risposta.json()
-        #     # else:
-        #     #     raise Exception(f"Errore HTTP {risposta.status_code}")
-        #     # =========================================================
             
-        #     # --- MOCK PER OGGI ---
-        #     # Stiamo fingendo che 'requests' abbia restituito questo JSON
-        #     missioni_scaricate = 
-        #     # ---------------------
-
-        #     # SCENARIO 1: Il server ha mandato del lavoro
-        #     if len(missioni_scaricate) > 0:
-        #         print(f"[{self.name}] Ricevuti {len(missioni_scaricate)} task dal server.")
-        #         self.blackboard.mission_queue = missioni_scaricate
-        #         return py_trees.common.Status.SUCCESS
-            
-        #     # SCENARIO 2: Il server dice "Nessun lavoro" (Lista vuota)
-        #     else:
-        #         print(f"[{self.name}] Coda server vuota. Robot in attesa (IDLE).")
-        #         lc.execute_stop() # Assicuriamoci che i motori siano fermi!
-        #         return py_trees.common.Status.RUNNING
-
-        # # SCENARIO 3: Errore di Rete (Server spento, cavo staccato, URL sbagliato)
-        # except Exception as e:
-        #     print(f"[{self.name}] ERRORE DI RETE (Server irraggiungibile): {e}")
-        #     lc.execute_stop()
-        #     # Restando in RUNNING, l'AGV non crasha ma riprova pacificamente al prossimo tick
-        #     return py_trees.common.Status.RUNNING
-        
 
 class GeneraPianoOttimale(py_trees.behaviour.Behaviour):
     """
