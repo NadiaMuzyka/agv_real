@@ -24,6 +24,7 @@ class SensorManager:
         self._running = False
         self._thread = None
         self.frequenza_controllo = 0.05  # 20 Hz (più veloce dei sensori per non perdere dati)
+        self.last_in_node = False
 
     def start(self):
         """Avvia il thread di monitoraggio."""
@@ -43,6 +44,7 @@ class SensorManager:
         """Legge i sensori da Redis e decide se siamo su un nodo."""
         
         # 1. Usa il tuo nuovo metodo per ottenere direttamente il dizionario Python!
+        self.last_in_node = self.redis_client.get_sensor_data(self.BRAIN_KEY).get(self.NODE_KEY)
         body_memory = self.redis_client.get_sensor_data(self.BODY_KEY)
         
         # Se il dizionario è vuoto (i sensori non hanno ancora scritto nulla), saltiamo
@@ -61,8 +63,21 @@ class SensorManager:
         # 3. Logica finale: tutti e tre devono aver visto il target
         is_in_node = (detect_count == len(self.sensor_names))
 
+        path = self.redis_client.get_sensor_data(self.BRAIN_KEY).get("path_to_target",[])
+        
+        if not self.last_in_node and is_in_node and len(path) > 0:
+            print(f"📍 [SensorManager] Sono entrato in un nodo! Nodo: {path[1]}")
+            self.redis_client.update_sensor_data(self.BRAIN_KEY, {"current_position": path[0], "battery_level": 100 })
+        
+        self.redis_client.update_sensor_data(self.BRAIN_KEY, {"am_i_in_a_node": is_in_node})
+
+        self.last_in_node = is_in_node
+
         # 4. Scrive il risultato nello spazio "brain_memory"
         self.redis_client.update_sensor_data(self.BRAIN_KEY, {self.NODE_KEY: is_in_node})
+
+    
+        
 
     def stop(self):
         """Ferma il thread."""
