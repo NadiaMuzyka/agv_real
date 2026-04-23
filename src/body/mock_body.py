@@ -105,8 +105,8 @@ def start_action(action_type, destination=None):
         log_event("📦 [MOCK BODY] Inizio consegna...")
 
 def complete_action():
-    """Completa l'azione in corso"""
-    global current_action 
+    """Completa l'azione in corso""" 
+    global current_action, action_started_at, action_ends_at, next_node_destination
     
     # Quantità di batteria consumata per ogni azione
     battery_consumption = 1.0
@@ -120,34 +120,13 @@ def complete_action():
     new_battery = 100.0 # Per test, manteniamo la batteria sempre al massimo
 
     if current_action == "MOVE_TO":
-        path_to_target = sensors.get("path_to_target", [])
-
-        # se sto ancora navigando verso il nodo target, aggiorno la posizione al nodo successivo
-        if isinstance(path_to_target, list) and len(path_to_target) > 0:
-            aggiornamenti = {
-                "current_position": path_to_target[0],
-                "path_to_target": path_to_target[1:],
-                "am_i_in_a_node": True,
-                "battery_level": new_battery
-            }
-            if len(path_to_target) > 1:
-                aggiornamenti["next_node"] = path_to_target[1]
-            else:
-                aggiornamenti["next_node"] = None
-            log_event(f"📍 [MOCK BODY] Arrivato al nodo: {path_to_target[0]}!")
-            update_sensors(aggiornamenti)
-
-        # altrimenti, se non ho più nodi in path_to_target, arrivo a destinazione
-        else:
-            log_event(f"📍 [MOCK BODY] Arrivato a destinazione: {next_node_destination}!")
-            update_sensors({
-                "current_position": next_node_destination,
-                "next_node": None,
-                "am_i_in_a_node": True,
-                "battery_level": new_battery
-            })
-
-        update_sensors({"am_i_in_a_node": True})
+        log_event(f"📍 [MOCK BODY] Arrivato fisicamente al nodo: {next_node_destination}!")
+        # IL BODY AGGIORNA SOLO I SENSORI BASE E LA POSIZIONE REALE
+        update_sensors({
+            "current_position": next_node_destination,
+            "am_i_in_a_node": True,
+            "battery_level": new_battery
+        })
     elif current_action == "PICKUP":
         log_event("✅ [MOCK BODY] Prelievo completato!")
         update_sensors({
