@@ -63,6 +63,25 @@ services:
       timeout: 5s
       retries: 30
 
+  # --- 4. LA VISTA (Nodo di Percezione YOLO) ---
+  vision:
+    build: ./src/vision
+    container_name: agv_vision
+    depends_on:
+      redis:
+        condition: service_started
+    # MAPPATURA HARDWARE: Permette al container di vedere la webcam host
+    devices:
+      - "/dev/video0:/dev/video0" 
+    volumes:
+      - ./src/vision:/app
+    environment:
+      - REDIS_HOST=agv_redis
+      - PYTHONPATH=/app
+    networks:
+      - agv_net
+    command: ["python", "-u", "person_detector.py"]
+
 networks:
   agv_net:
     driver: bridge
