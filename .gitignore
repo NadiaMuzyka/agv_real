@@ -2,6 +2,8 @@
 __pycache__/
 *.pyc
 
+docker-compose.yml
+
 # Brain docs runtime data
 src/brain/docs/plan.json
 src/brain/docs/info_pack.json
