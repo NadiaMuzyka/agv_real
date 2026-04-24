@@ -47,56 +47,25 @@ class VisionSensor(GenericSensor):
     def _loop_lettura(self):
         """Metodo privato che gira in background nel thread."""
         while self._running:
-            self.read() 
-    
+            # 1. NON SCATTIAMO PIÙ LA FOTO DA QUI. FA TUTTO IL VISION CONTAINER!
+            # self.read()  <-- RIGA CANCELLATA
+
+            # 2. Ascoltiamo solo il verdetto dell'Intelligenza Artificiale da Redis
+            try:
+                risposta_str = self.redis_client.db.get("brain_memory")
+                if risposta_str:
+                    risposta = json.loads(risposta_str)
+                    self.last_data["detected"] = risposta.get("person_detected", False)
+                    self.last_data["distance"] = risposta.get("person_distance", 999.0)
+            except Exception as e:
+                print(f"[{self.name}] Errore lettura da Redis: {e}")
+
+            # 3. Eseguiamo il riflesso incondizionato sui motori
             if self.last_data["detected"] and self.last_data["distance"] < 3.0:
-                #agv.stop()
-                print("ALT! Riflesso di sicurezza dal Body!")
+                # agv.stop()
+                print(f"🛑 [{self.name}] ALT! Ostacolo a {self.last_data['distance']}m")
+                
             time.sleep(self.frequenza_lettura)
-
-    def read(self):
-        """Legge l'immagine dal sensore di visione via ZMQ e la pubblica su Redis."""
-        if self.handle is None:
-            print(f"[{self.name}] Errore: handle del sensore non valido.")
-            return
-        
-        try:
-            # Legge l'immagine dal sensore di visione via ZMQ Remote API
-            img_buffer, resolution = self.sim.getVisionSensorImg(self.handle)
-            
-            if img_buffer is None:
-                print(f"[{self.name}] Errore: nessun dato immagine ricevuto.")
-                return
-            
-            # Converte il buffer in array numpy per facilità di manipolazione
-            img_array = np.frombuffer(img_buffer, dtype=np.uint8).reshape(
-                resolution[1], resolution[0], 3  # height, width, 3 (RGB)
-            )
-            
-            # Capovolge l'immagine se necessario (CoppeliaSim usa convenzioni diverse)
-            img_array = img_array[::-1, :, :]
-            
-            # Encode l'immagine in base64 per facilitare la trasmissione via Redis
-            img_base64 = base64.b64encode(img_array.tobytes()).decode('utf-8')
-            
-            # Prepara i dati per Redis
-            vision_data = {
-                "image_base64": img_base64,
-                "width": resolution[0],
-                "height": resolution[1],
-                "timestamp": time.time(),
-                "channels": 3
-            }
-            
-            # Salva su Redis
-            redis_key = f"{SENSORS_KEY}:{self.name}"
-            self.redis_client.db.set(redis_key, json.dumps(vision_data))
-            
-            
-        except Exception as e:
-            print(f"[{self.name}] Errore nella lettura dell'immagine: {e}")
-            self.last_data["detected"] = False
-
     
     def stop(self):
         """Ferma il thread in modo pulito."""
