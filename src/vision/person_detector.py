@@ -1,18 +1,19 @@
 import cv2
 import json
 import redis
+import signal # Aggiunto per intercettare i segnali di Docker
 from ultralytics import YOLO
 
 class PersonDetectorNode:
     """
     Microservizio di Percezione: 
     Analizza il flusso video e aggiorna in tempo reale Redis se rileva una persona.
+    Include gestione pulita dello spegnimento (Graceful Shutdown).
     """
 
-    # --- COSTANTI TECNICHE ---
-    FOCALE_WEBCAM = 1100.0  # Valore stimato per 720p (FOV 60°)
-    LARGHEZZA_SPALLE = 0.5   # Metri (W)
-    SOGLIA_STOP = 3.0        # Metri (Soglia di sicurezza)
+    FOCALE_WEBCAM = 1100.0  
+    LARGHEZZA_SPALLE = 0.5   
+    SOGLIA_STOP = 3.0        
 
     def __init__(self, redis_host='localhost', redis_port=6379, redis_db=0):
         # 1. Inizializzazione della connessione a Redis
@@ -36,6 +37,17 @@ class PersonDetectorNode:
 
         # Memorizziamo l'ultimo stato per evitare di spammare Redis a ogni millisecondo
         self.ultimo_stato_inviato = None
+        
+        # --- LOGICA DI GRACEFUL SHUTDOWN ---
+        self.is_running = True # Bandierina di esecuzione
+        # Registriamo le funzioni da chiamare quando arrivano i segnali
+        signal.signal(signal.SIGINT, self._gestisci_spegnimento)   # Cattura il CTRL+C
+        signal.signal(signal.SIGTERM, self._gestisci_spegnimento)  # Cattura il Docker Stop
+
+    def _gestisci_spegnimento(self, signum, frame):
+        """Metodo chiamato in automatico quando Docker ordina lo stop."""
+        print(f"\n[VisionNode] ⚠️ Ricevuto segnale di spegnimento ({signum}). Arresto in corso...")
+        self.is_running = False # Abbassiamo la bandierina
 
     def aggiorna_redis(self, persona_rilevata: bool, distanza: float = 0.0):
         """ 
@@ -66,7 +78,8 @@ class PersonDetectorNode:
         print("[VisionNode] 👁️ Avvio ciclo di percezione visiva. Premi CTRL+C nel terminale per uscire.")
         
         try:
-            while True:
+            # Sostituito "while True" con la nostra bandierina
+            while self.is_running:
                 successo, frame = self.cap.read()
                 if not successo:
                     print("[VisionNode] Errore di lettura dalla webcam.")
@@ -90,17 +103,21 @@ class PersonDetectorNode:
                             # Formula: D = (W * f) / w
                             distanza_rilevata = (self.LARGHEZZA_SPALLE * self.FOCALE_WEBCAM) / w_pixel
                             persona_trovata = True
-                            break # Gestiamo la persona più vicina
+                            break
 
                 # Invio dati a Redis
                 self.aggiorna_redis(persona_trovata, distanza_rilevata)
 
-        except KeyboardInterrupt:
-            print("\n[VisionNode] Spegnimento del nodo richiesto dall'utente.")
+        except Exception as e:
+            print(f"[VisionNode] ❌ Errore imprevisto nel loop principale: {e}")
         finally:
+            # Questo blocco viene eseguito SEMPRE quando il while finisce, 
+            # garantendo che la webcam venga liberata.
             self.cap.release()
             cv2.destroyAllWindows()
-            print("[VisionNode] Risorse liberate. Arrivederci.")
+            # Pulizia finale su Redis (rimuoviamo gli allarmi prima di spegnerci)
+            self.aggiorna_redis(False, 999.0)
+            print("[VisionNode] 💤 Risorse liberate. Nodo spento correttamente.")
 
 if __name__ == "__main__":
     import os
