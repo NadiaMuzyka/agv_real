@@ -4,3 +4,4 @@ torchvision
 ultralytics
 opencv-python-headless
 redis
+coppeliasim-zmqremoteapi-client

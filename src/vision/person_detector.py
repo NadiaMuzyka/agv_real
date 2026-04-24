@@ -1,133 +1,131 @@
 import cv2
-import json
-import redis
-import signal # Aggiunto per intercettare i segnali di Docker
+import time
+import signal
+import socket
+import threading
+import numpy as np
 from ultralytics import YOLO
+from coppeliasim_zmqremoteapi_client import RemoteAPIClient
+import redis
+import json
+import os
 
-class PersonDetectorNode:
-    """
-    Microservizio di Percezione: 
-    Analizza il flusso video e aggiorna in tempo reale Redis se rileva una persona.
-    Include gestione pulita dello spegnimento (Graceful Shutdown).
-    """
+class PersonDetectorTestNode:
+    FOCALE_SIMULATA = 989.1  # Calcolata per 720x720 con FOV 40°
+    LARGHEZZA_SPALLE = 0.5 
 
-    FOCALE_WEBCAM = 1100.0  
-    LARGHEZZA_SPALLE = 0.5   
-    SOGLIA_STOP = 3.0        
+    def __init__(self, sensor_name="/Robot/visionSensor"):
+        print("[TEST DIRETTO] 🔌 Connessione diretta a CoppeliaSim in corso...")
+        
+        # Connessione con retry e timeout tramite thread
+        max_retries = 30
+        delay = 1
+        connection_timeout = 5
+        connected = False
 
-    def __init__(self, redis_host='localhost', redis_port=6379, redis_db=0):
-        # 1. Inizializzazione della connessione a Redis
-        try:
-            self.r = redis.Redis(host=redis_host, port=redis_port, db=redis_db, decode_responses=True)
-            self.r.ping()
-            print("[VisionNode] ✅ Connesso a Redis con successo.")
-        except redis.ConnectionError:
-            print("[VisionNode] ❌ ERRORE: Impossibile connettersi a Redis.")
+        indirizzo_redis = os.getenv("REDIS_HOST", "host.docker.internal")
+        self.r = redis.Redis(host=indirizzo_redis, port=6379, db=0, decode_responses=True)
+        self.chiave_scrittura = "brain_memory"
+        
+        for attempt in range(max_retries):
+            print(f"[TEST DIRETTO] Tentativo {attempt + 1}/{max_retries} - Connessione a host.docker.internal:23000...")
+            
+            # Prova prima con un test TCP sulla porta
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(connection_timeout)
+                result = sock.connect_ex(('host.docker.internal', 23000))
+                sock.close()
+                if result == 0:
+                    print(f"[TEST DIRETTO] ✅ Porta 23000 raggiungibile. Connessione a CoppeliaSim...")
+                    try:
+                        self.client = RemoteAPIClient(host='host.docker.internal')
+                        self.sim = self.client.getObject('sim')
+                        self.cam_handle = self.sim.getObject(sensor_name)
+                        print(f"[TEST DIRETTO] ✅ Telecamera '{sensor_name}' agganciata con successo!")
+                        connected = True
+                        break
+                    except Exception as e:
+                        print(f"[TEST DIRETTO] Errore con RemoteAPIClient: {type(e).__name__}: {e}")
+                else:
+                    print(f"[TEST DIRETTO] Porta 23000 non raggiungibile (timeout o rifiuto connessione)")
+            except Exception as e:
+                print(f"[TEST DIRETTO] Errore nel test TCP: {e}")
+            
+            if attempt < max_retries - 1:
+                print(f"[TEST DIRETTO] In attesa {delay}s prima del prossimo tentativo...")
+                time.sleep(delay)
+                delay = min(delay * 1.5, 10)
+        
+        if not connected:
+            print(f"[TEST DIRETTO] ❌ ERRORE CRITICO: Impossibile connettersi a CoppeliaSim dopo {max_retries} tentativi.")
             exit(1)
 
-        # 2. Caricamento del modello IA
-        print("[VisionNode] Caricamento modello YOLOv8n in corso...")
+        print("[TEST DIRETTO] 🧠 Caricamento modello YOLOv8n in corso...")
         self.model = YOLO("yolov8n.pt")
         
-        # 3. Inizializzazione della videocamera
-        self.cap = cv2.VideoCapture(0)
-        if not self.cap.isOpened():
-            print("[VisionNode] ❌ ERRORE CRITICO: Webcam non trovata o occupata.")
-            exit(1)
-
-        # Memorizziamo l'ultimo stato per evitare di spammare Redis a ogni millisecondo
-        self.ultimo_stato_inviato = None
-        
-        # --- LOGICA DI GRACEFUL SHUTDOWN ---
-        self.is_running = True # Bandierina di esecuzione
-        # Registriamo le funzioni da chiamare quando arrivano i segnali
-        signal.signal(signal.SIGINT, self._gestisci_spegnimento)   # Cattura il CTRL+C
-        signal.signal(signal.SIGTERM, self._gestisci_spegnimento)  # Cattura il Docker Stop
+        self.is_running = True
+        signal.signal(signal.SIGINT, self._gestisci_spegnimento)
+        signal.signal(signal.SIGTERM, self._gestisci_spegnimento)
 
     def _gestisci_spegnimento(self, signum, frame):
-        """Metodo chiamato in automatico quando Docker ordina lo stop."""
-        print(f"\n[VisionNode] ⚠️ Ricevuto segnale di spegnimento ({signum}). Arresto in corso...")
-        self.is_running = False # Abbassiamo la bandierina
-
-    def aggiorna_redis(self, persona_rilevata: bool, distanza: float = 0.0):
-        """ 
-        Legge il JSON, aggiorna rilevamento e distanza, e riscrive.
-        """
-        # Se lo stato non è cambiato e la distanza è simile, potremmo evitare l'update.
-        # Ma per ora aggiorniamo sempre se c'è una persona per avere la distanza fresca.
-        if persona_rilevata == False and self.ultimo_stato_inviato == False:
-            return
-
-        chiave_memoria = "brain_memory"
-        memoria_str = self.r.get(chiave_memoria)
-        memoria = json.loads(memoria_str) if memoria_str else {}
-
-        # Aggiornamento dati
-        memoria["person_detected"] = persona_rilevata
-        memoria["person_distance"] = round(distanza, 2) if persona_rilevata else 0.0
-        
-        # Logica di STOP forzato se troppo vicino
-        if persona_rilevata and distanza < self.SOGLIA_STOP:
-            print(f"[VisionNode] 🛑 EMERGENZA: Persona a {distanza:.2f}m! Sotto soglia {self.SOGLIA_STOP}m.")
-        
-        self.r.set(chiave_memoria, json.dumps(memoria))
-        self.ultimo_stato_inviato = persona_rilevata
+        self.is_running = False
 
     def run(self):
-        """ Ciclo infinito di percezione """
-        print("[VisionNode] 👁️ Avvio ciclo di percezione visiva. Premi CTRL+C nel terminale per uscire.")
+        print("[TEST DIRETTO] 👁️ Inizio cattura fotogrammi diretta...")
         
         try:
-            # Sostituito "while True" con la nostra bandierina
             while self.is_running:
-                successo, frame = self.cap.read()
-                if not successo:
-                    print("[VisionNode] Errore di lettura dalla webcam.")
-                    break
+                # 1. Lettura diretta (senza passare da Redis)
+                img_raw, res = self.sim.getVisionSensorImg(self.cam_handle)
+                
+                if not img_raw:
+                    print("[TEST DIRETTO] ⚠️ Immagine vuota dal simulatore.")
+                    time.sleep(0.1)
+                    continue
 
-                # Inferenza YOLO ottimizzata
+                # 2. Conversione pura
+                frame = np.frombuffer(img_raw, dtype=np.uint8).reshape(res[1], res[0], 3)
+                frame = cv2.flip(frame, 0)
+                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+
+                # 3. Analisi YOLO
                 risultati = self.model(frame, stream=True, verbose=False)
-                persona_trovata = False
-                distanza_rilevata = 0.0
+                trovata = False
 
                 for r in risultati:
+                    # --- INIZIO DEBUG VISIVO SU FILE ---
+                    # Chiediamo a YOLO di disegnare i riquadri colorati sull'immagine
+                    annotated_frame = r.plot()
+                    # Salviamo l'immagine processata fisicamente dentro il container
+                    cv2.imwrite("vista_yolo.jpg", annotated_frame)
+                    # --- FINE DEBUG VISIVO ---
+
                     for box in r.boxes:
-                        id_classe = int(box.cls[0])
-                        confidenza = float(box.conf[0])
-                        
-                        if id_classe == 0 and confidenza > 0.60:
-                            # CALCOLO DISTANZA
-                            x1, y1, x2, y2 = box.xyxy[0]
+                        if int(box.cls[0]) == 0 and float(box.conf[0]) > 0.25:
+                            x1, _, x2, _ = box.xyxy[0]
                             w_pixel = float(x2 - x1)
-                            
-                            # Formula: D = (W * f) / w
-                            distanza_rilevata = (self.LARGHEZZA_SPALLE * self.FOCALE_WEBCAM) / w_pixel
-                            persona_trovata = True
+                            dist = (self.LARGHEZZA_SPALLE * self.FOCALE_SIMULATA) / w_pixel
+                            trovata = True
+                            print(f"[TEST DIRETTO - YOLO] 🎯 PERSONA RILEVATA! Distanza: {dist:.2f}m")
                             break
 
-                # Invio dati a Redis
-                self.aggiorna_redis(persona_trovata, distanza_rilevata)
+                if not trovata:
+                    print(f"[TEST DIRETTO - YOLO] 🙈 Nessuna persona rilevata nel frame corrente.")
+                
+                time.sleep(0.1) # Rallentiamo per poter leggere il terminale
 
-        except Exception as e:
-            print(f"[VisionNode] ❌ Errore imprevisto nel loop principale: {e}")
+                # --- SCRITTURA SU REDIS ---
+                memoria = {
+                    "person_detected": trovata,
+                    "person_distance": round(dist, 2) if trovata else 999.0
+                }
+                self.r.set(self.chiave_scrittura, json.dumps(memoria))
+                # --------------------------
+
         finally:
-            # Questo blocco viene eseguito SEMPRE quando il while finisce, 
-            # garantendo che la webcam venga liberata.
-            self.cap.release()
-            cv2.destroyAllWindows()
-            # Pulizia finale su Redis (rimuoviamo gli allarmi prima di spegnerci)
-            self.aggiorna_redis(False, 999.0)
-            print("[VisionNode] 💤 Risorse liberate. Nodo spento correttamente.")
+            print("[TEST DIRETTO] Nodo spento.")
 
 if __name__ == "__main__":
-    import os
-    
-    # Legge l'indirizzo di Redis dal docker-compose (variabile d'ambiente). 
-    # Se non lo trova (es. test senza docker), usa "localhost" come fallback.
-    indirizzo_redis = os.getenv("REDIS_HOST", "localhost")
-    
-    print(f"[Boot] Inizializzazione nodo visivo. Indirizzo Redis: {indirizzo_redis}")
-    
-    # Passiamo l'indirizzo corretto al costruttore
-    nodo_visivo = PersonDetectorNode(redis_host=indirizzo_redis)
-    nodo_visivo.run()
+    nodo = PersonDetectorTestNode(sensor_name="/Robot/visionSensor")
+    nodo.run()
