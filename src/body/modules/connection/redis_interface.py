@@ -83,7 +83,8 @@ class RedisInterface:
         initial_state = {
             "current_position": "ER",
             "maneuver_state": "NONE",  # Può essere "NONE", "IN_PROGRESS", "COMPLETED"
-            "pid_active": False
+            "pid_active": False,
+            "node_id": []     # ID dei nodi per AprilTags
         }
         
         self.set_sensor_data("body_memory", initial_state)
