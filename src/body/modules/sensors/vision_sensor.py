@@ -28,6 +28,7 @@ class VisionSensor(GenericSensor):
             print(f"[{self.name}] Redis non raggiungibile.")
             raise ConnectionError("Redis err")
         
+        self.last_data = {"detected": False, "distance": 999.0}
         self.frequenza_lettura = 0.05 # 20 Hz
         self._running = False
         self._thread = None
@@ -44,10 +45,21 @@ class VisionSensor(GenericSensor):
         """Metodo privato che gira in background nel thread."""
         while self._running:
             self.read() 
-            time.sleep(self.frequenza_lettura) 
+    
+            if self.last_data["detected"] and self.last_data["distance"] < 3.0:
+                #agv.stop()
+                print("ALT! Riflesso di sicurezza dal Body!")
+            time.sleep(self.frequenza_lettura)
 
     def read(self):
-        """Legge i dati e aggiorna Redis."""
+        """Il Body legge solo il risultato finale su Redis"""
+        dati_percezione = self.redis_client.get_dict("brain_memory")
+        
+        if dati_percezione:
+            self.last_data = {
+                "detected": dati_percezione.get("person_detected", False),
+                "distance": dati_percezione.get("person_distance", 999.0)
+            }
      
 
 
