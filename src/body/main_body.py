@@ -6,6 +6,7 @@ from modules.connection.coppelia_connector import CoppeliaConnector
 from modules.sensors.color_sensor import ColorSensor
 from modules.controllers.pid_controller import PIDController
 from modules.controllers.task_controller import TaskController
+from modules.sensors.vision_sensor import VisionSensor
 
 #docker compose up --build body
 
@@ -19,6 +20,7 @@ class RobotController:
     LEFT_SENSOR_NAME = "/Robot/leftColorSensor"
     CENTRAL_SENSOR_NAME = "/Robot/centralColorSensor"
     RIGHT_SENSOR_NAME = "/Robot/rightColorSensor"
+    VISION_SENSOR_NAME = "/Robot/visionSensor"
 
     LOOP_HZ = 20
 
@@ -43,7 +45,7 @@ class RobotController:
         self.left_sensor = ColorSensor(self.LEFT_SENSOR_NAME)
         self.central_sensor = ColorSensor(self.CENTRAL_SENSOR_NAME)
         self.right_sensor = ColorSensor(self.RIGHT_SENSOR_NAME)
-
+        self.vision_sensor = VisionSensor(self.VISION_SENSOR_NAME)
         self.sensor_manager = SensorManager(sensor_names=[self.LEFT_SENSOR_NAME, self.CENTRAL_SENSOR_NAME, self.RIGHT_SENSOR_NAME])
 
         
@@ -65,6 +67,7 @@ class RobotController:
         self.left_sensor.start()
         self.central_sensor.start()
         self.right_sensor.start()
+        self.vision_sensor.start()
         self.sensor_manager.start()
 
         self.task_controller.start()
