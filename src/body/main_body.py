@@ -67,7 +67,7 @@ class RobotController:
         self.left_sensor.start()
         self.central_sensor.start()
         self.right_sensor.start()
-        self.vision_sensor.start()
+        #self.vision_sensor.start()
         self.sensor_manager.start()
 
         self.task_controller.start()
