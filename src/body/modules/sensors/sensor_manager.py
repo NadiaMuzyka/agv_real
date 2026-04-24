@@ -6,16 +6,11 @@ from modules.connection.redis_interface import RedisInterface
 class SensorManager:
     BODY_KEY = "body_memory"
     BRAIN_KEY = "brain_memory"
-    NODE_KEY = "am_i_in_a_node"
     
-    # Valore target per il nero (come richiesto)
-    BLACK_TARGET = [22, 22, 22]
 
-    def __init__(self, sensor_names):
+    def __init__(self):
         """
-        :param sensor_names: Lista dei nomi dei 3 sensori da monitorare (es. ['s1', 's2', 's3'])
         """
-        self.sensor_names = sensor_names
         self.redis_client = RedisInterface()
         
         if not self.redis_client.db:
@@ -23,7 +18,7 @@ class SensorManager:
 
         self._running = False
         self._thread = None
-        self.frequenza_controllo = 0.05  # 20 Hz (più veloce dei sensori per non perdere dati)
+        self.frequenza_controllo = 0.1  # 20 Hz (più veloce dei sensori per non perdere dati)
         self.last_in_node = False
 
     def start(self):
@@ -32,7 +27,7 @@ class SensorManager:
             self._running = True
             self._thread = threading.Thread(target=self._loop_logica, daemon=True)
             self._thread.start()
-            print(f"[SensorManager] Monitoraggio avviato su: {self.sensor_names}")
+            print(f"[SensorManager] Monitoraggio avviato.")
 
     def _loop_logica(self):
         """Ciclo principale di elaborazione dati."""
@@ -51,32 +46,7 @@ class SensorManager:
         if not body_memory:
             return
 
-        # 2. Controlla se tutti e tre i sensori rilevano il nero
-        detect_count = 0
-        for name in self.sensor_names:
-            # .get(name) restituisce None se il sensore non ha ancora scritto la sua chiave
-            sensor_info = body_memory.get(name)
-            
-            if sensor_info and sensor_info == self.BLACK_TARGET:
-                detect_count += 1
-
-        # 3. Logica finale: tutti e tre devono aver visto il target
-        is_in_node = (detect_count == len(self.sensor_names))
-
-        path = self.redis_client.get_sensor_data(self.BRAIN_KEY).get("path_to_target",[])
-        
-        if not self.last_in_node and is_in_node and len(path) > 0:
-            print(f"📍 [SensorManager] Sono entrato in un nodo! Nodo: {path[1]}")
-            self.redis_client.update_sensor_data(self.BRAIN_KEY, {"current_position": path[0], "battery_level": 100 })
-        
-        self.redis_client.update_sensor_data(self.BRAIN_KEY, {"am_i_in_a_node": is_in_node})
-
-        self.last_in_node = is_in_node
-
-        # 4. Scrive il risultato nello spazio "brain_memory"
-        self.redis_client.update_sensor_data(self.BRAIN_KEY, {self.NODE_KEY: is_in_node})
-
-    
+        self.redis_client.update_sensor_data(self.BRAIN_KEY, {"battery_level": 100 })
         
 
     def stop(self):
