@@ -29,17 +29,13 @@ graph TD
     %% RAMO 3: MISSIONE (Mission) - NUOVA LOGICA GRAFO
     MissionSel[<h1><b>?</b></h1><b>Selector</b>: Gestione Missione]:::selector
     
-    %% 3.1 Missione Finita -> Torna a casa
-    MissionSel --> FinishedSeq[<h1><b>--></b></h1><b>Seq</b>: Missione Conclusa]:::sequence
-    FinishedSeq --> IsMissionDone{Cond: Lista Pallet Vuota?}:::condition
-    FinishedSeq --> PlanChargeFinish[Az: Calcola Percorso Ricarica]:::action
-    FinishedSeq --> GoHome[Az: Vai a Base Ricarica]:::action
+    
 
     %% 3.2 Pianificazione (Se manca il piano)
     MissionSel --> PlanningSeq[<h1><b>--></b></h1><b>Seq</b>: Generazione Piano]:::sequence
-    PlanningSeq --> IsPlanMissing{Cond: Piano Non Calcolato?}:::condition
-    PlanningSeq --> GetMissionData[Az: Ricevi Lista & Priorità]:::action
-    PlanningSeq --> ComputeGraph[Az: Calcola Percorso Ottimizzato]:::action
+    PlanningSeq --> IsPlanMissing{Cond: Piano Non Calcolato? <br>Se la missione è finita il piano risulterà vuoto, bisognerà calcolare il percorso per andare a base ricarica}:::condition
+    PlanningSeq --> GetMissionData[Az: Ricevi Lista & Priorità. <br>Se la missione è finita restituirà success senza prendere nulla]:::action
+    PlanningSeq --> ComputeGraph[Az: Calcola Percorso Ottimizzato. <br>Se missione è conclusa la calcola per base ricarica]:::action
 
     %% 3.3 Esecuzione (Se ho il piano)
     MissionSel --> ExecuteSeq[<h1><b>--></b></h1><b>Seq</b>: Esecuzione Step]:::sequence
