@@ -2,6 +2,7 @@ import os
 import redis
 import json
 import threading
+from pathlib import Path
 
 class RedisInterface:
     _instance = None
@@ -80,10 +81,16 @@ class RedisInterface:
             print(f"[{self.__class__.__name__}] ❌ Redis non disponibile per l'inizializzazione!")
             return
         
+        # Carica il mapping nodo → tag_id dal file JSON
+        node_map_path = Path(__file__).resolve().parents[2] / "docs" / "node_map_id.json"
+        with open(node_map_path, "r", encoding="utf-8") as f:
+            node_map = json.load(f)
+            
         initial_state = {
             "current_position": "ER",
             "maneuver_state": "NONE",  # Può essere "NONE", "IN_PROGRESS", "COMPLETED"
-            "pid_active": False
+            "pid_active": False,
+            "node_id": json.dumps(node_map)     # ID dei nodi per AprilTags
         }
         
         self.set_sensor_data("body_memory", initial_state)

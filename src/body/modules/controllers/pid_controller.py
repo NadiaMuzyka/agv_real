@@ -4,7 +4,7 @@ import time
 from modules.controllers.manuever_controller import ManueverController
 
 class PIDController:
-    def __init__(self, sensors_dict,  base_speed=0.07):
+    def __init__(self, sensors_dict,  base_speed=0.05):
         """
         :param sensors_dict: Dizionario con le istanze dei sensori {'left': obj, 'center': obj, 'right': obj}
         """
