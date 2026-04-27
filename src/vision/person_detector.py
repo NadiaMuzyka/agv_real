@@ -10,9 +10,6 @@ import json
 import os
 
 class PersonDetector:
-    FOCALE_SIMULATA = 989.1  # Calcolata per 720x720 con FOV 40°
-    LARGHEZZA_SPALLE = 0.5 
-
     def __init__(self, sensor_name="/Robot/visionSensor"):
         print("[PERSON DETECTOR] 🔌 Connessione diretta a CoppeliaSim in corso...")
         
@@ -110,17 +107,13 @@ class PersonDetector:
                 # 3. Analisi YOLO
                 risultati = self.model(frame, stream=True, verbose=False)
                 trovata = False
-                dist = 999.0
 
                 for r in risultati:
 
                     for box in r.boxes:
                         if int(box.cls[0]) == 0 and float(box.conf[0]) > 0.25:
-                            x1, _, x2, _ = box.xyxy[0]
-                            w_pixel = float(x2 - x1)
-                            dist = (self.LARGHEZZA_SPALLE * self.FOCALE_SIMULATA) / w_pixel
                             trovata = True
-                            print(f"[PERSON DETECTOR - YOLO] 🎯 PERSONA RILEVATA! Distanza: {dist:.2f}m")
+                            print(f"[PERSON DETECTOR - YOLO] 🎯 PERSONA RILEVATA!")
                             break
 
                 if not trovata:
@@ -130,8 +123,7 @@ class PersonDetector:
 
                 # --- SCRITTURA SU REDIS ---
                 self._update_brain_memory({
-                    "person_detected": trovata,
-                    "person_distance": round(dist, 2)
+                    "person_detected": trovata
                 })
                 # --------------------------
 

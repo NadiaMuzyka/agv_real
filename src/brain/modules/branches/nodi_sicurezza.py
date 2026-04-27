@@ -6,29 +6,42 @@ from py_trees.common import Status
 # 1. NODI DI SICUREZZA
 # =============================================================================
 
-class ControllaPersona(py_trees.behaviour.Behaviour):
+class ControllaOstacolo(py_trees.behaviour.Behaviour):
     """
-    Controlla se ci sono persone o ostacoli nel raggio di azione del robot.
-    Restituisce SUCCESS se viene rilevata una persona.
+    Controlla se c'è un allarme ostacolo dal Body (inviato dal sensore Lidar).
+    Se insieme all'ostacolo è presente una persona (YOLO), esegue un alert audio.
     """
     def __init__(self):
-        super(ControllaPersona, self).__init__(name="Persona Rilevata")
+        super(ControllaOstacolo, self).__init__(name="Ostacolo Rilevato")
         self.blackboard = py_trees.blackboard.Client(name=self.name)
+        
+        # Leggiamo da Redis
         self.blackboard.register_key(key="person_detected", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="ostacolo_lidar", access=py_trees.common.Access.READ)
     
     def setup(self):
-        # TODO: implementare YOLO o sensori per la rilevazione persona
-        print("Setup ControllaPersona")
+        print("Setup ControllaOstacolo")
         return True
 
     def initialise(self):
         pass
 
     def update(self):
-        if self.blackboard.person_detected:
+        # Estrazione sicura (di default falso)
+        person_detected = getattr(self.blackboard, "person_detected", False)
+        ostacolo_rilevato = getattr(self.blackboard, "ostacolo_lidar", False)
+
+        if ostacolo_rilevato:
+            if person_detected:
+                print("🔊 [SPEAKER] Attenzione: passaggio bloccato, per favore spostarsi.")
+            else:
+                print("🛑 [LIDAR] Ostacolo non umano rilevato. Macchina bloccata.")
+            
+            # Attiva la catena di emergenza (StopMotori -> Aspetta)
             return Status.SUCCESS
-        else:
-            return Status.FAILURE
+
+        # Strada libera
+        return Status.FAILURE
 
 class StopMotori(py_trees.behaviour.Behaviour):
     """

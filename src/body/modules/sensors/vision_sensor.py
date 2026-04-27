@@ -17,7 +17,8 @@ class VisionSensor(GenericSensor):
             print(f"[{self.name}] Redis non raggiungibile.")
             raise ConnectionError("Redis err")
         
-        self.last_data = {"detected": False, "distance": 999.0}
+        # La distanza è gestita dal sensore LIDAR separato
+        self.last_data = {"detected": False}
         self.frequenza_lettura = 0.1# 10 Hz
         self._running = False
         self._thread = None
@@ -33,20 +34,13 @@ class VisionSensor(GenericSensor):
     def _loop_lettura(self):
         """Metodo privato che gira in background nel thread."""
         while self._running:
-            # Ascoltiamo solo il verdetto dell'Intelligenza Artificiale da Redis
             try:
                 risposta_str = self.redis_client.db.get("brain_memory")
                 if risposta_str:
                     risposta = json.loads(risposta_str)
                     self.last_data["detected"] = risposta.get("person_detected", False)
-                    self.last_data["distance"] = risposta.get("person_distance", 999.0)
             except Exception as e:
                 print(f"[{self.name}] Errore lettura da Redis: {e}")
-
-            # Eseguiamo il riflesso incondizionato sui motori
-            if self.last_data["detected"] and self.last_data["distance"] < 3.0:
-                # agv.stop()
-                print(f"🛑 [{self.name}] ALT! Ostacolo a {self.last_data['distance']}m")
                 
             time.sleep(self.frequenza_lettura)
     

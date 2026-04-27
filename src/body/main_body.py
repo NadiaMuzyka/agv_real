@@ -8,6 +8,7 @@ from modules.controllers.pid_controller import PIDController
 from modules.controllers.task_controller import TaskController
 from modules.sensors.vision_sensor import VisionSensor
 from modules.sensors.apriltag_sensor import AprilTagSensor
+from modules.sensors.lidar_sensor import LidarSensor
 
 #docker compose up --build body
 
@@ -23,6 +24,7 @@ class RobotController:
     RIGHT_SENSOR_NAME = "/Robot/rightColorSensor"
     VISION_SENSOR_NAME = "/Robot/visionSensor"
     APRILTAG_SENSOR_NAME = "/Robot/aprilTagSensor"
+    LIDAR_SENSOR_NAME = "Lidar"
     LOOP_HZ = 20
 
     queue = ["RIGHT", "LEFT", "STOP"] #simulazione coda di navigazione (Redis/Brain)
@@ -49,6 +51,7 @@ class RobotController:
         self.vision_sensor = VisionSensor(self.VISION_SENSOR_NAME)
         self.sensor_manager = SensorManager()
         self.apriltag_sensor = AprilTagSensor(self.APRILTAG_SENSOR_NAME)
+        self.lidar_sensor = LidarSensor(self.LIDAR_SENSOR_NAME)
         
 
         self.pid = PIDController({"left": self.left_sensor, "center": self.central_sensor, "right": self.right_sensor})
@@ -70,6 +73,7 @@ class RobotController:
         self.right_sensor.start()
         #self.sensor_manager.start()
         self.apriltag_sensor.start()
+        self.lidar_sensor.start()
 
         self.task_controller.start()
         
