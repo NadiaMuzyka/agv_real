@@ -2,7 +2,6 @@ import cv2
 import time
 import signal
 import socket
-import threading
 import numpy as np
 from ultralytics import YOLO
 from coppeliasim_zmqremoteapi_client import RemoteAPIClient
@@ -10,14 +9,14 @@ import redis
 import json
 import os
 
-class PersonDetectorTestNode:
+class PersonDetector:
     FOCALE_SIMULATA = 989.1  # Calcolata per 720x720 con FOV 40°
     LARGHEZZA_SPALLE = 0.5 
 
     def __init__(self, sensor_name="/Robot/visionSensor"):
-        print("[TEST DIRETTO] 🔌 Connessione diretta a CoppeliaSim in corso...")
+        print("[PERSON DETECTOR] 🔌 Connessione diretta a CoppeliaSim in corso...")
         
-        # Connessione con retry e timeout tramite thread
+        # Connessione con retry e timeout
         max_retries = 30
         delay = 1
         connection_timeout = 5
@@ -28,7 +27,7 @@ class PersonDetectorTestNode:
         self.chiave_scrittura = "brain_memory"
         
         for attempt in range(max_retries):
-            print(f"[TEST DIRETTO] Tentativo {attempt + 1}/{max_retries} - Connessione a host.docker.internal:23000...")
+            print(f"[PERSON DETECTOR] Tentativo {attempt + 1}/{max_retries} - Connessione a host.docker.internal:23000...")
             
             # Prova prima con un test TCP sulla porta
             try:
@@ -37,31 +36,31 @@ class PersonDetectorTestNode:
                 result = sock.connect_ex(('host.docker.internal', 23000))
                 sock.close()
                 if result == 0:
-                    print(f"[TEST DIRETTO] ✅ Porta 23000 raggiungibile. Connessione a CoppeliaSim...")
+                    print(f"[PERSON DETECTOR] ✅ Porta 23000 raggiungibile. Connessione a CoppeliaSim...")
                     try:
                         self.client = RemoteAPIClient(host='host.docker.internal')
                         self.sim = self.client.getObject('sim')
                         self.cam_handle = self.sim.getObject(sensor_name)
-                        print(f"[TEST DIRETTO] ✅ Telecamera '{sensor_name}' agganciata con successo!")
+                        print(f"[PERSON DETECTOR] ✅ Telecamera '{sensor_name}' agganciata con successo!")
                         connected = True
                         break
                     except Exception as e:
-                        print(f"[TEST DIRETTO] Errore con RemoteAPIClient: {type(e).__name__}: {e}")
+                        print(f"[PERSON DETECTOR] Errore con RemoteAPIClient: {type(e).__name__}: {e}")
                 else:
-                    print(f"[TEST DIRETTO] Porta 23000 non raggiungibile (timeout o rifiuto connessione)")
+                    print(f"[PERSON DETECTOR] Porta 23000 non raggiungibile (timeout o rifiuto connessione)")
             except Exception as e:
-                print(f"[TEST DIRETTO] Errore nel test TCP: {e}")
+                print(f"[PERSON DETECTOR] Errore nel test TCP: {e}")
             
             if attempt < max_retries - 1:
-                print(f"[TEST DIRETTO] In attesa {delay}s prima del prossimo tentativo...")
+                print(f"[PERSON DETECTOR] In attesa {delay}s prima del prossimo tentativo...")
                 time.sleep(delay)
                 delay = min(delay * 1.5, 10)
         
         if not connected:
-            print(f"[TEST DIRETTO] ❌ ERRORE CRITICO: Impossibile connettersi a CoppeliaSim dopo {max_retries} tentativi.")
+            print(f"[PERSON DETECTOR] ❌ ERRORE CRITICO: Impossibile connettersi a CoppeliaSim dopo {max_retries} tentativi.")
             exit(1)
 
-        print("[TEST DIRETTO] 🧠 Caricamento modello YOLOv8n in corso...")
+        print("[PERSON DETECTOR] 🧠 Caricamento modello YOLOv8n in corso...")
         self.model = YOLO("yolov8n.pt")
         
         self.is_running = True
@@ -71,16 +70,35 @@ class PersonDetectorTestNode:
     def _gestisci_spegnimento(self, signum, frame):
         self.is_running = False
 
+    def _update_brain_memory(self, partial_data):
+        """Aggiorna solo i campi passati, preservando il resto di brain_memory."""
+        try:
+            existing_data_str = self.r.get(self.chiave_scrittura)
+            if existing_data_str:
+                try:
+                    current_data = json.loads(existing_data_str)
+                    if not isinstance(current_data, dict):
+                        current_data = {}
+                except json.JSONDecodeError:
+                    current_data = {}
+            else:
+                current_data = {}
+
+            current_data.update(partial_data)
+            self.r.set(self.chiave_scrittura, json.dumps(current_data))
+        except Exception as e:
+            print(f"[PERSON DETECTOR] Errore aggiornamento Redis: {e}")
+
     def run(self):
-        print("[TEST DIRETTO] 👁️ Inizio cattura fotogrammi diretta...")
+        print("[PERSON DETECTOR] 👁️ Inizio cattura fotogrammi diretta...")
         
         try:
             while self.is_running:
-                # 1. Lettura diretta (senza passare da Redis)
+                # 1. Lettura diretta
                 img_raw, res = self.sim.getVisionSensorImg(self.cam_handle)
                 
                 if not img_raw:
-                    print("[TEST DIRETTO] ⚠️ Immagine vuota dal simulatore.")
+                    print("[PERSON DETECTOR] ⚠️ Immagine vuota dal simulatore.")
                     time.sleep(0.1)
                     continue
 
@@ -92,14 +110,9 @@ class PersonDetectorTestNode:
                 # 3. Analisi YOLO
                 risultati = self.model(frame, stream=True, verbose=False)
                 trovata = False
+                dist = 999.0
 
                 for r in risultati:
-                    # --- INIZIO DEBUG VISIVO SU FILE ---
-                    # Chiediamo a YOLO di disegnare i riquadri colorati sull'immagine
-                    annotated_frame = r.plot()
-                    # Salviamo l'immagine processata fisicamente dentro il container
-                    cv2.imwrite("vista_yolo.jpg", annotated_frame)
-                    # --- FINE DEBUG VISIVO ---
 
                     for box in r.boxes:
                         if int(box.cls[0]) == 0 and float(box.conf[0]) > 0.25:
@@ -107,25 +120,24 @@ class PersonDetectorTestNode:
                             w_pixel = float(x2 - x1)
                             dist = (self.LARGHEZZA_SPALLE * self.FOCALE_SIMULATA) / w_pixel
                             trovata = True
-                            print(f"[TEST DIRETTO - YOLO] 🎯 PERSONA RILEVATA! Distanza: {dist:.2f}m")
+                            print(f"[PERSON DETECTOR - YOLO] 🎯 PERSONA RILEVATA! Distanza: {dist:.2f}m")
                             break
 
                 if not trovata:
-                    print(f"[TEST DIRETTO - YOLO] 🙈 Nessuna persona rilevata nel frame corrente.")
+                    print(f"[PERSON DETECTOR - YOLO] 🙈 Nessuna persona rilevata nel frame corrente.")
                 
                 time.sleep(0.1) # Rallentiamo per poter leggere il terminale
 
                 # --- SCRITTURA SU REDIS ---
-                memoria = {
+                self._update_brain_memory({
                     "person_detected": trovata,
-                    "person_distance": round(dist, 2) if trovata else 999.0
-                }
-                self.r.set(self.chiave_scrittura, json.dumps(memoria))
+                    "person_distance": round(dist, 2)
+                })
                 # --------------------------
 
         finally:
-            print("[TEST DIRETTO] Nodo spento.")
+            print("[PERSON DETECTOR] Nodo spento.")
 
 if __name__ == "__main__":
-    nodo = PersonDetectorTestNode(sensor_name="/Robot/visionSensor")
+    nodo = PersonDetector(sensor_name="/Robot/visionSensor")
     nodo.run()
