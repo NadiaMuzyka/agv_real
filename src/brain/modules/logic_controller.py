@@ -16,6 +16,7 @@ class LogicController:
         # Registriamo le chiavi che il logic controller dovrà leggere e scrivere sulla blackboard
         self.blackboard.register_key(key="battery_level", access=py_trees.common.Access.WRITE) #livello batteria
         self.blackboard.register_key(key="person_detected", access=py_trees.common.Access.WRITE)#persona rilevata
+        self.blackboard.register_key(key="ostacolo_lidar", access=py_trees.common.Access.WRITE)#distanza ostacolo da LIDAR (opzionale)
         self.blackboard.register_key(key="pallet_list_empty", access=py_trees.common.Access.WRITE)#lista pallet vuota?
         self.blackboard.register_key(key="next_node", access=py_trees.common.Access.WRITE)#prossimo nodo verso cui staimo andando
         self.blackboard.register_key(key="path_to_target", access=py_trees.common.Access.WRITE)#percorso completo verso il target
@@ -34,6 +35,20 @@ class LogicController:
         self.blackboard.mission_queue = []
         self.blackboard.current_target = None
 
+    def _to_bool(self, value, default=False):
+        """Converte in bool gestendo anche stringhe Redis come 'true'/'false'."""
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in ("true", "1", "yes", "y", "on"):
+                return True
+            if normalized in ("false", "0", "no", "n", "off"):
+                return False
+        if value is None:
+            return default
+        return bool(value)
+
     # Metodo che legge i dati percepiti ed elaborati dai sensori da Redis
     def update_blackboard_reading_from_redis(self):
         """ 
@@ -49,6 +64,7 @@ class LogicController:
             sensor_data = {
                 "battery_level": 100.0,
                 "person_detected": False,
+                "ostacolo_lidar": False,
                 "pallet_list_empty": False,
                 "am_i_in_a_node": True,
                 "next_node": None,
@@ -106,18 +122,19 @@ class LogicController:
         print(f"[LogicController] Aggiornamento blackboard con dati REALI da Redis: {sensor_data}")
         # NOTA: se la chiave non esiste, usiamo un valore di default
         self.blackboard.battery_level = sensor_data.get("battery_level", 100.0)#livello batteria
-        self.blackboard.person_detected = sensor_data.get("person_detected", False)#persona rilevata
+        self.blackboard.person_detected = self._to_bool(sensor_data.get("person_detected", False), default=False)#persona rilevata
+        self.blackboard.ostacolo_lidar = self._to_bool(sensor_data.get("ostacolo_lidar", False), default=False)#ostacolo rilevato dal LIDAR
         self.blackboard.pallet_list_empty = sensor_data.get("pallet_list_empty", False)#lista pallet vuota?
-        self.blackboard.am_i_in_a_node = sensor_data.get("am_i_in_a_node", True)#sono in un nodo?
+        self.blackboard.am_i_in_a_node = self._to_bool(sensor_data.get("am_i_in_a_node", True), default=True)#sono in un nodo?
         self.blackboard.next_node = sensor_data.get("next_node", None)#prossimo nodo verso cui stiamo andando
         self.blackboard.current_position = sensor_data.get("current_position", "ER")#posizione attuale dell'AGV
         self.blackboard.previous_node = sensor_data.get("previous_node", None)#nodo precedente da cui siamo arrivati al current_position
         self.blackboard.mission_queue = sensor_data.get("mission_queue", [])#lista dei nodi dove svolgere la missione
         self.blackboard.path_to_target = sensor_data.get("path_to_target", [])#percorso completo verso il target
-        self.blackboard.is_charging = sensor_data.get("is_charging", False)#sono in modalità ricarica?
+        self.blackboard.is_charging = self._to_bool(sensor_data.get("is_charging", False), default=False)#sono in modalità ricarica?
         self.blackboard.current_target = sensor_data.get("current_target", None)#nodo target della missione in corso, None se non c'è missione in corso 
-        self.blackboard.is_load = sensor_data.get("is_load", False)#sto trasportando un carico?
-        self.blackboard.mission_finished = sensor_data.get("mission_finished", False)#la missione è stata completata?
+        self.blackboard.is_load = self._to_bool(sensor_data.get("is_load", False), default=False)#sto trasportando un carico?
+        self.blackboard.mission_finished = self._to_bool(sensor_data.get("mission_finished", False), default=False)#la missione è stata completata?
         #self.temp è nella blackboard, ma non è persistente su Redis
 
 
