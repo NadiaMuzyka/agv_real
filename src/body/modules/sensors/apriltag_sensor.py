@@ -36,7 +36,7 @@ class AprilTagSensor(GenericSensor):
             raise ConnectionError("Redis err")
         
         self.last_data = {"detected": False, "distance": 999.0}
-        self.frequenza_lettura = 1# 1 Hz
+        self.frequenza_lettura = 0.1# 1 Hz
         self._running = False
         self._thread = None
 
@@ -53,6 +53,9 @@ class AprilTagSensor(GenericSensor):
         except Exception as e:
             print(f"[{self.name}] Errore nel caricamento della mappa dei nodi: {e}")
             self.tag_id_to_node = {}
+        
+        # Inizializza il detector AprilTag UNA SOLA VOLTA (molto pesante, non ricrearlo ad ogni frame!)
+        self.at_detector = Detector(families='tag36h11', nthreads=1)
 
     def start(self):
         """Avvia il thread del sensore."""
@@ -94,9 +97,8 @@ class AprilTagSensor(GenericSensor):
             img_gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
 
             # 4. Rilevamento (passiamo direttamente l'array 'img_gray')
-            # NOTA: Assicurati che la famiglia sia quella corretta (es. 'tag25h9' o 'tag36h11')
-            at_detector = Detector(families='tag36h11', nthreads=1)
-            tags = at_detector.detect(img_gray)
+            # Usa il detector pre-inizializzato nel __init__ (evita creazione ripetuta pesante!)
+            tags = self.at_detector.detect(img_gray)
 
             # 5. Output dei risultati
             if tags:
@@ -107,7 +109,7 @@ class AprilTagSensor(GenericSensor):
                     if node_name:
                         # Aggiorna Redis con sia stato che nodo corrente
                         self.redis_client.update_sensor_data(self.BRAIN_KEY, {
-                            "am_i_in_a_node": "True",
+                            "am_i_in_a_node": True,
                             "current_node": node_name
                         })
                         print(f"[{self.name}] Rilevato AprilTag ID: {tag_id} (Nodo: {node_name})")
@@ -115,8 +117,9 @@ class AprilTagSensor(GenericSensor):
                         print(f"[{self.name}] Tag ID {tag_id} non trovato nella mappa")
             else:
                 self.redis_client.update_sensor_data(self.BRAIN_KEY, {
-                    "am_i_in_a_node": "False"
+                    "am_i_in_a_node": False
                 })
+                #print(f"[{self.name}] Nessun AprilTag rilevato.")
                 
         except Exception as e:
             print(f"[{self.name}] Errore durante il rilevamento: {e}")
