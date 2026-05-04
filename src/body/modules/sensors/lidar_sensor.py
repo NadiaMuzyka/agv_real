@@ -1,11 +1,8 @@
 from modules.connection.coppelia_connector import CoppeliaConnector
 from modules.sensors.generic_sensor import GenericSensor
 from modules.connection.redis_interface import RedisInterface
-from coppeliasim_zmqremoteapi_client import RemoteAPIClient
 import threading
 import time
-import json
-import math
 
 class LidarSensor(GenericSensor):
     def __init__(self, name):
@@ -47,8 +44,19 @@ class LidarSensor(GenericSensor):
         while self._running:
             try:
                 result, distance = self.read_distanza()
-                print(f"[{self.name}] Dati grezzi - result: {result}, distance: {distance}")
-                self.redis_client.update_sensor_data("brain_memory", {"ostacolo_lidar": distance})
+                ostacolo = bool(
+                    result and distance is not None and distance < self.soglia_sicurezza
+                )
+                self.last_data = {
+                    "ostacolo": ostacolo,
+                    "distanza": distance if distance is not None else 999.0,
+                }
+                print(
+                    f"[{self.name}] result: {result}, distanza: {distance}, ostacolo: {ostacolo}"
+                )
+                self.redis_client.update_sensor_data(
+                    "brain_memory", {"ostacolo_lidar": ostacolo}
+                )
 
             except Exception as e:
                 print(f"[{self.name}] ❌ Errore nel loop: {e}")
