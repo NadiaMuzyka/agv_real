@@ -24,7 +24,7 @@ class RobotController:
     RIGHT_SENSOR_NAME = "/Robot/rightColorSensor"
     VISION_SENSOR_NAME = "/Robot/visionSensor"
     APRILTAG_SENSOR_NAME = "/Robot/aprilTagSensor"
-    LOW_LIDAR_SENSOR_NAME = "/Robot/lidarLow"
+    LOW_LIDAR_SENSOR_NAME = "/Robot/lidarSensor"
     HIGH_LIDAR_SENSOR_NAME = "/Robot/lidarHigh"
     LOOP_HZ = 20
 
@@ -75,7 +75,7 @@ class RobotController:
         #self.sensor_manager.start()
         self.apriltag_sensor.start()
         self.low_lidar_sensor.start()
-        self.high_lidar_sensor.start()
+        #self.high_lidar_sensor.start()
 
         self.task_controller.start()
         

@@ -95,7 +95,7 @@ class TaskController:
             next_node = self.redis_client.get_sensor_data(self.BRAIN_MEMORY).get("next_node")
             target_node = self.redis_client.get_sensor_data(self.BRAIN_MEMORY).get("target_node")
 
-            #print(f"🧠 [TaskController] Stato attuale: In node: {in_node}")
+            #print(f"🧠 [TaskController] In node: {in_node}")
             #print(f"🧠 [TaskController] Stato attuale: Next node: {next_node}, Target node: {target_node}")
             
 
@@ -103,6 +103,8 @@ class TaskController:
             if self.current_state == IDLE_STATE:
                 #Se ho un comando di movimento e sono in un nodo, faccio la manovra
                 #Se ho un comando di movimento e non sono in un nodo, seguo la linea
+
+                #print(f"🧠 [TaskController] Sto in IDLE.")
 
                 if command_type in self.commands:
                     if command_type == "MOVE_TO" and not in_node:
