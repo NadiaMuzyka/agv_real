@@ -1,7 +1,7 @@
 [
     {
         "nome_pacchetto": "gomme",
-        "pick_up_position": "E1",
+        "pick_up_position": "I2",
         "type":"P1",
         "priority": "1"
     },
