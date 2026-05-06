@@ -8,10 +8,15 @@ graph TD
 
     %% ROOT
     Root[<h1><b>?</b></h1> Root Selector]:::selector
+    Root --> ControlloDatiRedisSeq
     Root --> SafetySeq
     Root --> BatterySeq
     Root --> MissionSel
 
+    %% RAMO 0: CONTROLLO DATI PRONTI DA REDIS -Altrimenti impedisco all'albero di andare avanti
+    ControlloDatiRedisSeq[<h1><b>--></b></h1><b>Sequenza</b>: Controllo Dati Redis]:::sequence
+    ControlloDatiRedisSeq --> ControlloDatiRedisSerHasRedisDataNotReady{Cond: Dati Redis Non Pronti?}:::condition
+    ControlloDatiRedisSeq --> WaitRedis[Az: Wait 1 second]:::action
 
     %% RAMO 1: SICUREZZA (Safety) - Aggiornato con Wait
     SafetySeq[<h1><b>--></b></h1><b>Sequenza</b>: Sicurezza Persona]:::sequence

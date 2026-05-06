@@ -1,6 +1,7 @@
 import py_trees
 import time
 from py_trees.common import Status
+from .branches.nodi_controllo_dati_redis import *
 from .branches.nodi_energia import *
 from .branches.nodi_missione import *
 from .branches.nodi_operativi import *
@@ -16,6 +17,12 @@ def crea_albero_agv():
     """
     # Elemento Root: Selettore Principale (Priorità: Sicurezza -> Energia -> Missione)
     root = py_trees.composites.Selector("Selettore Principale", memory=False)
+
+    # --- RAMO 0: CONTROLLO DATI PRONTI DA REDIS ---
+    sequenza_controllo_dati_redis = py_trees.composites.Sequence("Controllo Dati Redis", memory=True)
+    controllo_dati_redis = RedisDataNotReady()
+    wait_redis = WaitRedis()
+    sequenza_controllo_dati_redis.add_children([controllo_dati_redis, wait_redis])
 
     # --- RAMO 1: SICUREZZA PERSONA ---
     # Sequenza: Se c'è una persona -> Ferma -> Aspetta
@@ -77,6 +84,6 @@ def crea_albero_agv():
     selettore_missione.add_children([sequenza_pianificazione, sequenza_esecuzione])
 
     # Assemblaggio Root
-    root.add_children([sequenza_sicurezza, sequenza_energia, selettore_missione])
+    root.add_children([sequenza_controllo_dati_redis, sequenza_sicurezza, sequenza_energia, selettore_missione])
 
     return root

@@ -49,6 +49,23 @@ class LogicController:
             return default
         return bool(value)
 
+    #controllo se il body ha scritto i dati su Redis
+    def check_redis_data(self) -> bool:
+        dati_da_redis = self.db.get_sensor_data("brain_memory")
+        if dati_da_redis is None:
+            print("[LogicController] Errore: impossibile leggere i dati da Redis.")
+            return False
+        else:
+            if len(dati_da_redis) == 0:
+                print("[LogicController] Redis è vuoto, dati non pronti.")
+                return False
+            else:
+                if dati_da_redis.get("current_position") is None:
+                    print("[LogicController] Dati da Redis incompleti, current_position mancante.")
+                    return False
+                #in caso di controlli più stringenti, aggiungere qui altri check sui dati essenziali
+                return True
+
     # Metodo che legge i dati percepiti ed elaborati dai sensori da Redis
     def update_blackboard_reading_from_redis(self):
         """ 
@@ -66,7 +83,7 @@ class LogicController:
                 "person_detected": False,
                 "ostacolo_lidar": False,
                 "pallet_list_empty": False,
-                "am_i_in_a_node": True,
+                "am_i_in_a_node": None,
                 "next_node": None,
                 "previous_node": None,
                 "current_position": None,
@@ -125,7 +142,7 @@ class LogicController:
         self.blackboard.person_detected = self._to_bool(sensor_data.get("person_detected", False), default=False)#persona rilevata
         self.blackboard.ostacolo_lidar = self._to_bool(sensor_data.get("ostacolo_lidar", False), default=False)#ostacolo rilevato dal LIDAR
         self.blackboard.pallet_list_empty = sensor_data.get("pallet_list_empty", False)#lista pallet vuota?
-        self.blackboard.am_i_in_a_node = self._to_bool(sensor_data.get("am_i_in_a_node", True), default=True)#sono in un nodo?
+        self.blackboard.am_i_in_a_node = self._to_bool(sensor_data.get("am_i_in_a_node", None), default=None)#sono in un nodo?
         self.blackboard.next_node = sensor_data.get("next_node", None)#prossimo nodo verso cui stiamo andando
         self.blackboard.current_position = sensor_data.get("current_position", None)#posizione attuale dell'AGV
         self.blackboard.previous_node = sensor_data.get("previous_node", None)#nodo precedente da cui siamo arrivati al current_position
