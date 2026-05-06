@@ -127,7 +127,7 @@ class LogicController:
         self.blackboard.pallet_list_empty = sensor_data.get("pallet_list_empty", False)#lista pallet vuota?
         self.blackboard.am_i_in_a_node = self._to_bool(sensor_data.get("am_i_in_a_node", True), default=True)#sono in un nodo?
         self.blackboard.next_node = sensor_data.get("next_node", None)#prossimo nodo verso cui stiamo andando
-        self.blackboard.current_position = sensor_data.get("current_position", "ER")#posizione attuale dell'AGV
+        self.blackboard.current_position = sensor_data.get("current_position", None)#posizione attuale dell'AGV
         self.blackboard.previous_node = sensor_data.get("previous_node", None)#nodo precedente da cui siamo arrivati al current_position
         self.blackboard.mission_queue = sensor_data.get("mission_queue", [])#lista dei nodi dove svolgere la missione
         self.blackboard.path_to_target = sensor_data.get("path_to_target", [])#percorso completo verso il target
