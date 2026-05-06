@@ -21,6 +21,7 @@ def main():
     
     redis_manager.update_sensor_data(BRAIN_KEY, {NODE_KEY: False})
     redis_manager.update_sensor_data(BRAIN_KEY, {"target_node": "EC"})
+    redis_manager.update_sensor_data(BRAIN_KEY, {"previous_node": "E1"})
 
     def spegnimento_sicuro(signum, frame):
         print("\n[BRAIN] Ricevuto segnale di spegnimento da Docker (SIGTERM)!")
@@ -41,25 +42,17 @@ def main():
         pos = redis_manager.get_sensor_data(BRAIN_KEY).get("current_node")
 
         # Comando 2: MOVE_TO
-        print("\n2️⃣ Pubblicando MOVE_TO E2...")
+        print("\n2️⃣ Pubblicando MOVE_TO I2...")
         command = {
             "type": "MOVE_TO",
-            "next_node": "I1",
-            "current_position": pos,
-            "am_i_in_a_node": True
+            "next_node": "I2",
+            "current_position": "I1",
+            "am_i_in_a_node": True,
+            "previous_node": "E1"
         }
         redis_manager.set_command(redis_manager.COMMAND_CHANNEL, command)
         time.sleep(10)
 
-        print("\n2️⃣ Pubblicando MOVE_TO E2...")
-        command = {
-            "type": "MOVE_TO",
-            "next_node": "I1",
-            #"current_position": "I3",
-            "am_i_in_a_node": True
-        }
-        redis_manager.set_command(redis_manager.COMMAND_CHANNEL, command)
-        time.sleep(10)
         '''
         # Comando 2: MOVE_TO
         print("\n2️⃣ Pubblicando MOVE_TO I2...")
