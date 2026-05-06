@@ -20,9 +20,7 @@ def main():
         return 
     
     redis_manager.update_sensor_data(BRAIN_KEY, {NODE_KEY: False})
-    redis_manager.update_sensor_data(BRAIN_KEY, {"target_node": "E2"})
-    redis_manager.update_sensor_data(BRAIN_KEY, {"current_node": "EC"})
-    print("[BRAIN] Stato iniziale: Sono patita da EC. (test)")
+    redis_manager.update_sensor_data(BRAIN_KEY, {"target_node": "EC"})
 
     def spegnimento_sicuro(signum, frame):
         print("\n[BRAIN] Ricevuto segnale di spegnimento da Docker (SIGTERM)!")
@@ -33,34 +31,47 @@ def main():
     print("[BRAIN] Inizio pubblicazione comandi...")
     
     try:
+        '''
         # Comando 1: STOP
         print("\n1️⃣ Pubblicando STOP...")
         command = {"type": "STOP"}
         redis_manager.set_command(redis_manager.COMMAND_CHANNEL, command)
         time.sleep(3)
-        
+        '''
+        pos = redis_manager.get_sensor_data(BRAIN_KEY).get("current_node")
+
         # Comando 2: MOVE_TO
         print("\n2️⃣ Pubblicando MOVE_TO E2...")
         command = {
             "type": "MOVE_TO",
-            "next_node": "E2",
-            "current_position": "I3",
+            "next_node": "I1",
+            "current_position": pos,
             "am_i_in_a_node": True
         }
         redis_manager.set_command(redis_manager.COMMAND_CHANNEL, command)
         time.sleep(10)
-        
+
+        print("\n2️⃣ Pubblicando MOVE_TO E2...")
+        command = {
+            "type": "MOVE_TO",
+            "next_node": "I1",
+            #"current_position": "I3",
+            "am_i_in_a_node": True
+        }
+        redis_manager.set_command(redis_manager.COMMAND_CHANNEL, command)
+        time.sleep(10)
+        '''
         # Comando 2: MOVE_TO
         print("\n2️⃣ Pubblicando MOVE_TO I2...")
         command = {
             "type": "MOVE_TO",
             "next_node": "I2",
-            "current_position": "I3",
+            #"current_position": "I3",
             "am_i_in_a_node": True
         }
         redis_manager.set_command(redis_manager.COMMAND_CHANNEL, command)
         time.sleep(3)
-        '''
+        
         redis_manager.update_sensor_data(BRAIN_KEY, {NODE_KEY: True})
         print("\n3️⃣ Il sensore ha aggiornato che siamo in un nodo. ")
         time.sleep(3)
@@ -69,7 +80,7 @@ def main():
         command = {
             "type": "MOVE_TO",
             "next_node": "I6",
-            "current_position": "I4",
+            #"current_position": "I4",
             "am_i_in_a_node": True
         }
         redis_manager.set_command(redis_manager.COMMAND_CHANNEL, command)
