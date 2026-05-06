@@ -487,7 +487,7 @@ class LogicController:
                 aggiornamenti = {
                     "current_target": nodo_arrivo,
                     "path_to_target": esito,
-                    "next_node": esito[1] if len(esito)>1 else None,
+                    "next_node": esito[nodo_arrivo][1] if len(esito[nodo_arrivo])>1 else None,
                     "previous_node": nodo_partenza
                 }
                 try:
@@ -515,7 +515,7 @@ class LogicController:
                         aggiornamenti = {
                             "current_target": nodo_arrivo,
                             "path_to_target": esito,
-                            "next_node": esito[1] if len(esito)>1 else None,
+                            "next_node": esito[nodo_arrivo][1] if len(esito[nodo_arrivo])>1 else None,
                             "previous_node": nodo_partenza
                         }
                         try:
@@ -547,7 +547,7 @@ class LogicController:
                         aggiornamenti = {
                             "current_target": nodo_arrivo,
                             "path_to_target": esito,
-                            "next_node": esito[1] if len(esito)>1 else None,
+                            "next_node": esito[nodo_arrivo][1] if len(esito[nodo_arrivo])>1 else None,
                             "previous_node": nodo_partenza
                         }
                         try:
