@@ -43,13 +43,12 @@ class TaskController:
 
         self.current_state = IDLE_STATE 
         print(f"🧠 [TaskController] Sto in IDLE")
-        self.commands = ["MOVE_TO", "STOP", "PICKUP", "DROP"]
+        self.commands = ["MOVE_TO", "STOP", "PICKUP", "DROP", "SHUTDOWN"]
         self.pubsub = self.redis_client.subscribe_to_commands()
         
         self.maneuver = ManueverController(self.redis_client)
         self.pid = pid
 
-        
         # Memorizza l'ultimo comando per ignorare i duplicati
         self.last_command = None
 
@@ -71,6 +70,8 @@ class TaskController:
         while self._running:
             # 1. Legge l'obiettivo dal Brain (NON bloccante)
             message = self.pubsub.get_message()
+
+            #Elaborazione del messaggio
             if message and message['type'] == 'message':
                 try:
                     # Parsa il comando da JSON
@@ -105,20 +106,23 @@ class TaskController:
                 #Se ho un comando di movimento e non sono in un nodo, seguo la linea
 
                 #print(f"🧠 [TaskController] Sto in IDLE.")
+                if in_node:
+                    print(f"🧠 [TaskController] Ho rilevato un incrocio. Sto in NODE")
+                    self.current_state = NODE_STATE    
 
-                if command_type in self.commands:
+                elif command_type in self.commands:
                     if command_type == "MOVE_TO" and not in_node:
                         print(f"🧠 [TaskController] Devo continuare a seguire la linea. Sto in FOLLOWING")
                         self.current_state = FOLLOWING_STATE
                     if command_type == "STOP":
                         #print(f"🧠 [TaskController] Ho ricevuto il comando di stop. Sto in IDLE")
                         self.current_state = IDLE_STATE
+                    #TODO: potrebbe succedere che gli chiedo di prendere un pacco quando sta in uno stallo.... QUindi non è più error.
+                    #Bisogna in tal caso verificare che sia posizionato al contrario
                     elif(command_type in ["PICKUP", "DROP"]):
                         print(f"🧠 [TaskController] Comando PICKUP/DROP ricevuto ma non sono nel nodo finale. Sto in ERROR_STATE")
                         self.current_state = ERROR_STATE
-                elif in_node:
-                    print(f"🧠 [TaskController] Ho rilevato un incrocio. Sto in NODE")
-                    self.current_state = NODE_STATE
+                
                     
 
             elif self.current_state == NODE_STATE:
@@ -130,7 +134,7 @@ class TaskController:
                     elif command_type == "MOVE_TO" and next_node == target_node:
                         print(f"🧠 [TaskController] Il prossimo nodo è il target. Faccio retromarcia.Sto in REVERSE_STATE")
                         self.current_state = REVERSE_STATE
-                    elif command_type == "MOVE_TO":
+                    elif command_type == "MOVE_TO" and next_node != target_node:
                         print(f"🧠 [TaskController] Devo eseguire una manovra di svolta. Sto in MANEUVERING")
                         self.current_state = MANEUVERING_STATE
                     elif command_type in ["PICKUP", "DROP"]:

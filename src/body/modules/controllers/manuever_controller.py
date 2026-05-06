@@ -64,6 +64,15 @@ class ManueverController:
             # Segnala il completamento della manovra
             self.redis_client.update_sensor_data("body_memory", {"maneuver_state": "COMPLETED"})
 
+        elif command_type == "DROP":
+
+            self.execute_drop()
+            print(f"✅ Manovra DROP completata.")
+
+            # Segnala il completamento della manovra
+            self.redis_client.update_sensor_data("body_memory", {"maneuver_state": "COMPLETED"})
+
+
     
     def _execute_left_turn(self):
         """
@@ -115,6 +124,16 @@ class ManueverController:
             
             time.sleep(0.05)  # Controlla ogni 50ms
         
+        self.stop()
+
+    def execute_drop(self):
+        """
+        Esegue la manovra di DROP.
+        Per ora è un placeholder che simula il drop con una pausa.
+        """
+        print("🔄 Esecuzione manovra DROP...")
+        self.set_velocity(0, 0)  # Ferma il robot durante il drop
+        time.sleep(2)  # Simula il tempo necessario per il drop
         self.stop()
 
     def set_velocity(self, v, w):

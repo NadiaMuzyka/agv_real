@@ -112,9 +112,9 @@ class AprilTagSensor(GenericSensor):
                             "am_i_in_a_node": True,
                             "current_node": node_name
                         })
-                        print(f"[{self.name}] Rilevato AprilTag ID: {tag_id} (Nodo: {node_name})")
-                    else:
-                        print(f"[{self.name}] Tag ID {tag_id} non trovato nella mappa")
+                        #print(f"[{self.name}] Rilevato AprilTag ID: {tag_id} (Nodo: {node_name})")
+                    #else:
+                        #print(f"[{self.name}] Tag ID {tag_id} non trovato nella mappa")
             else:
                 self.redis_client.update_sensor_data(self.BRAIN_KEY, {
                     "am_i_in_a_node": False

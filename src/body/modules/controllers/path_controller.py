@@ -20,14 +20,14 @@ class PathController:
         "I3": {"I1": "LEFT", "I4": "STRAIGHT", "I7": "RIGHT"},
         "I4": {"I3": "LEFT", "E3": "STRAIGHT", "I5": "RIGHT"},
         "I5": {"I4": "LEFT", "E4": "STRAIGHT", "I6": "RIGHT"},
-        "I6": {"I2": "LEFT", "ER": "STRAIGHT", "I7": "RIGHT"},
-        "I7": {"I3": "LEFT", "EC": "STRAIGHT", "I6": "RIGHT"},
+        "I6": {"I2": "LEFT", "EC": "STRAIGHT", "I7": "RIGHT"},
+        "I7": {"I3": "LEFT", "ER": "STRAIGHT", "I6": "RIGHT"},
         "E1": {"I1": "STRAIGHT"},
         "E2": {"I2": "STRAIGHT"},
         "E3": {"I4": "STRAIGHT"},
         "E4": {"I5": "STRAIGHT"},
-        "ER": {"I6": "STRAIGHT"},
-        "EC": {"I7": "STRAIGHT"},
+        "EC": {"I6": "STRAIGHT"},
+        "ER": {"I7": "STRAIGHT"},
     }
 
     # TURN_TABLE[current_node][next_node][previous_node] -> direction
@@ -58,15 +58,15 @@ class PathController:
             "I6": {"I4": "STRAIGHT", "E4": "LEFT"},
         },
         "I6": {
-            "I2": {"EC": "LEFT", "I7": "STRAIGHT", "I5": "RIGHT"},
-            "EC": {"I2": "RIGHT", "I7": "LEFT", "I5": "STRAIGHT"},
-            "I7": {"I2": "STRAIGHT", "EC": "RIGHT", "I5": "LEFT"},
-            "I5": {"I2": "LEFT", "EC": "STRAIGHT", "I7": "RIGHT"},
+            "I2": {"ER": "LEFT", "I7": "STRAIGHT", "I5": "RIGHT"},
+            "ER": {"I2": "RIGHT", "I7": "LEFT", "I5": "STRAIGHT"},
+            "I7": {"I2": "STRAIGHT", "ER": "RIGHT", "I5": "LEFT"},
+            "I5": {"I2": "LEFT", "ER": "STRAIGHT", "I7": "RIGHT"},
         },
         "I7": {
-            "I3": {"ER": "RIGHT", "I6": "STRAIGHT"},
-            "ER": {"I3": "LEFT", "I6": "RIGHT"},
-            "I6": {"I3": "STRAIGHT", "ER": "LEFT"},
+            "I3": {"EC": "RIGHT", "I6": "STRAIGHT"},
+            "EC": {"I3": "LEFT", "I6": "RIGHT"},
+            "I6": {"I3": "STRAIGHT", "EC": "LEFT"},
         },
         "E1": {
             "I1": {"I1": "STRAIGHT"},
@@ -80,10 +80,10 @@ class PathController:
         "E4": {
             "I5": {"I5": "STRAIGHT"},
         },
-        "ER": {
+        "EC": {
             "I6": {"I6": "STRAIGHT"},
         },
-        "EC": {
+        "ER": {
             "I7": {"I7": "STRAIGHT"},
         },
     }

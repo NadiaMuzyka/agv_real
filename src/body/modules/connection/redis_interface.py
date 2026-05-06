@@ -87,7 +87,7 @@ class RedisInterface:
             node_map = json.load(f)
             
         initial_state = {
-            "current_position": "ER",
+            # "current_position": "ER",
             "maneuver_state": "NONE",  # Può essere "NONE", "IN_PROGRESS", "COMPLETED"
             "pid_active": False,
             "node_id": json.dumps(node_map)     # ID dei nodi per AprilTags

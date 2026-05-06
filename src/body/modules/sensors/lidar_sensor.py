@@ -51,9 +51,7 @@ class LidarSensor(GenericSensor):
                     "ostacolo": ostacolo,
                     "distanza": distance if distance is not None else 999.0,
                 }
-                print(
-                    f"[{self.name}] result: {result}, distanza: {distance}, ostacolo: {ostacolo}"
-                )
+                # print( f"[{self.name}] result: {result}, distanza: {distance}, ostacolo: {ostacolo}")
                 self.redis_client.update_sensor_data(
                     "brain_memory", {"ostacolo_lidar": ostacolo}
                 )
