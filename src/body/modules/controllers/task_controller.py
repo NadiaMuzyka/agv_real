@@ -95,6 +95,7 @@ class TaskController:
             in_node = self.redis_client.get_sensor_data(self.BRAIN_MEMORY).get("am_i_in_a_node")
             next_node = self.redis_client.get_sensor_data(self.BRAIN_MEMORY).get("next_node")
             target_node = self.redis_client.get_sensor_data(self.BRAIN_MEMORY).get("target_node")
+            current_position = self.redis_client.get_sensor_data(self.BRAIN_MEMORY).get("current_node")
 
             #print(f"🧠 [TaskController] In node: {in_node}")
             #print(f"🧠 [TaskController] Stato attuale: Next node: {next_node}, Target node: {target_node}")
@@ -107,7 +108,8 @@ class TaskController:
 
                 #print(f"🧠 [TaskController] Sto in IDLE.")
                 if in_node:
-                    print(f"🧠 [TaskController] Ho rilevato un incrocio. Sto in NODE")
+                    print(f"🧠 [TaskController] Ho rilevato un incrocio. Sto in NODE. La mia posizione è: {current_position}")
+
                     self.current_state = NODE_STATE    
 
                 elif command_type in self.commands:
