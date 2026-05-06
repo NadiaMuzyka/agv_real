@@ -48,8 +48,8 @@ class ManueverController:
             print(f"🚗 PathController ha deciso la manovra: {maneuver_direction}")
 
             if maneuver_direction == "STRAIGHT":
-                self.set_velocity(0.07, 0)
-                time.sleep(1)
+                self.set_velocity(0.05, 0)
+                time.sleep(3)
                 self.stop()
                 print(f"✅ Manovra STRAIGHT completata.")
                 
