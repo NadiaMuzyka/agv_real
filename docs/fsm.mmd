@@ -28,8 +28,7 @@ graph TD
     %% ==========================================
     %% ARCHI USCENTI DA: NODE_STATE
     %% ==========================================
-    NODE --->|c_t==MOVE_TO & next_node!=target_node| MANEUVER
-    NODE --->|c_t==MOVE_TO & next_node==target_node| REVERSE
+    NODE --->|c_t==MOVE_TO | MANEUVER
     NODE -.->|c_t==STOP| IDLE
     NODE -.->|c_t==PICKUP / DROP| ERR
 
@@ -45,6 +44,7 @@ graph TD
     %% ARCHI USCENTI DA: MANEUVERING_STATE
     %% ==========================================
     MANEUVER -..->|manuuver_state==compleated| IDLE
+    MANEUVER --->|next_node==target_node| REVERSE
 
     %% ==========================================
     %% ARCHI USCENTI DA: REVERSING_STATE
