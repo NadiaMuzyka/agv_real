@@ -1,4 +1,4 @@
-%%{init: {"state": {"rankSpacing": 100, "nodeSpacing": 100}}}%%
+%%{init: {"state": {"rankSpacing": 140, "nodeSpacing": 140}, "flowchart": {"curve": "basis"}}}%%
 graph TD
     %% ==========================================
     %% DEFINIZIONE DEGLI STATI (Nodi)
@@ -50,3 +50,10 @@ graph TD
     %% ARCHI USCENTI DA: REVERSING_STATE
     %% ==========================================
     REVERSE --->|am_in_a_node & current_node==target_node| TARGET
+
+    %% ==========================================
+    %% ARCHI USCENTI DA: TARGET_NODE_STATE
+    %% ==========================================
+    TARGET -.->|c_t==STOP / c_t==PICKUP| MANEUVER
+
+    linkStyle default stroke:#64748b,stroke-width:2.5px,stroke-linecap:round,stroke-linejoin:round,opacity:0.9;
