@@ -2,12 +2,12 @@ class PathController:
     """Controller basato su tabelle statiche di svolta.
 
     Tabella principale (get_next_step2):
-    TURN_TABLE[current_node][next_node][previous_node] -> direction
+    TURN_TABLE[current_position][next_node][previous_node] -> direction
 
     Dove:
-    - current_node: nodo in cui si trova il robot
+    - current_position: nodo in cui si trova il robot
     - next_node: nodo verso cui il robot deve uscire
-    - previous_node: nodo da cui il robot e' entrato in current_node
+    - previous_node: nodo da cui il robot e' entrato in current_position
     - direction: LEFT | STRAIGHT | RIGHT
 
     La tabella include solo combinazioni coerenti con il grafo attuale.
@@ -30,7 +30,7 @@ class PathController:
         "ER": {"I7": "STRAIGHT"},
     }
 
-    # TURN_TABLE[current_node][next_node][previous_node] -> direction
+    # TURN_TABLE[current_position][next_node][previous_node] -> direction
     TURN_TABLE = {
         "I1": {
             "E1": {"I2": "RIGHT", "I3": "LEFT"},
@@ -88,15 +88,15 @@ class PathController:
         },
     }
 
-    def get_next_step(self, current_node: str, target_node: str) -> str:
+    def get_next_step(self, current_position: str, target_node: str) -> str:
         """Compatibilita' con codice legacy senza previous_node."""
-        return self.LEGACY_TURN_TABLE.get(current_node, {}).get(target_node, "LEFT")
+        return self.LEGACY_TURN_TABLE.get(current_position, {}).get(target_node, "LEFT")
 
     def get_next_step2(
         self,
-        current_node: str,
+        current_position: str,
         target_node: str,
         previous_node: str | None = None,
     ) -> str:
         """Metodo stupido: sola lettura da TURN_TABLE[current][next][previous]."""
-        return self.TURN_TABLE.get(current_node, {}).get(target_node, {}).get(previous_node, "STRAIGHT")
+        return self.TURN_TABLE.get(current_position, {}).get(target_node, {}).get(previous_node, "STRAIGHT")

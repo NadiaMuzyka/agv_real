@@ -41,9 +41,10 @@ class ManueverController:
         if command_type == "MOVE_TO":
             
             # Chiedi al PathController quale manovra fare (LEFT, RIGHT, STRAIGHT)
-            maneuver_direction = self.path_controller.get_next_step(
+            maneuver_direction = self.path_controller.get_next_step2(
                 command_data.get("current_position"), 
-                command_data.get("next_node")
+                command_data.get("next_node"),
+                command_data.get("previous_node")
             )
             print(f"🚗 PathController ha deciso la manovra: {maneuver_direction}")
 

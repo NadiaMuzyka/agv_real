@@ -10,3 +10,4 @@ src/brain/docs/info_pack.json
 src/brain/docs/plan-backup.json
 
 docker-compose.yml
+docs/log_simulation.txt
