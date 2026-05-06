@@ -69,7 +69,7 @@ class LogicController:
                 "am_i_in_a_node": True,
                 "next_node": None,
                 "previous_node": None,
-                "current_position": "ER",
+                "current_position": None,
                 "mission_queue": [],
                 "path_to_target": [],
                 "is_charging": False,
