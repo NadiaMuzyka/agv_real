@@ -39,7 +39,7 @@ def main():
         redis_manager.set_command(redis_manager.COMMAND_CHANNEL, command)
         time.sleep(3)
         '''
-        pos = redis_manager.get_sensor_data(BRAIN_KEY).get("current_node")
+        pos = redis_manager.get_sensor_data(BRAIN_KEY).get("current_position")
 
         # Comando 2: MOVE_TO
         print("\n2️⃣ Pubblicando MOVE_TO I2...")
