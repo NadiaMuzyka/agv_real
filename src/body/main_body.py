@@ -66,6 +66,11 @@ class RobotController:
         print(f"Main loop avviato a {self.LOOP_HZ}Hz.")
         loop_delay = 1.0 / self.LOOP_HZ
         
+        # RIMUOVI il file di ready all'avvio, se esiste (da un avvio precedente)
+        ready_file = "/tmp/body_ready"
+        if os.path.exists(ready_file):
+            os.remove(ready_file)
+            print(f"⚠️  File di ready precedente rimosso: {ready_file}")
 
         #Avvio i thread dei sensori (che leggono e aggiornano Redis in background)
         self.left_sensor.start()

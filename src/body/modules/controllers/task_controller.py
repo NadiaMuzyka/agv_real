@@ -80,10 +80,10 @@ class TaskController:
                     command = command_data
                     if command is not None:
                         # Ignora il comando se è identico al precedente
-                        if command == self.last_command:
-                            print(f"🧠 [TaskController] Comando duplicato ignorato: {command_type}")
+                        if command != self.last_command:
+                            #print(f"🧠 [TaskController] Comando duplicato ignorato: {command_type}")
                             # NON resettare a None! Mantieni il comando attivo per il maneuvering
-                        else:
+                        #else:
                             print(f"🧠 [TaskController] Comando ricevuto: {command_type} - {command}")
                             self.last_command = command
                 except json.JSONDecodeError:
@@ -93,7 +93,7 @@ class TaskController:
 
             in_node = self.redis_client.get_sensor_data(self.BRAIN_MEMORY).get("am_i_in_a_node")
             next_node = self.redis_client.get_sensor_data(self.BRAIN_MEMORY).get("next_node")
-            target_node = self.redis_client.get_sensor_data(self.BRAIN_MEMORY).get("target_node")
+            target_node = self.redis_client.get_sensor_data(self.BRAIN_MEMORY).get("current_target")
             current_position = self.redis_client.get_sensor_data(self.BRAIN_MEMORY).get("current_position")
 
             #print(f"🧠 [TaskController] In node: {in_node}")
@@ -178,6 +178,14 @@ class TaskController:
             elif self.current_state == MANEUVERING_STATE:
 
                 if command_type in self.commands:
+
+                    next_node = self.redis_client.get_sensor_data(self.BRAIN_MEMORY).get("next_node")
+                    target_node = self.redis_client.get_sensor_data(self.BRAIN_MEMORY).get("current_target")
+
+                    print(f"🧠 [TaskController] Stato attuale: Next node: {next_node}, Target node: {target_node}")
+            
+
+                    print(f"🧠 [TaskController] Il prossimo non è il target? {next_node == target_node}")
                     
                     if next_node == target_node:
                         print(f"🧠 [TaskController] Il prossimo nodo è il target. Faccio retromarcia.Sto in REVERSE_STATE")
@@ -210,7 +218,9 @@ class TaskController:
                     print(f"🧠 [TaskController] Manovra completata. Sto in IDLE")
                     self.current_state = IDLE_STATE
     
+            elif self.current_state == REVERSE_STATE:
 
+                print(f"🧠 [TaskController] Sto eseguendo la retromarcia verso il nodo {next_node}.")
 
             time.sleep(self.frequenza_loop)
 

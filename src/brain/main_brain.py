@@ -15,6 +15,12 @@ from modules.logic_controller import LogicController
 def main():
     print("🧠 Avvio BRAIN. Implementazione Logic Controller su Redis Pub/Sub...")
     
+    # RIMUOVI il file di ready all'avvio, se esiste (da un avvio precedente)
+    ready_file = "/tmp/brain_ready"
+    if os.path.exists(ready_file):
+        os.remove(ready_file)
+        print(f"⚠️  File di ready precedente rimosso: {ready_file}")
+    
     # --- RIPRISTINO INFO_PACK DAL BACKUP ---
     info_pack_path = os.path.join(os.path.dirname(__file__), 'docs', 'plan.json')
     backup_path = os.path.join(os.path.dirname(__file__), 'docs', 'plan-backup.json')
@@ -45,6 +51,11 @@ def main():
     tree_executor = py_trees.trees.BehaviourTree(behavior_tree)
     tree_executor.setup(timeout=15) 
 
+    # BRAIN COMPLETAMENTE INIZIALIZZATO - Creiamo un file di segnalazione per il health check
+    ready_file = "/tmp/brain_ready"
+    open(ready_file, 'a').close()
+    print(f"✅ Brain completamente avviato. File di ready creato: {ready_file}")
+
     def spegnimento_sicuro(signum, frame):
         print("\n[BRAIN] Ricevuto segnale di spegnimento da Docker (SIGTERM)!")
         raise KeyboardInterrupt() # Scatena l'eccezione che ti fa uscire dal while!
@@ -67,6 +78,8 @@ def main():
 
     except KeyboardInterrupt:
         print("Spegnimento Brain...")
+        if os.path.exists(ready_file):
+            os.remove(ready_file)
 
 if __name__ == "__main__":
     main()

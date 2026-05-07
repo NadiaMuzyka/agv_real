@@ -280,12 +280,17 @@ class LogicController:
                 
                 path_to_target = self.blackboard.path_to_target
                 
-                # CASO A: Il percorso ha ancora nodi da consumare
+                # CASO A: Trova la current_position nel path e rimuovi tutto fino a quel punto (incluso)
                 if isinstance(path_to_target, list) and len(path_to_target) > 0:
-                    if self.blackboard.current_position == path_to_target[0]:
-                        nuovo_path = path_to_target[1:]
-                    else:
-                        nuovo_path = path_to_target 
+                    try:
+                        # Trova l'indice della current_position nel path
+                        idx = path_to_target.index(self.blackboard.current_position)
+                        # Rimuovi tutto fino a quel punto incluso
+                        nuovo_path = path_to_target[idx+1:]
+                    except ValueError:
+                        # La current_position non è nel path (situazione anomala)
+                        # Mantieni il path come è per essere conservativo
+                        nuovo_path = path_to_target
                     
                     nuovo_next = nuovo_path[0] if len(nuovo_path) > 0 else target_node
                 
