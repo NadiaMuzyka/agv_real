@@ -108,6 +108,7 @@ class ManueverController:
         """
         print("🔄 Inizio svolta DESTRA...")
         self.set_velocity(0.03, -0.1)  # Ruota a destra (w negativo)
+        time.sleep(2)  # Piccola pausa per iniziare la svolta
         
         while True:
             body_memory = self.redis_client.get_sensor_data("body_memory")

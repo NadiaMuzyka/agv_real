@@ -42,6 +42,8 @@ class RobotController:
         if not self.sim:
             print("Impossibile connettersi a Coppelia.")
             raise ConnectionError("Coppelia err")
+        
+        self.sim.startSimulation()
 
 
         #Hanno connessioni isolate a CoppeliaSim grazie al Multiton CoppeliaConnector
@@ -94,7 +96,7 @@ class RobotController:
                 time.sleep(loop_delay)
                 
         except KeyboardInterrupt:
-            print("Interruzione terminale.")
+            print("Spegnimento del body in corso...")
             if os.path.exists(ready_file):
                 os.remove(ready_file)
 
