@@ -85,7 +85,6 @@ class RobotController:
         #self.sensor_manager.start()
         self.apriltag_sensor.start()
         self.lidar_sensor.start()
-        #self.high_lidar_sensor.start()
 
         self.task_controller.start()
         
@@ -106,6 +105,13 @@ class RobotController:
 
     def cleanup(self):
         """Pulizia ordinata di tutte le risorse."""
+        self.left_sensor.stop()
+        self.central_sensor.stop()
+        self.right_sensor.stop()
+        self.apriltag_sensor.stop()
+        self.lidar_sensor.stop()
+        #self.sensor_manager.stop()
+        self.task_controller.stop()
         self.sim.stopSimulation()
 
         print("✅ Sto in cleanup: fermo i thread dei sensori...")

@@ -231,5 +231,4 @@ class TaskController:
             self._thread.join()
         self.pid.stop()
         self.maneuver.stop()
-        self.actuator.stop()
         print("🧠 [TaskController] Navigazione interrotta.")
