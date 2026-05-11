@@ -23,4 +23,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 4. Copia il codice Body
 COPY . .
 
-CMD ["python", "main_body.py"]
+CMD ["python", "-u", "main_body.py"]

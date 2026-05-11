@@ -1,5 +1,8 @@
 import time
 import os
+import signal
+import threading
+import sys
 
 from modules.sensors.sensor_manager import SensorManager
 from modules.connection.coppelia_connector import CoppeliaConnector
@@ -34,6 +37,7 @@ class RobotController:
 
         #self.task_controller.start() #Avvio il thread del TaskController (che legge i comandi dal Brain e gestisce la logica di alto livello)
 
+        self._stop_event = threading.Event()
         
         # 1. Connessioni
         #Mi connetto a CoppeliaSim tramite il Multiton CoppeliaConnector, che gestisce la connessione condivisa a CoppeliaSim.
@@ -90,24 +94,39 @@ class RobotController:
         open(ready_file, 'a').close()
         print(f"✅ Body completamente avviato. File di ready creato: {ready_file}")
 
-        try:
-            while True:                
-                
-                time.sleep(loop_delay)
-                
-        except KeyboardInterrupt:
-            print("Spegnimento del body in corso...")
-            if os.path.exists(ready_file):
-                os.remove(ready_file)
 
-        except Exception as e:
-            print(f"Eccezione: {e}", exc_info=True)
+        # Loop principale: usa l'Event invece di sleep puro
+        # wait() si sblocca immediatamente quando _stop_event viene settato
+        while not self._stop_event.is_set():
+            self._stop_event.wait(timeout=loop_delay)
+
+        # Quando esce dal loop, fa il cleanup
+        self.cleanup()
+                
+
+    def cleanup(self):
+        """Pulizia ordinata di tutte le risorse."""
+        self.sim.stopSimulation()
+
+        print("✅ Sto in cleanup: fermo i thread dei sensori...")
 
 
 def main():
+    print("🔴 VERSIONE NUOVA - main() avviato", flush=True)
+
+    controller_ref = [None]
+
+    def spegnimento_sicuro(signum, frame):
+        print(f"\n[BODY] SIGTERM ricevuto!", flush=True)
+        if controller_ref[0]:
+            controller_ref[0]._stop_event.set()  # ← sblocca il loop → va in cleanup()
+
+    signal.signal(signal.SIGTERM, spegnimento_sicuro)
+    signal.signal(signal.SIGINT, spegnimento_sicuro)
+
     try:
-        controller = RobotController()
-        controller.run()
+        controller_ref[0] = RobotController()
+        controller_ref[0].run()
     except Exception as e:
         print(f"Chiusura forzata: {e}")
 
