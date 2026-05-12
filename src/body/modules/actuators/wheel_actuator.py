@@ -1,3 +1,5 @@
+import time
+
 from modules.connection.coppelia_connector import CoppeliaConnector
 from modules.actuators.generic_actuator import GenericActuator
 
@@ -33,6 +35,22 @@ class WheelsActuator(GenericActuator):
         v_r = (v + (w * self.wheelbase / 2)) / self.wheel_radius
         
         self._apply_velocity(v_l, v_r)
+        
+    def move_for(self, v, w, duration):
+        """
+        Calcola e applica le velocità ai giunti per una durata specifica.
+        v: velocità lineare (m/s)
+        w: velocità angolare (rad/s)
+        duration: durata in secondi
+        """
+        v_l = (v - (w * self.wheelbase / 2)) / self.wheel_radius
+        v_r = (v + (w * self.wheelbase / 2)) / self.wheel_radius
+        
+        self._apply_velocity(v_l, v_r)
+
+        start_time = self.sim.getSimulationTime()
+        while self.sim.getSimulationTime() - start_time < duration:
+            time.sleep(0.1)  # Controlla ogni 100ms
 
     def stop(self):
         self._apply_velocity(0.0, 0.0)

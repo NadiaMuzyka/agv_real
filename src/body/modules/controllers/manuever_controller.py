@@ -49,8 +49,7 @@ class ManueverController:
             print(f"🚗 PathController ha deciso la manovra: {maneuver_direction}")
 
             if maneuver_direction == "STRAIGHT":
-                self.set_velocity(0.05, 0)
-                time.sleep(3)
+                self.set_velocity_for(0.05, 0, 2)
                 self.stop()
                 print(f"✅ Manovra STRAIGHT completata.")
                 
@@ -145,6 +144,14 @@ class ManueverController:
         """
         with self._wheel_lock:
             self.wheels.move(v, w)
+
+    def set_velocity_for(self, v, w, duration):
+        """
+        Comanda i wheel in modo thread-safe.
+        Usato sia da PID che da TaskController/Maneuver.
+        """
+        with self._wheel_lock:
+            self.wheels.move_for(v, w, duration)
     
     def stop(self):
         """
