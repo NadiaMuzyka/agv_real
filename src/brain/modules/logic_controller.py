@@ -29,12 +29,14 @@ class LogicController:
         self.blackboard.register_key(key="is_load", access=py_trees.common.Access.WRITE)#sto trasportando un carico?
         self.blackboard.register_key(key="mission_finished", access=py_trees.common.Access.WRITE)#la missione è stata completata?
         self.blackboard.register_key(key="temp", access=py_trees.common.Access.WRITE)#variabile temporanea per salvare dati vari, non persistente su Redis
+        self.blackboard.register_key(key="last_command_sent", access=py_trees.common.Access.WRITE)#ultima azione di alto livello inviata dal Brain al Body
         self.navigatore = NavigatoreGrafo() 
 
         self.blackboard.temp = dict() 
         self.blackboard.mission_queue = []
         self.blackboard.current_target = None
 
+    # Metodo ausiliario per convertire valori in booleani, gestendo anche stringhe comuni come 'true'/'false'
     def _to_bool(self, value, default=False):
         """Converte in bool gestendo anche stringhe Redis come 'true'/'false'."""
         if isinstance(value, bool):
@@ -73,7 +75,6 @@ class LogicController:
         """
         SENSORS_KEY = "brain_memory"  # Chiave Redis dove sono salvati i dati dei sensori
         sensor_data = self.db.get_sensor_data(SENSORS_KEY) or {}
-        #print(f"[LogicController] Letti dati REALI da Redis: {sensor_data}") 
 
         #se REDIS  è vuoto all'inizio
         if not sensor_data:
@@ -92,7 +93,8 @@ class LogicController:
                 "is_charging": False,
                 "current_target": None,
                 "is_load": False,
-                "mission_finished": False
+                "mission_finished": False,
+                "last_command_sent": None
             }
             #scrittura dell'universo iniziale su Redis secondo quello che penso sia
             self.db.update_sensor_data(SENSORS_KEY, sensor_data)
@@ -136,7 +138,11 @@ class LogicController:
             self.db.update_sensor_data(SENSORS_KEY, sensor_data)
         # ========================================================
 
-        print(f"[LogicController] Aggiornamento blackboard con dati REALI da Redis: {sensor_data}")
+        # Stampo lo stato della blackboard quando questo cambia
+        #=========================================================
+        self.stampa_stato_blackboard(sensor_data)
+        #=========================================================
+
         # NOTA: se la chiave non esiste, usiamo un valore di default
         self.blackboard.battery_level = sensor_data.get("battery_level", 100.0)#livello batteria
         self.blackboard.person_detected = self._to_bool(sensor_data.get("person_detected", False), default=False)#persona rilevata
@@ -152,22 +158,8 @@ class LogicController:
         self.blackboard.current_target = sensor_data.get("current_target", None)#nodo target della missione in corso, None se non c'è missione in corso 
         self.blackboard.is_load = self._to_bool(sensor_data.get("is_load", False), default=False)#sto trasportando un carico?
         self.blackboard.mission_finished = self._to_bool(sensor_data.get("mission_finished", False), default=False)#la missione è stata completata?
+        self.blackboard.last_command_sent = sensor_data.get("last_command_sent", None)#ultima azione di alto livello inviata dal Brain al Body
         #self.temp è nella blackboard, ma non è persistente su Redis
-
-
-    #region Metodi Nodi Sicurezza
-    #Metodo per stoppare l'AGV   
-    def execute_stop(self):
-        """ Invia il comando di stop. """
-        command = {
-            "type": "STOP",
-            "v": 0.0, 
-            "w": 0.0
-        }
-        self.db.set_command(self.db.COMMAND_CHANNEL, command)
-        print("[LogicController] Comando STOP inviato.")
-        return True
-    #endregion
 
     #region Metodi Nodi Energia
     #Metodo per settare la modalità di energia
@@ -193,7 +185,8 @@ class LogicController:
         else:
             print(f"[LogicController] Nessun percorso trovato da {nodo_partenza} a {nodo_arrivo}.")
             return False
-    #Metodo per aggiornare mission queue e current target
+        
+    #Metodo  ausiliario per aggiornare mission queue e current target
     def update_mission_for_recharge(self, path: list)-> bool:
         """ Aggiorna la mission queue e il current target sulla blackboard. """
         aggiornamenti ={}
@@ -255,13 +248,13 @@ class LogicController:
                 print("🔋 [FINE TURNO] L'AGV è rientrato alla base. Spegnimento in corso... Addio!")
                 print("="*50 + "\n")
                     
-                self.db.set_command(self.db.COMMAND_CHANNEL, {"type": "SHUTDOWN"})
+                self.send_command({"type": "SHUTDOWN"})
                 import sys
                 sys.exit(0)
             # ========================================================
             
             if send_stop_on_arrival:
-                self.db.set_command(self.db.COMMAND_CHANNEL, {"type": "STOP"})
+                self.send_command({"type": "STOP"})
                 print("[LogicController] Arrivato in ER: comando STOP inviato.")
             else:
                 print(f"[LogicController] Arrivato al target {target_node}.")
@@ -334,8 +327,7 @@ class LogicController:
             # Opzionale, decommentalo se vuoi loggare il transito continuo
             # print(f"[LogicController] In transito verso {target_next_node}...")
             pass
-
-        self.db.set_command(self.db.COMMAND_CHANNEL, comando)
+        self.send_command(comando)
         return "RUNNING"
 
     #Metodo che simula la carica della batteria (VA RISCRITTO APPENA COLLEGHIAMO IL BODY)
@@ -409,73 +401,14 @@ class LogicController:
     def esegui_prelievo(self):
         """ Metodo che simula l'esecuzione del prelievo (VA RISCRITTO APPENA COLLEGHIAMO IL BODY) """
         print("[LogicController] Esecuzione prelievo in corso...")
-        self.db.set_command(self.db.COMMAND_CHANNEL, {"type": "PICKUP"})
-        print("[LogicController] Comando PICKUP inviato e stato is_load aggiornato a True.")
-
-    # Metodo che aggiorna lo stato dopo ilprelievo
-    def aggiorna_stato_dopo_prelievo(self) -> bool:
-        """ 
-        Metodo chiamato dal BT quando il prelievo è confermato dai sensori.
-        Resetta il target e il percorso per forzare il ricalcolo verso la consegna.
-        """
-        try:
-            # Svuotiamo il target e il percorso attuale su Redis
-            # Questo obbligherà il nodo 'Il Percorso È Stato Calcolato' a restituire FAILURE
-            # e quindi farà scattare il nodo 'Calcola Percorso'.
-            aggiornamenti = {
-                "current_target": None,
-                "path_to_target": [],
-                "next_node": None
-            }
-            self.db.update_sensor_data("brain_memory", aggiornamenti)
-            print("[LogicController] Stato post-prelievo sincronizzato. Target resettato per ricalcolo percorso.")
-            return True
-        except Exception as e:
-            print(f"[LogicController] Errore critico durante l'aggiornamento post-prelievo: {e}")
-            return False
+        self.send_command({"type": "PICKUP"})
+        
 
     def esegui_consegna(self):
         """ Metodo che simula l'esecuzione della consegna (VA RISCRITTO APPENA COLLEGHIAMO IL BODY) """
         print("[LogicController] Esecuzione consegna in corso...")
-        self.db.set_command(self.db.COMMAND_CHANNEL, {"type": "DROP"})
-        print("[LogicController] Comando DROP inviato e stato is_load aggiornato a False.")
+        self.send_command({"type": "DROP"})
 
-    def aggiorna_stato_dopo_consegna(self) -> bool:
-        """ 
-        Metodo chiamato dal BT quando la consegna è confermata dai sensori.
-        Rimuove la missione completata dalla coda e resetta i target.
-        """
-        try:
-            coda_attuale = self.blackboard.mission_queue
-            
-            # Rimuoviamo la missione appena completata (la prima della lista)
-            if len(coda_attuale) > 0:
-                missione_finita = coda_attuale.pop(0)
-                print(f"[LogicController] Missione {missione_finita.get('id')} completata e rimossa dalla coda.")
-
-            #Abbiamo finito tutte le missioni?
-            mission_over = False
-            if len(coda_attuale) == 0:
-                print("[LogicController] 🛑 Tutte le missioni sono state completate! Magazzino svuotato.")
-                mission_over = True
-            
-            # Salviamo la nuova coda (più corta) e resettiamo i parametri di navigazione
-            aggiornamenti = {
-                "mission_queue": coda_attuale,
-                "current_target": None,
-                "path_to_target": [],
-                "next_node": None,
-                "pallet_list_empty": mission_over,  # la missione è finita se la coda è vuota, quindi anche la lista dei pallet è vuota
-                "mission_finished": mission_over
-            }
-            
-            self.db.update_sensor_data("brain_memory", aggiornamenti)
-            print("[LogicController] Stato post-consegna sincronizzato. In attesa della prossima missione.")
-            return True
-            
-        except Exception as e:
-            print(f"[LogicController] Errore critico durante l'aggiornamento post-consegna: {e}")
-            return False
     #endregion
 
     #Metodo per trovare il percorso ottimo tra due nodi (generico)
@@ -493,7 +426,6 @@ class LogicController:
             print(f"[LogicController] Nessun percorso trovato da {nodo_partenza} a {nodo_arrivo}.")
             return False
     
-
     #Metodo per calcolare il percorso verso il target della missione in corso
     def calculate_path_to_current_target(self):
         #Gestisco il caso in cui la missione sia finita
@@ -588,8 +520,7 @@ class LogicController:
                 print("[LogicController] Errore: mission queue vuota, nessun target da raggiungere.")
                 return "FAILURE"
     
-    
-    #Metodo per leggere un file JSON 
+    #Metodo di utilità per leggere un file JSON 
     def read_json_file(self, file_path: str, reset_after_read: bool = False):
         """ Legge un file JSON e restituisce il contenuto (lista o dizionario). """
         try:
@@ -607,20 +538,6 @@ class LogicController:
         except Exception as e:
             print(f"[LogicController] Errore nella lettura del file {file_path}: {e}")
             return {}
-
-
-    #metodo per inviare un comando di movimento verso il prossimo nodo del percorso
-    def move_towards(self, next_node: str):
-        """ Invia un comando di movimento verso il prossimo nodo. """
-        command = {
-            "type": "MOVE_TO",
-            "next_node": next_node,
-            "current_position": self.blackboard.current_position,
-            "previous_node": self.blackboard.previous_node,
-            "am_i_in_a_node": self.blackboard.am_i_in_a_node
-        }
-        self.db.set_command(self.db.COMMAND_CHANNEL, command)
-        print(f"[LogicController] Comando MOVE_TO inviato per nodo: {next_node}")
 
     #metodo per aggiornare il percorso verso il target e il prossimo nodo su Redis
     def update_path_in_redis(self, next_node: str, path_to_target: list):
@@ -656,3 +573,25 @@ class LogicController:
     def navigate_to_current_target(self) -> str:
         target = self.blackboard.current_target
         return self._navigate_to_target(target_node=target, send_stop_on_arrival=False)
+    
+    #Metodo centralizzato per scrivere i comandi su Redis Pub/Sub
+    def send_command(self, comando: dict):
+        """ Metodo centralizzato per inviare comandi al Body tramite Redis Pub/Sub. """
+        if comando == self.blackboard.last_command_sent:
+            pass
+        else:
+            aggiornamenti = {
+                "last_command_sent": comando
+            }
+            self.db.update_sensor_data("brain_memory", aggiornamenti)
+            print(f"[LogicController] Comando inviato: {comando}")
+            self.db.set_command(self.db.COMMAND_CHANNEL, comando)
+
+    #Metodo di utilità per stampare lo stato della blackboard (per debug)
+    def stampa_stato_blackboard(self, sensor_data: dict):
+        """ Stampa lo stato della blackboard solo se è cambiato rispetto all'ultimo tick."""
+        if "last_blackboard_state" in self.blackboard.temp and self.blackboard.temp["last_blackboard_state"] == sensor_data:
+            return
+        else:
+            self.blackboard.temp["last_blackboard_state"] = sensor_data
+            print(f"[LogicController] Aggiornamento blackboard con dati REALI da Redis: {sensor_data}")
