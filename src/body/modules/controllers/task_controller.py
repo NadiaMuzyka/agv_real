@@ -13,7 +13,7 @@ FOLLOWING_STATE = "FOLLOWING"
 MANEUVERING_STATE = "MANEUVERING"
 REVERSE_STATE = "REVERSE"
 TARGET_STATE = "TARGET_STATE"
-REVERSE_STOP_STATE = "REVERSE_STOP"
+GO_TARGET_STATE = "GO_TARGET"
 ERROR_STATE = "ERROR"
 
 class TaskController:
@@ -182,10 +182,10 @@ class TaskController:
                     next_node = self.redis_client.get_sensor_data(self.BRAIN_MEMORY).get("next_node")
                     target_node = self.redis_client.get_sensor_data(self.BRAIN_MEMORY).get("current_target")
 
-                    print(f"🧠 [TaskController] Stato attuale: Next node: {next_node}, Target node: {target_node}")
+                    #print(f"🧠 [TaskController] Stato attuale: Next node: {next_node}, Target node: {target_node}")
             
 
-                    print(f"🧠 [TaskController] Il prossimo non è il target? {next_node == target_node}")
+                    #print(f"🧠 [TaskController] Il prossimo non è il target? {next_node == target_node}")
                     
                     if next_node == target_node:
                         print(f"🧠 [TaskController] Il prossimo nodo è il target. Faccio retromarcia.Sto in REVERSE_STATE")
@@ -217,12 +217,47 @@ class TaskController:
                     self.redis_client.update_sensor_data(self.BODY_MEMORY, {"maneuver_state": "NONE"})
                     print(f"🧠 [TaskController] Manovra completata. Sto in IDLE")
                     self.current_state = IDLE_STATE
+
+
     
             elif self.current_state == REVERSE_STATE:
+                
+                manuever_state = self.redis_client.get_sensor_data(self.BODY_MEMORY).get("maneuver_state")
+                
+                #Se non sto già eseguendo una manovra, posso iniziarne una nuova
+                if manuever_state == "NONE":
 
-                print(f"🧠 [TaskController] Sto eseguendo la retromarcia verso il nodo {next_node}.")
+                    print(f"🧠 [TaskController] Inizio retromarcia")
+                    self.redis_client.update_sensor_data(self.BODY_MEMORY, {"maneuver_state": "IN_PROGRESS"})
+                    time.sleep(0.1) #Piccola pausa 
+                    self.maneuver.execute_maneuver(command_type, command, retro = True)
+                    
+                #Se la sto eseguendo, gestisco i comandi che mi arrivano durante l'esecuzione
+                elif manuever_state == "IN_PROGRESS":
+
+                    if command_type == "STOP":
+                        #Se ricevo un comando di STOP, mi fermo e vado in ERROR (perché non posso interrompere una manovra a metà)
+                        
+                        #TODO:Gestire meglio questa situazione
+
+                        print(f"🧠 [TaskController] Ho ricevuto il comando di interruzione della manovra. Sto in ERROR")
+                        self.current_state = ERROR_STATE
+
+                elif manuever_state == "COMPLETED":
+                    self.redis_client.update_sensor_data(self.BODY_MEMORY, {"maneuver_state": "NONE"})
+                    print(f"🧠 [TaskController] Ho finito di girare. Vado in GO TOTARGET STATE")
+                    self.current_state = GO_TARGET_STATE
+
+            elif self.current_state == GO_TARGET_STATE:
+
+                print(f"🧠 [TaskController] Sto facendo retromarcia fino al target")
+
+
 
             time.sleep(self.frequenza_loop)
+
+                
+
 
     def stop(self):
         """Ferma tutto in sicurezza."""

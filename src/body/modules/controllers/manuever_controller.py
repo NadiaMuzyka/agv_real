@@ -19,19 +19,19 @@ class ManueverController:
         # Lock per evitare race condition su wheel_actuator
         self._wheel_lock = threading.Lock()
 
-    def execute_maneuver(self, command_type, command_data=None):
+    def execute_maneuver(self, command_type, command_data=None, retro = False):
         """
         Avvia un thread per eseguire la manovra.
         Il thread è daemon, quindi termina automaticamente quando finisce.
         """
         maneuver_thread = threading.Thread(
             target=self._execute_maneuver_thread,
-            args=(command_type, command_data),
+            args=(command_type, command_data, retro),
             daemon=True
         )
         maneuver_thread.start()
 
-    def _execute_maneuver_thread(self, command_type, command_data):
+    def _execute_maneuver_thread(self, command_type, command_data, retro):
         """
         Esecuzione effettiva della manovra all'interno del thread.
         Termina automaticamente quando finisce.
@@ -48,18 +48,33 @@ class ManueverController:
             )
             print(f"🚗 PathController ha deciso la manovra: {maneuver_direction}")
 
-            if maneuver_direction == "STRAIGHT":
-                self.set_velocity_for(0.05, 0, 2)
-                self.stop()
-                print(f"✅ Manovra STRAIGHT completata.")
-                
-            elif maneuver_direction == "LEFT":
-                self._execute_left_turn()
-                print(f"✅ Manovra LEFT completata.")
-                
-            elif maneuver_direction == "RIGHT":
-                self._execute_right_turn()
-                print(f"✅ Manovra RIGHT completata.")
+            if not retro:
+                if maneuver_direction == "STRAIGHT":
+                    self.set_velocity_for(0.05, 0, 2)
+                    self.stop()
+                    print(f"✅ Manovra STRAIGHT completata.")
+                    
+                elif maneuver_direction == "LEFT":
+                    self._execute_left_turn()
+                    print(f"✅ Manovra LEFT completata.")
+                    
+                elif maneuver_direction == "RIGHT":
+                    self._execute_right_turn()
+                    print(f"✅ Manovra RIGHT completata.")
+
+            else:
+                if maneuver_direction == "LEFT":
+                    self._execute_right_turn()
+                    print(f"✅ Manovra RIGHT completata.")
+
+                     
+                elif maneuver_direction == "RIGHT":
+                    self._execute_left_turn()
+                    print(f"✅ Manovra LEFT completata.")
+
+                elif maneuver_direction == "STRAIGHT":
+                    
+                    print(f"✅ Dovrei girare di 180 gradi, ma ancora non lo so fare")
             
             # Segnala il completamento della manovra
             self.redis_client.update_sensor_data("body_memory", {"maneuver_state": "COMPLETED"})
