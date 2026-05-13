@@ -76,6 +76,10 @@ class LogicController:
         SENSORS_KEY = "brain_memory"  # Chiave Redis dove sono salvati i dati dei sensori
         sensor_data = self.db.get_sensor_data(SENSORS_KEY) or {}
 
+        #Gestione previuos position
+        #=========================================================
+        self.gestione_tracciamento_posizione_precedente(sensor_data)
+        #=========================================================
         #se REDIS  è vuoto all'inizio
         if not sensor_data:
             print("[LogicController] Redis vuoto, inizializzo con dati di default.")
@@ -299,7 +303,8 @@ class LogicController:
                 # ========================================================
                 aggiornamenti = {
                     "path_to_target": nuovo_path,
-                    "next_node": nuovo_next
+                    "next_node": nuovo_next, 
+                    "previous_node": self.blackboard.temp["position"]
                 }
                 self.db.update_sensor_data("brain_memory", aggiornamenti)
                 print(f"[LogicController] Checkpoint {self.blackboard.current_position} superato. Prossima direzione: {nuovo_next}")
@@ -317,7 +322,7 @@ class LogicController:
             "type": "MOVE_TO",
             "next_node": target_next_node,  # Usiamo la variabile locale appena calcolata!
             "current_position": self.blackboard.current_position, 
-            "previous_node": getattr(self.blackboard, 'previous_node', None),
+            "previous_node": self.blackboard.previous_node,
             "am_i_in_a_node": self.blackboard.am_i_in_a_node 
         }
 
@@ -595,3 +600,12 @@ class LogicController:
         else:
             self.blackboard.temp["last_blackboard_state"] = sensor_data
             print(f"[LogicController] Aggiornamento blackboard con dati REALI da Redis: {sensor_data}")
+
+    #Metodo per gestire il tracciamento della posizione precedente
+    def gestione_tracciamento_posizione_precedente(self, sensor_data: dict):
+        #La prima volta qiando la variabile temporale non è ancora stata creata, la creo e la inizializzo a None
+        if "position" not in self.blackboard.temp:
+            self.blackboard.temp["position"] = None 
+        else:
+            if self.blackboard.current_position != sensor_data.get("current_position", None):
+                self.blackboard.temp["position"] = self.blackboard.current_position
