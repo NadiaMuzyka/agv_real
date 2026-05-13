@@ -32,16 +32,16 @@ class PIDController:
         self._running = False
         self._thread = None
 
-    def start(self):
+    def start(self, reverse=False):
         """Avvia il thread del PID."""
         if not self._running:
             self._running = True
             # Usiamo _loop_controllo come target
-            self._thread = threading.Thread(target=self._loop_controllo, daemon=True)
+            self._thread = threading.Thread(target=self._loop_controllo, args=(reverse,), daemon=True)
             self._thread.start()
             print("[PID] Thread avviato.")
 
-    def _loop_controllo(self):
+    def _loop_controllo(self, reverse=False):
         """Metodo privato che gira in background nel thread."""
         last_time = time.time()
         
@@ -69,7 +69,7 @@ class PIDController:
             self.v = self.base_speed * max(0.2, 1 - abs(error))
 
             # 4. COMANDO AI MOTORI (Nuova chiamata)
-            self.manuever_controller.set_velocity(self.v, self.w)  # Usa il metodo del ManueverController per muovere i motori
+            self.manuever_controller.set_velocity(self.v, self.w, reverse)  # Usa il metodo del ManueverController per muovere i motori
             #self.actuator.move(self.v, self.w)
             
             self.prev_error = error
