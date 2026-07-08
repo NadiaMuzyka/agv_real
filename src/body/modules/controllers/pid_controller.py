@@ -64,12 +64,24 @@ class PIDController:
                 self.error_buffer.pop(0)
             error = sum(self.error_buffer) / len(self.error_buffer)
 
-            # Solo termine proporzionale
-            self.w = -(self.kp * error )
-            self.v = self.base_speed * max(0.2, 1 - abs(error))
+
+            if reverse:
+                kp = self.kp * 0.3
+                max_w = 0.08
+                w_raw = (kp * error) 
+                self.w = max(-max_w, min(max_w, w_raw))
+                if abs(error) >= 1.0:
+                    self.v = -self.base_speed * 0.5  # lentissimo, non fermo
+
+                else:
+                    self.v = -self.base_speed * max(0.1, 1 - abs(error) * 0.3)
+            else:
+                # Codice originale intatto
+                self.w = -(self.kp * error)
+                self.v = self.base_speed * max(0.2, 1 - abs(error))
 
             # 4. COMANDO AI MOTORI (Nuova chiamata)
-            self.manuever_controller.set_velocity(self.v, self.w, reverse)  # Usa il metodo del ManueverController per muovere i motori
+            self.manuever_controller.set_velocity(self.v, self.w)  # Usa il metodo del ManueverController per muovere i motori
             #self.actuator.move(self.v, self.w)
             
             self.prev_error = error
