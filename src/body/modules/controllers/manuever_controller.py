@@ -78,8 +78,8 @@ class ManueverController:
 
                     print(f"✅ Dovrei girare di 180 gradi, ma ancora non lo so fare")
 
-                self.pass_crossing()
-                #self.pid.start(reverse=True)
+                self.stop()
+
 
             # Segnala il completamento della manovra
             self.redis_client.update_sensor_data("body_memory", {"maneuver_state": "COMPLETED"})
@@ -157,7 +157,7 @@ class ManueverController:
         else:
             print("🚗 Ho fatto la svolta, riaccendo il pid")
             self.pid.start()
-            time.sleep(1.5)  # Piccola pausa per stabilizzarsi dopo la svolta
+            time.sleep(6)  # Piccola pausa per stabilizzarsi dopo la svolta
             self.pid.stop()
             print("🚗 Manovra completata")
 
@@ -192,7 +192,7 @@ class ManueverController:
         """ continuo ad andare indietro finchè non mi imbatto nell'incrocio, poi continuo per altri 2 secondi per superarlo completamente """
 
         print("coninuo ad andare indietro", self.redis_client.get_sensor_data("body_memory").get("maneuver_state"))
-        self.wheels.move(-0.05,0)
+        #self.wheels.move(-0.05,0)
         crossing = False
 
         while not crossing:
@@ -205,7 +205,6 @@ class ManueverController:
 
         # superato l'incrocio, continuo per altri 2 secondi
         print("superato l'incrocio, continuo per altri 2 secondi", self.redis_client.get_sensor_data("body_memory").get("maneuver_state"))
-        self.wheels.move(-0.05,0)
         time.sleep(2)
 
 
