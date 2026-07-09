@@ -65,6 +65,7 @@ class ManueverController:
 
             else:
                 if maneuver_direction == "LEFT":
+                    print(f"🚗 Sto in reverse e sto per fare la manovra. Giro a destra")
                     self._execute_right_turn(reversed=True, pid=pid)
                     print(f"✅ Manovra RIGHT completata.")
 
@@ -138,6 +139,8 @@ class ManueverController:
             right_sensor = body_memory.get(self.RIGHT_SENSOR_NAME)
             central_sensor = body_memory.get(self.CENTER_SENSOR_NAME)
 
+            #print(f"🔄 Stato sensori: Sinistro: {left_sensor}, Centrale: {central_sensor}, Destro: {right_sensor}")
+
             # Condizione: sensore destro vede nero AND sensore sinistro NON vede nero
             right_not_black = right_sensor != self.BLACK_TARGET
             central_sees_black = central_sensor == self.BLACK_TARGET
@@ -152,9 +155,11 @@ class ManueverController:
         if not reversed:
             self.stop()
         else:
+            print("🚗 Ho fatto la svolta, riaccendo il pid")
             self.pid.start()
             time.sleep(1.5)  # Piccola pausa per stabilizzarsi dopo la svolta
             self.pid.stop()
+            print("🚗 Manovra completata")
 
     def execute_drop(self):
         """

@@ -110,6 +110,7 @@ class PIDController:
         self._running = False
         try:
             self.manuever_controller.set_velocity(0.0, 0.0)  # Con lock, safe
+            print("[PID] Thread fermato e motori bloccati.")
         except Exception as e:
             print(f"⚠️ [PID] Errore in stop: {e}")
         if self._thread:
