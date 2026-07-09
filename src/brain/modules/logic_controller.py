@@ -264,8 +264,9 @@ class LogicController:
                 print(f"[LogicController] Arrivato al target {target_node}.")
             return "SUCCESS"
        
-        # Variabile locale per capire verso dove mandare il comando MOVE_TO in questo tick
+        # Variabili locali per capire verso dove mandare il comando MOVE_TO in questo tick
         target_next_node = self.blackboard.next_node
+        target_previous_node = self.blackboard.previous_node
 
         # 3. GESTIONE DEL PERCORSO
         # se sono in un nodo ma non è il nodo target
@@ -311,6 +312,7 @@ class LogicController:
                 
                 # Aggiorniamo la nostra variabile locale per inviare l'ordine corretto al Body ORA
                 target_next_node = nuovo_next
+                target_previous_node = self.blackboard.temp["position"]
 
 
         # 4. INVIO COMANDO DI MOVIMENTO
@@ -322,7 +324,7 @@ class LogicController:
             "type": "MOVE_TO",
             "next_node": target_next_node,  # Usiamo la variabile locale appena calcolata!
             "current_position": self.blackboard.current_position, 
-            "previous_node": self.blackboard.previous_node,
+            "previous_node": target_previous_node,
             "am_i_in_a_node": self.blackboard.am_i_in_a_node 
         }
 
