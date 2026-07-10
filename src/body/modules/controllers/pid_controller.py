@@ -120,7 +120,7 @@ class PIDController:
         mai fermarsi (visto in log reali: mai un vero "centrato", solo
         rimbalzi sx/dx).
         """
-        crossing = l_black and r_black  # incrocio: sx e dx entrambi neri, a prescindere dal centro
+        crossing = (l_black and r_black) or (not l_black and not c_black and not r_black)  # incrocio: sx e dx entrambi neri, a prescindere dal centro
         if crossing:
             # attraversa l'incrocio dritto, ignorando qualunque correzione in corso
             self._reverse_state = "STRAIGHT"
@@ -165,7 +165,7 @@ class PIDController:
             self._correcting_left = drift_left
             self._correcting_right = drift_right
             self.v = 0.0
-            self.w = self.reverse_turn_w if drift_left else -self.reverse_turn_w
+            self.w = -self.reverse_turn_w if drift_left else self.reverse_turn_w
             print(f"[PID-reverse] correzione avviata: l={l_black} c={c_black} r={r_black} -> w={self.w:+.3f} ({'sinistra' if drift_left else 'destra'})")
         # else: pattern ambiguo (linea persa o entrambi i laterali neri) -> mantieni l'ultimo comando
 
