@@ -146,7 +146,7 @@ class PIDController:
                 time.sleep(self.reverse_settle_time)  # smorza l'inerzia prima di ripartire
             elif drift_left == self._correcting_left and drift_right == self._correcting_right:
                 self.v = 0.0
-                self.w = -self.reverse_turn_w if self._correcting_left else self.reverse_turn_w
+                self.w = self.reverse_turn_w if self._correcting_left else self.reverse_turn_w
             else:
                 # pattern passato al lato opposto senza mai vedere il centro:
                 # overshoot netto, fermati comunque invece di rincorrerlo
