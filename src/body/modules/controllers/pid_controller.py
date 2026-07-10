@@ -133,11 +133,11 @@ class PIDController:
         drift_right = r_black and not l_black   # linea a destra -> ruota a destra (w negativo)
 
         if self._reverse_state == "CORRECTING":
-            #if c_black:
+            if c_black:
                 # il centro ha già raggiunto la linea: fermati subito, anche
                 # se un laterale è ancora nero (transizione), per non superare
                 # il centro rincorrendo una lettura "solo centro" più pulita
-            if centered:
+            #if centered:
                 #il robot è DAVVERO centrato (solo il centro vede nero):
                 # fermati e riprendi ad arretrare dritto
                 self._reverse_state = "STRAIGHT"
