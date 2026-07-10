@@ -28,8 +28,15 @@ class PIDController:
         self._reverse_state = "STRAIGHT"
         self._correcting_left = False
         self._correcting_right = False
+        self._correcting_mild = False
+        # Storia minima per disambiguare testa/culo rispetto alla linea quando il
+        # pattern letto è lo stesso ma il verso corretto è opposto (vedi _reverse_step)
+        self._last_correction_dir_left = None  # verso (bool, convenzione di drift_left) dell'ultima correzione eseguita
+        self._seen_centered_since = True  # precondizione: all'avvio della retromarcia il robot è già centrato
+        self._centered_streak = 0  # debounce: letture "centered" consecutive pulite, per non fidarsi di un frame rumoroso
         self.reverse_speed = self.base_speed * 0.5
         self.reverse_turn_w = 0.06  # più lento delle svolte forward: va ricalibrato sul robot
+        self.reverse_turn_w_mild = self.reverse_turn_w * 0.5  # laterale+centro neri = deviazione lieve (come errore ±0.5 nel forward)
         self.reverse_settle_time = 0.15  # pausa a motori fermi dopo una correzione, per smorzare l'inerzia
         
         # Output cinematico per gli attuatori
@@ -46,6 +53,12 @@ class PIDController:
         if not self._running:
             self._running = True
             self._reverse_state = "STRAIGHT"
+            self._correcting_left = False
+            self._correcting_right = False
+            self._correcting_mild = False
+            self._last_correction_dir_left = None
+            self._seen_centered_since = True
+            self._centered_streak = 0
             # Usiamo _loop_controllo come target
             self._thread = threading.Thread(target=self._loop_controllo, args=(reverse,), daemon=True)
             self._thread.start()
@@ -119,6 +132,36 @@ class PIDController:
         oltre, superando il centro e oscillando da un lato all'altro senza
         mai fermarsi (visto in log reali: mai un vero "centrato", solo
         rimbalzi sx/dx).
+
+        Deviazione "lieve" (laterale+centro entrambi neri, es. blk=[T,T,F]):
+        equivalente dell'errore ±0.5 nel forward, si corregge con una w
+        dimezzata (reverse_turn_w_mild). In questo caso il centro è già nero
+        FIN DALL'INIZIO della correzione, quindi il criterio di stop "c_black"
+        usato per la deviazione forte scatterebbe al primo ciclo senza aver
+        ruotato quasi nulla: per il caso lieve si aspetta invece che il
+        laterale si spenga (centered), come faceva il vecchio criterio.
+
+        Ambiguità testa/culo: un solo sensore laterale nero (o laterale+centro)
+        non basta a sapere IL VERSO giusto di rotazione, perché in retromarcia
+        (sensore trainato, non lookahead) lo stesso pattern può corrispondere
+        a due assetti opposti — es. "culo a destra della linea, testa a
+        sinistra" (skew ampio) oppure "sia testa che culo a sinistra, solo il
+        bordo del sensore destro sfiora la linea" (semplice offset laterale) —
+        che richiedono correzioni di verso opposto. Nel forward questa
+        ambiguità non si presenta perché il sensore è davanti al perno: la
+        regola "mirror" (gira verso il lato che vede nero) riduce l'errore
+        futuro qualunque sia l'assetto reale (come nella pure-pursuit). In
+        retromarcia no, quindi ci si fida della regola mirror SOLO quando si
+        riparte da un vero centraggio confermato da quando è iniziata l'ultima
+        correzione (_seen_centered_since); altrimenti si assume che il nuovo
+        pattern sia la coda dello stesso skew e si mantiene il verso della
+        correzione precedente (_last_correction_dir_left) invece di flippare,
+        per non innescare uno zigzag rincorrendo ogni singola lettura.
+        _seen_centered_since scatta solo dopo 2 letture "centered" consecutive
+        (debounce): un singolo frame rumoroso al bordo del nastro non deve
+        poter far scattare la fiducia sulla regola mirror e reintrodurre lo
+        zigzag. Lo stop del motore (stop_now sotto) resta invece immediato e
+        non debounced, per non reintrodurre l'overshoot descritto sopra.
         """
         crossing = (l_black and r_black) or (not l_black and not c_black and not r_black)  # incrocio: sx e dx entrambi neri, a prescindere dal centro
         if crossing:
@@ -126,28 +169,41 @@ class PIDController:
             self._reverse_state = "STRAIGHT"
             self.v = -self.reverse_speed
             self.w = 0.0
+            self._centered_streak = 0  # pattern ambiguo per definizione, non conta per il debounce
             return
 
         centered = c_black and not l_black and not r_black
         # linea a sinistra -> ruota a destra (w negativo); linea a destra -> ruota a sinistra (w positivo)
         drift_left = l_black and not r_black
         drift_right = r_black and not l_black
+        # deviazione lieve: il centro vede già nero insieme al laterale (blk=[T,T,F] o [F,T,T])
+        mild = (drift_left or drift_right) and c_black
+
+        # Debounce della conferma "centrato": solo il flag di fiducia per la
+        # prossima decisione di verso aspetta 2 letture pulite, non lo stop motore.
+        if centered:
+            self._centered_streak += 1
+            if self._centered_streak >= 2:
+                self._seen_centered_since = True
+        else:
+            self._centered_streak = 0
 
         if self._reverse_state == "CORRECTING":
-            if c_black:
-                # il centro ha già raggiunto la linea: fermati subito, anche
-                # se un laterale è ancora nero (transizione), per non superare
-                # il centro rincorrendo una lettura "solo centro" più pulita
-            #if centered:
-                #il robot è DAVVERO centrato (solo il centro vede nero):
-                # fermati e riprendi ad arretrare dritto
+            stop_now = centered if self._correcting_mild else c_black
+            if stop_now:
+                # deviazione forte: il centro ha raggiunto la linea, fermati
+                # subito anche se un laterale è ancora nero (transizione).
+                # deviazione lieve: il laterale si è spento, il robot è
+                # DAVVERO centrato (solo il centro vede nero).
+                # In entrambi i casi: fermati e riprendi ad arretrare dritto
                 self._reverse_state = "STRAIGHT"
                 self.v = 0.0
                 self.w = 0.0
                 time.sleep(self.reverse_settle_time)  # smorza l'inerzia prima di ripartire
             elif drift_left == self._correcting_left and drift_right == self._correcting_right:
                 self.v = 0.0
-                self.w = -self.reverse_turn_w if self._correcting_left else self.reverse_turn_w
+                turn_w = self.reverse_turn_w_mild if self._correcting_mild else self.reverse_turn_w
+                self.w = -turn_w if self._last_correction_dir_left else turn_w
             else:
                 # pattern passato al lato opposto senza mai vedere il centro:
                 # overshoot netto, fermati comunque invece di rincorrerlo
@@ -162,12 +218,26 @@ class PIDController:
             self.v = -self.reverse_speed
             self.w = 0.0
         elif drift_left or drift_right:
+            # scelta del verso: fidati della lettura raw solo se siamo ripartiti
+            # da un centraggio confermato, altrimenti mantieni il verso precedente
+            # (vedi ambiguità testa/culo nel docstring)
+            if self._seen_centered_since or self._last_correction_dir_left is None:
+                turn_left = drift_left
+            else:
+                turn_left = self._last_correction_dir_left
+                if turn_left != drift_left:
+                    print(f"[PID-reverse] verso mantenuto da correzione precedente (lettura raw suggerirebbe {'sinistra' if drift_left else 'destra'}, probabile skew testa/culo)")
+
             self._reverse_state = "CORRECTING"
             self._correcting_left = drift_left
             self._correcting_right = drift_right
+            self._correcting_mild = mild
+            self._last_correction_dir_left = turn_left
+            self._seen_centered_since = False
+            turn_w = self.reverse_turn_w_mild if mild else self.reverse_turn_w
             self.v = 0.0
-            self.w = -self.reverse_turn_w if drift_left else self.reverse_turn_w
-            print(f"[PID-reverse] correzione avviata: l={l_black} c={c_black} r={r_black} -> w={self.w:+.3f} ({'destra' if drift_left else 'sinistra'})")
+            self.w = -turn_w if turn_left else turn_w
+            print(f"[PID-reverse] correzione avviata: l={l_black} c={c_black} r={r_black} -> w={self.w:+.3f} ({'destra' if turn_left else 'sinistra'}{', lieve' if mild else ''})")
         # else: pattern ambiguo (linea persa o entrambi i laterali neri) -> mantieni l'ultimo comando
 
     @staticmethod
