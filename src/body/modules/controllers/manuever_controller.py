@@ -157,7 +157,7 @@ class ManueverController:
         else:
             print("🚗 Ho fatto la svolta, riaccendo il pid")
             self.pid.start()
-            time.sleep(6)  # Piccola pausa per stabilizzarsi dopo la svolta
+            time.sleep(8)  # Piccola pausa per stabilizzarsi dopo la svolta
             self.pid.stop()
             print("🚗 Manovra completata")
 

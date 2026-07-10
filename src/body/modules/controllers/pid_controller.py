@@ -129,8 +129,11 @@ class PIDController:
             return
 
         centered = c_black and not l_black and not r_black
-        drift_left = l_black and not r_black    # linea a sinistra -> ruota a sinistra (w positivo)
-        drift_right = r_black and not l_black   # linea a destra -> ruota a destra (w negativo)
+        # In retromarcia i sensori sono un punto trainato (vedi docstring sopra):
+        # se il sensore SINISTRO vede la linea il robot deve ruotare a DESTRA
+        # per ricentrarsi (e viceversa) - verso opposto rispetto al forward.
+        drift_left = l_black and not r_black    # linea a sinistra -> ruota a destra (w positivo)
+        drift_right = r_black and not l_black   # linea a destra -> ruota a sinistra (w negativo)
 
         if self._reverse_state == "CORRECTING":
             if c_black:
@@ -146,7 +149,7 @@ class PIDController:
                 time.sleep(self.reverse_settle_time)  # smorza l'inerzia prima di ripartire
             elif drift_left == self._correcting_left and drift_right == self._correcting_right:
                 self.v = 0.0
-                self.w = -self.reverse_turn_w if self._correcting_left else self.reverse_turn_w
+                self.w = self.reverse_turn_w if self._correcting_left else -self.reverse_turn_w
             else:
                 # pattern passato al lato opposto senza mai vedere il centro:
                 # overshoot netto, fermati comunque invece di rincorrerlo
@@ -165,8 +168,8 @@ class PIDController:
             self._correcting_left = drift_left
             self._correcting_right = drift_right
             self.v = 0.0
-            self.w = -self.reverse_turn_w if drift_left else self.reverse_turn_w
-            print(f"[PID-reverse] correzione avviata: l={l_black} c={c_black} r={r_black} -> w={self.w:+.3f} ({'sinistra' if drift_left else 'destra'})")
+            self.w = self.reverse_turn_w if drift_left else -self.reverse_turn_w
+            print(f"[PID-reverse] correzione avviata: l={l_black} c={c_black} r={r_black} -> w={self.w:+.3f} ({'destra' if drift_left else 'sinistra'})")
         # else: pattern ambiguo (linea persa o entrambi i laterali neri) -> mantieni l'ultimo comando
 
     @staticmethod
