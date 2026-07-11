@@ -108,7 +108,11 @@ class PIDController:
                 # 2. Calcolo Errore e PID
                 error = self._calculate_error(l_rgb, c_rgb, r_rgb)
 
-                self.heading_est += self.w * dt  # integra la rotazione comandata
+                self.heading_est += self.w * dt
+                self.heading_est *= 0.995  # leaky integrator: decade sempre un po', non solo quando centrato
+                max_heading_est = math.radians(15)  # tara questo valore
+                self.heading_est = max(-max_heading_est, min(max_heading_est, self.heading_est))
+
 
                 if error == 0.0:
                     self.centered_streak_fwd += 1
