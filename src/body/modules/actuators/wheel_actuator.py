@@ -1,4 +1,5 @@
 import time
+import math
 
 from modules.connection.coppelia_connector import CoppeliaConnector
 from modules.actuators.generic_actuator import GenericActuator
@@ -22,6 +23,10 @@ class WheelsActuator(GenericActuator):
             self.m_as = self.sim.getObject('/Robot/leftMotor')
             self.m_ad = self.sim.getObject('/Robot/rightMotor')
             print(f"✅ [ACTUATOR] {self.name} inizializzato con i motori di Robot.")
+
+            self.robot_handle = self.sim.getObject('/Robot')
+            self.script_handle = self.sim.getScript(self.sim.scripttype_childscript, self.robot_handle)
+        
         except Exception as e:
             print(f"⚠️ [ACTUATOR] Errore nel trovare i giunti: {e}")
 
@@ -57,14 +62,19 @@ class WheelsActuator(GenericActuator):
 
     def _apply_velocity(self, v_l, v_r):
         try:
-            robot_handle = self.sim.getObject('/Robot')
-            script_handle = self.sim.getScript(self.sim.scripttype_childscript, robot_handle)
+            #robot_handle = self.sim.getObject('/Robot')
+            #script_handle = self.sim.getScript(self.sim.scripttype_childscript, robot_handle)
             
             # Richiamiamo la funzione Python interna a Coppelia passando gli handle dei motori e le velocità
             self.sim.callScriptFunction(
                 'set_dual_velocity', 
-                script_handle, 
+                self.script_handle, 
                 self.m_as, self.m_ad, float(v_l), float(v_r)
             )
+
+            # Nel PID controller, se hai accesso a sim e robot_handle (anche solo per debug)
+            orientation = self.sim.getObjectOrientation(self.robot_handle, -1)  # [alpha, beta, gamma] in radianti, terna -1 = mondo assoluto
+            yaw_deg = math.degrees(orientation[2])  # tipicamente l'asse rilevante per un AGV planare è gamma (z)
+            print(f"[PID-heading] yaw={yaw_deg:.2f}°")
         except Exception as e:
             print(f"❌ [ACTUATOR] Errore nell'invio simultaneo via script: {e}")

@@ -1,3 +1,4 @@
+import math
 import threading
 import time
 
@@ -16,7 +17,7 @@ class PIDController:
         # Parametri PID (sensori discreti = no Kd)
         self.kp = 0.1  # Aumentato per ridurre settling distance
         self.ki = 0.0   # Disabilitato per evitare drift
-        self.kd = 0.1  # Disabilitato: amplifica il rumore discreto
+        self.kd = 0.0  # Disabilitato: amplifica il rumore discreto
         
         # Stato interno
         self.prev_error = 0.0
@@ -48,6 +49,15 @@ class PIDController:
         self._running = False
         self._thread = None
 
+        self.turn_accum = 0.0  # rotazione accumulata nella correzione corrente (rad)
+        self.correcting = False
+        self.max_turn_per_correction = math.radians(6)  # soglia da tarare: quanto puoi ruotare prima di fermarti e ricontrollare
+
+        self.heading_est = 0.0        # stima yaw relativo, azzerato quando confermi allineamento
+        self.kh = 0.5                # guadagno del termine di richiamo heading, da tarare
+        self.centered_streak_fwd = 0  # debounce per confermare "vero" centrato prima di azzerare la stima
+
+
     def start(self, reverse=False):
         """Avvia il thread del PID."""
         if not self._running:
@@ -72,11 +82,15 @@ class PIDController:
             now = time.time()
             dt = now - last_time
             if dt <= 0: continue
+
+            t0 = time.time()
             
             # 1. Lettura diretta dalla RAM dei sensori
             l_rgb = self.sensors['left'].last_color
             c_rgb = self.sensors['center'].last_color
             r_rgb = self.sensors['right'].last_color
+
+            t1 = time.time()
             
             if reverse:
                 # Bang-bang stop-rotate-go su booleani grezzi (vedi _reverse_step):
@@ -89,23 +103,60 @@ class PIDController:
                 r_black = self._is_black(r_rgb)
                 self._reverse_step(l_black, c_black, r_black)
             else:
+
+                alpha = 0.5
                 # 2. Calcolo Errore e PID
                 error = self._calculate_error(l_rgb, c_rgb, r_rgb)
 
+                self.heading_est += self.w * dt  # integra la rotazione comandata
+
+                if error == 0.0:
+                    self.centered_streak_fwd += 1
+                else:
+                    self.centered_streak_fwd = 0
+
+
+
                 # Filtro media mobile (smooth l'errore discreto)
-                self.error_buffer.append(error)
-                if len(self.error_buffer) > 3:
-                    self.error_buffer.pop(0)
-                error = sum(self.error_buffer) / len(self.error_buffer)
+                #self.error_buffer.append(error)
+                #if len(self.error_buffer) > 2:
+                #    self.error_buffer.pop(0)
+                #error = sum(self.error_buffer) / len(self.error_buffer)
+                
+                
 
                 # Codice originale intatto
-                self.w = -(self.kp * error)
+                target_w = -(self.kp * error) - (self.kh * self.heading_est) 
+                self.w = alpha * target_w + (1 - alpha) * self.w
+
+                # nel loop, dopo aver calcolato self.w
+                if abs(error) > 0.01:  # sta correggendo
+                    self.turn_accum += self.w * dt
+                    if abs(self.turn_accum) > self.max_turn_per_correction:
+                        self.w *= 0.2  # smorza fortemente: ha già ruotato abbastanza, aspetta che il sensore si aggiorni
+                else:
+                    self.turn_accum = 0.0  # errore rientrato, resetta l'accumulo
+                                # se siamo stabilmente centrati per un po', ri-azzeriamo la stima (altrimenti
+                
+                # un piccolo bias di deriva sensori si accumulerebbe all'infinito)
+                if self.centered_streak_fwd >= 10:
+                    self.heading_est *= 0.9  # decadimento morbido invece di azzeramento secco
+
+
                 self.v = self.base_speed * max(0.2, 1 - abs(error))
+                blk = [self._is_black(l_rgb), self._is_black(c_rgb), self._is_black(r_rgb)]
+                print(f"[PID] blk={blk} err={error:+.2f} target_w={target_w:+.4f} w_filtrato={self.w:+.4f} v={self.v:.3f} dt={dt:.3f}")
                 self.prev_error = error
+
+            t2 = time.time()
 
             # 4. COMANDO AI MOTORI (Nuova chiamata)
             self.manuever_controller.set_velocity(self.v, self.w)  # Usa il metodo del ManueverController per muovere i motori
             #self.actuator.move(self.v, self.w)
+            t3 = time.time()
+
+            print(f"[PID-timing] sensori={t1-t0:.3f}s calcolo={t2-t1:.3f}s set_velocity={t3-t2:.3f}s totale_loop={t3-t0:.3f}s dt_atteso={dt:.3f}")
+
 
             last_time = now
             
