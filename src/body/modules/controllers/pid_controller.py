@@ -104,7 +104,7 @@ class PIDController:
                 self._reverse_step(l_black, c_black, r_black)
             else:
 
-                alpha = 0.5
+                alpha = 0.65
                 # 2. Calcolo Errore e PID
                 error = self._calculate_error(l_rgb, c_rgb, r_rgb)
 

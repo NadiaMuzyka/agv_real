@@ -100,8 +100,6 @@ class ManueverController:
         e il sensore destro non vede nero.
         """
         print("🔄 Inizio svolta SINISTRA...")
-        self.set_velocity(0.02, 0)
-        time.sleep(1)  # Piccola pausa per iniziare la svolta
         self.set_velocity(0.02, 0.07)  # Ruota a sinistra (w positivo)
 
         while True:
@@ -131,8 +129,6 @@ class ManueverController:
         e il sensore sinistro non vede nero.
         """
         print("🔄 Inizio svolta DESTRA...")
-        self.set_velocity(0.02, 0)
-        time.sleep(1)  # Piccola pausa per iniziare la svolta
         self.set_velocity(0.02, -0.1)  # Ruota a destra (w negativo)
         time.sleep(2)  # Piccola pausa per iniziare la svolta
 
