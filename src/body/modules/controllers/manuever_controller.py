@@ -94,34 +94,43 @@ class ManueverController:
 
 
 
-    def _execute_left_turn(self, reversed = False):
+    def _execute_left_turn(self, reversed = False, pid = None):
         """
         Esegue una svolta a sinistra finché il sensore sinistro vede nero
         e il sensore destro non vede nero.
         """
+        #se devo girare normale
+        #if not reversed:
+            #self.set_velocity(-0.03, 0.0)
+            #time.sleep(6)  # Piccola pausa per iniziare la svolta
+
+
         print("🔄 Inizio svolta SINISTRA...")
-        self.set_velocity(0.02, 0.07)  # Ruota a sinistra (w positivo)
+        self.set_velocity_for(0.0, 0.2, 7)  # Ruota a sinistra (w positivo)
 
-        while True:
-            body_memory = self.redis_client.get_sensor_data("body_memory")
+        self.set_velocity_for(0.0, 0.0, 0.5)  # Ferma il robot dopo la svolta
 
-            left_sensor = body_memory.get(self.LEFT_SENSOR_NAME)
-            right_sensor = body_memory.get(self.RIGHT_SENSOR_NAME)
+        self.set_velocity_for(0.03, 0.0, 2)  # Ferma il robot dopo la svolta
+        
+        
 
-            # Condizione: sensore sinistro vede nero AND sensore destro NON vede nero
-            left_sees_black = left_sensor == self.BLACK_TARGET
-            right_not_black = right_sensor != self.BLACK_TARGET
+        # while True:
+        #     body_memory = self.redis_client.get_sensor_data("body_memory")
 
-            if left_sees_black and right_not_black:
-                print("✓ Sensore sinistro allineato, fine svolta SINISTRA")
-                break
+        #     left_sensor = body_memory.get(self.LEFT_SENSOR_NAME)
+        #     right_sensor = body_memory.get(self.RIGHT_SENSOR_NAME)
+        #     central_sensor = body_memory.get(self.CENTER_SENSOR_NAME)
 
-            time.sleep(0.05)  # Controlla ogni 50ms
+        #     # Condizione: sensore sinistro vede nero AND sensore destro NON vede nero
+        #     left_sees_black = left_sensor == self.BLACK_TARGET
+        #     central_sees_black = central_sensor == self.BLACK_TARGET
+        #     right_sees_black = right_sensor == self.BLACK_TARGET
 
-        if not reversed:
-            self.stop()
-        else:
-            time.sleep(0.5)  # Piccola pausa per stabilizzarsi dopo la svolta
+        #     if left_sees_black and right_sees_black:
+        #         print("✓ Sensore sinistro allineato, fine svolta SINISTRA")
+        #         break
+
+        #     time.sleep(0.05)  # Controlla ogni 50ms
 
     def _execute_right_turn(self, reversed = False, pid = None):
         """
@@ -129,7 +138,7 @@ class ManueverController:
         e il sensore sinistro non vede nero.
         """
         print("🔄 Inizio svolta DESTRA...")
-        self.set_velocity(0.02, -0.1)  # Ruota a destra (w negativo)
+        self.set_velocity(0.02, -0.07)  # Ruota a destra (w negativo)
         time.sleep(2)  # Piccola pausa per iniziare la svolta
 
         while True:

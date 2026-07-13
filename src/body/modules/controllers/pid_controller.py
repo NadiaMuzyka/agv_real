@@ -5,7 +5,7 @@ import time
 from modules.controllers.manuever_controller import ManueverController
 
 class PIDController:
-    def __init__(self, sensors_dict,  base_speed=0.04):
+    def __init__(self, sensors_dict,  base_speed=0.05):
         """
         :param sensors_dict: Dizionario con le istanze dei sensori {'left': obj, 'center': obj, 'right': obj}
         """
@@ -92,77 +92,80 @@ class PIDController:
 
             t1 = time.time()
             
-            if reverse:
+            #if reverse:
                 # Bang-bang stop-rotate-go su booleani grezzi (vedi _reverse_step):
                 # non passiamo dal valore "error" perché _calculate_error, sui
                 # pattern non mappati, restituisce l'ultimo errore noto invece
                 # di riflettere la lettura attuale, e durante una rotazione
                 # questo può far proseguire la svolta ben oltre il centro.
-                l_black = self._is_black(l_rgb)
-                c_black = self._is_black(c_rgb)
-                r_black = self._is_black(r_rgb)
-                self._reverse_step(l_black, c_black, r_black)
+             #   l_black = self._is_black(l_rgb)
+              #  c_black = self._is_black(c_rgb)
+               # r_black = self._is_black(r_rgb)
+            #    self._reverse_step(l_black, c_black, r_black)
+           # else:
+
+            alpha = 0.65
+            # 2. Calcolo Errore e PID
+            error = self._calculate_error(l_rgb, c_rgb, r_rgb)
+
+            self.heading_est += self.w * dt
+            self.heading_est *= 0.98  # leaky integrator: decade sempre un po', non solo quando centrato
+            max_heading_est = math.radians(8)  # tara questo valore
+            self.heading_est = max(-max_heading_est, min(max_heading_est, self.heading_est))
+
+
+            if error == 0.0:
+                self.centered_streak_fwd += 1
             else:
-
-                alpha = 0.65
-                # 2. Calcolo Errore e PID
-                error = self._calculate_error(l_rgb, c_rgb, r_rgb)
-
-                self.heading_est += self.w * dt
-                self.heading_est *= 0.98  # leaky integrator: decade sempre un po', non solo quando centrato
-                max_heading_est = math.radians(8)  # tara questo valore
-                self.heading_est = max(-max_heading_est, min(max_heading_est, self.heading_est))
-
-
-                if error == 0.0:
-                    self.centered_streak_fwd += 1
-                else:
-                    self.centered_streak_fwd = 0
+                self.centered_streak_fwd = 0
 
 
 
-                # Filtro media mobile (smooth l'errore discreto)
-                #self.error_buffer.append(error)
-                #if len(self.error_buffer) > 2:
-                #    self.error_buffer.pop(0)
-                #error = sum(self.error_buffer) / len(self.error_buffer)
-                
-                
+            # Filtro media mobile (smooth l'errore discreto)
+            #self.error_buffer.append(error)
+            #if len(self.error_buffer) > 2:
+            #    self.error_buffer.pop(0)
+            #error = sum(self.error_buffer) / len(self.error_buffer)
+            
+            
 
-                # Codice originale intatto
-                target_w = -(self.kp * error) - (self.kh * self.heading_est) 
-                self.w = alpha * target_w + (1 - alpha) * self.w
-                
-                # nel loop, dopo aver calcolato self.w
-                #if abs(error) > 0.01:  # sta correggendo
-                   # self.turn_accum += self.w * dt
-                    #if abs(self.turn_accum) > self.max_turn_per_correction:
-                        #self.w *= 0.2  # smorza fortemente: ha già ruotato abbastanza, aspetta che il sensore si aggiorni
-                #else:
-                   # self.turn_accum = 0.0  # errore rientrato, resetta l'accumulo
-                                # se siamo stabilmente centrati per un po', ri-azzeriamo la stima (altrimenti
-                
-                # un piccolo bias di deriva sensori si accumulerebbe all'infinito)
-                if self.centered_streak_fwd >= 10:
-                    self.heading_est *= 0.9  # decadimento morbido invece di azzeramento secco
+            # Codice originale intatto
+            target_w = -(self.kp * error) - (self.kh * self.heading_est) 
+            self.w = alpha * target_w + (1 - alpha) * self.w
+            
+            # nel loop, dopo aver calcolato self.w
+            #if abs(error) > 0.01:  # sta correggendo
+                # self.turn_accum += self.w * dt
+                #if abs(self.turn_accum) > self.max_turn_per_correction:
+                    #self.w *= 0.2  # smorza fortemente: ha già ruotato abbastanza, aspetta che il sensore si aggiorni
+            #else:
+                # self.turn_accum = 0.0  # errore rientrato, resetta l'accumulo
+                            # se siamo stabilmente centrati per un po', ri-azzeriamo la stima (altrimenti
+            
+            # un piccolo bias di deriva sensori si accumulerebbe all'infinito)
+            if self.centered_streak_fwd >= 10:
+                self.heading_est *= 0.9  # decadimento morbido invece di azzeramento secco
 
 
-                #self.v = self.base_speed * max(0.2, 1 - abs(error))
+            #self.v = self.base_speed * max(0.2, 1 - abs(error))
 
-                v_target = self.base_speed * max(0.2, 1 - abs(error))
+            v_target = self.base_speed * max(0.2, 1 - abs(error))
 
-                max_delta_v = 0.01  # variazione massima di v per ciclo, da tarare
-                delta_v = v_target - self.v
-                delta_v = max(-max_delta_v, min(max_delta_v, delta_v))
-                self.v = self.v + delta_v
-                blk = [self._is_black(l_rgb), self._is_black(c_rgb), self._is_black(r_rgb)]
-                print(f"[PID] blk={blk} err={error:+.2f} target_w={target_w:+.4f} w_filtrato={self.w:+.4f} v={self.v:.3f} dt={dt:.3f}")
-                self.prev_error = error
+            max_delta_v = 0.01  # variazione massima di v per ciclo, da tarare
+            delta_v = v_target - self.v
+            delta_v = max(-max_delta_v, min(max_delta_v, delta_v))
+            self.v = self.v + delta_v
+            blk = [self._is_black(l_rgb), self._is_black(c_rgb), self._is_black(r_rgb)]
+            print(f"[PID] blk={blk} err={error:+.2f} target_w={target_w:+.4f} w_filtrato={self.w:+.4f} v={self.v:.3f} dt={dt:.3f}")
+            self.prev_error = error
 
             t2 = time.time()
 
             # 4. COMANDO AI MOTORI (Nuova chiamata)
-            self.manuever_controller.set_velocity(self.v, self.w)  # Usa il metodo del ManueverController per muovere i motori
+            if reverse:
+                self.manuever_controller.set_velocity(-self.v, -self.w)  # Usa il metodo del ManueverController per muovere i motori
+            else:
+                self.manuever_controller.set_velocity(self.v, self.w)  # Usa il metodo del ManueverController per muovere i motori
             #self.actuator.move(self.v, self.w)
             t3 = time.time()
 
