@@ -5,7 +5,7 @@ import time
 from modules.controllers.manuever_controller import ManueverController
 
 class PIDController:
-    def __init__(self, sensors_dict,  base_speed=0.05):
+    def __init__(self, sensors_dict,  base_speed=0.04):
         """
         :param sensors_dict: Dizionario con le istanze dei sensori {'left': obj, 'center': obj, 'right': obj}
         """
@@ -147,7 +147,14 @@ class PIDController:
                     self.heading_est *= 0.9  # decadimento morbido invece di azzeramento secco
 
 
-                self.v = self.base_speed * max(0.2, 1 - abs(error))
+                #self.v = self.base_speed * max(0.2, 1 - abs(error))
+
+                v_target = self.base_speed * max(0.2, 1 - abs(error))
+
+                max_delta_v = 0.01  # variazione massima di v per ciclo, da tarare
+                delta_v = v_target - self.v
+                delta_v = max(-max_delta_v, min(max_delta_v, delta_v))
+                self.v = self.v + delta_v
                 blk = [self._is_black(l_rgb), self._is_black(c_rgb), self._is_black(r_rgb)]
                 print(f"[PID] blk={blk} err={error:+.2f} target_w={target_w:+.4f} w_filtrato={self.w:+.4f} v={self.v:.3f} dt={dt:.3f}")
                 self.prev_error = error

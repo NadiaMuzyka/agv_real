@@ -146,7 +146,7 @@ class ManueverController:
             central_sees_black = central_sensor == self.BLACK_TARGET
             left_not_black = left_sensor != self.BLACK_TARGET
 
-            if central_sees_black and left_not_black and right_not_black:
+            if left_not_black and right_not_black:
                 print("✓ Sensore destro allineato, fine svolta DESTRA")
                 break
 
