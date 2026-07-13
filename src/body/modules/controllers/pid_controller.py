@@ -15,7 +15,7 @@ class PIDController:
         self.manuever_controller = ManueverController(None) 
         
         # Parametri PID (sensori discreti = no Kd)
-        self.kp = 0.1  # Aumentato per ridurre settling distance
+        self.kp = 0.15  # Aumentato per ridurre settling distance
         self.ki = 0.0   # Disabilitato per evitare drift
         self.kd = 0.0  # Disabilitato: amplifica il rumore discreto
         
@@ -110,7 +110,7 @@ class PIDController:
 
                 self.heading_est += self.w * dt
                 self.heading_est *= 0.98  # leaky integrator: decade sempre un po', non solo quando centrato
-                max_heading_est = math.radians(15)  # tara questo valore
+                max_heading_est = math.radians(8)  # tara questo valore
                 self.heading_est = max(-max_heading_est, min(max_heading_est, self.heading_est))
 
 
@@ -132,14 +132,14 @@ class PIDController:
                 # Codice originale intatto
                 target_w = -(self.kp * error) - (self.kh * self.heading_est) 
                 self.w = alpha * target_w + (1 - alpha) * self.w
-
+                
                 # nel loop, dopo aver calcolato self.w
-                if abs(error) > 0.01:  # sta correggendo
-                    self.turn_accum += self.w * dt
-                    if abs(self.turn_accum) > self.max_turn_per_correction:
-                        self.w *= 0.2  # smorza fortemente: ha già ruotato abbastanza, aspetta che il sensore si aggiorni
-                else:
-                    self.turn_accum = 0.0  # errore rientrato, resetta l'accumulo
+                #if abs(error) > 0.01:  # sta correggendo
+                   # self.turn_accum += self.w * dt
+                    #if abs(self.turn_accum) > self.max_turn_per_correction:
+                        #self.w *= 0.2  # smorza fortemente: ha già ruotato abbastanza, aspetta che il sensore si aggiorni
+                #else:
+                   # self.turn_accum = 0.0  # errore rientrato, resetta l'accumulo
                                 # se siamo stabilmente centrati per un po', ri-azzeriamo la stima (altrimenti
                 
                 # un piccolo bias di deriva sensori si accumulerebbe all'infinito)
