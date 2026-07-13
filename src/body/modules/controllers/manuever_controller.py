@@ -49,36 +49,19 @@ class ManueverController:
             )
             print(f"🚗 PathController ha deciso la manovra: {maneuver_direction}")
 
-            if not retro:
-                if maneuver_direction == "STRAIGHT":
-                    self.set_velocity_for(0.05, 0, 2)
-                    self.stop()
-                    print(f"✅ Manovra STRAIGHT completata.")
 
-                elif maneuver_direction == "LEFT":
-                    self._execute_left_turn()
-                    print(f"✅ Manovra LEFT completata.")
-
-                elif maneuver_direction == "RIGHT":
-                    self._execute_right_turn()
-                    print(f"✅ Manovra RIGHT completata.")
-
-            else:
-                if maneuver_direction == "LEFT":
-                    print(f"🚗 Sto in reverse e sto per fare la manovra. Giro a destra")
-                    self._execute_right_turn(reversed=True, pid=pid)
-                    print(f"✅ Manovra RIGHT completata.")
-
-
-                elif maneuver_direction == "RIGHT":
-                    self._execute_left_turn(reversed = True)
-                    print(f"✅ Manovra LEFT completata.")
-
-                elif maneuver_direction == "STRAIGHT":
-
-                    print(f"✅ Dovrei girare di 180 gradi, ma ancora non lo so fare")
-
+            if maneuver_direction == "STRAIGHT":
+                self.set_velocity_for(0.05, 0, 2)
                 self.stop()
+                print(f"✅ Manovra STRAIGHT completata.")
+
+            elif (maneuver_direction == "LEFT" and not retro) or (maneuver_direction == "RIGHT" and retro):
+                self._execute_left_turn(reversed=retro)
+                print(f"✅ Manovra di svolta a sinistra completata.")
+
+            elif (maneuver_direction == "RIGHT" and not retro) or (maneuver_direction == "LEFT" and retro):
+                self._execute_right_turn(reversed=retro)
+                print(f"✅ Manovra di svolta a destra completata.")
 
 
             # Segnala il completamento della manovra
@@ -99,38 +82,14 @@ class ManueverController:
         Esegue una svolta a sinistra finché il sensore sinistro vede nero
         e il sensore destro non vede nero.
         """
-        #se devo girare normale
-        #if not reversed:
-            #self.set_velocity(-0.03, 0.0)
-            #time.sleep(6)  # Piccola pausa per iniziare la svolta
-
-
         print("🔄 Inizio svolta SINISTRA...")
+        direction = 1 if not reversed else -1
+
         self.set_velocity_for(0.0, 0.2, 7)  # Ruota a sinistra (w positivo)
 
         self.set_velocity_for(0.0, 0.0, 0.5)  # Ferma il robot dopo la svolta
 
-        self.set_velocity_for(0.03, 0.0, 2)  # Ferma il robot dopo la svolta
-        
-        
-
-        # while True:
-        #     body_memory = self.redis_client.get_sensor_data("body_memory")
-
-        #     left_sensor = body_memory.get(self.LEFT_SENSOR_NAME)
-        #     right_sensor = body_memory.get(self.RIGHT_SENSOR_NAME)
-        #     central_sensor = body_memory.get(self.CENTER_SENSOR_NAME)
-
-        #     # Condizione: sensore sinistro vede nero AND sensore destro NON vede nero
-        #     left_sees_black = left_sensor == self.BLACK_TARGET
-        #     central_sees_black = central_sensor == self.BLACK_TARGET
-        #     right_sees_black = right_sensor == self.BLACK_TARGET
-
-        #     if left_sees_black and right_sees_black:
-        #         print("✓ Sensore sinistro allineato, fine svolta SINISTRA")
-        #         break
-
-        #     time.sleep(0.05)  # Controlla ogni 50ms
+        self.set_velocity_for(0.03*direction, 0.0, 2)  # Avanza leggermente per riagganciare il pid
 
     def _execute_right_turn(self, reversed = False, pid = None):
         """
@@ -138,37 +97,13 @@ class ManueverController:
         e il sensore sinistro non vede nero.
         """
         print("🔄 Inizio svolta DESTRA...")
-        self.set_velocity(0.02, -0.07)  # Ruota a destra (w negativo)
-        time.sleep(2)  # Piccola pausa per iniziare la svolta
+        direction = 1 if not reversed else -1
+        self.set_velocity_for(0.0, -0.2, 7)  # Ruota a destra (w negativo)
 
-        while True:
-            body_memory = self.redis_client.get_sensor_data("body_memory")
+        self.set_velocity_for(0.0, 0.0, 0.5)  # Ferma il robot dopo la svolta
 
-            left_sensor = body_memory.get(self.LEFT_SENSOR_NAME)
-            right_sensor = body_memory.get(self.RIGHT_SENSOR_NAME)
-            central_sensor = body_memory.get(self.CENTER_SENSOR_NAME)
+        self.set_velocity_for(0.03*direction, 0.0, 2)  # Avanza leggermente per riagganciare il pid
 
-            #print(f"🔄 Stato sensori: Sinistro: {left_sensor}, Centrale: {central_sensor}, Destro: {right_sensor}")
-
-            # Condizione: sensore destro vede nero AND sensore sinistro NON vede nero
-            right_not_black = right_sensor != self.BLACK_TARGET
-            central_sees_black = central_sensor == self.BLACK_TARGET
-            left_not_black = left_sensor != self.BLACK_TARGET
-
-            if left_not_black and right_not_black:
-                print("✓ Sensore destro allineato, fine svolta DESTRA")
-                break
-
-            time.sleep(0.05)  # Controlla ogni 50ms
-
-        if not reversed:
-            self.stop()
-        else:
-            print("🚗 Ho fatto la svolta, riaccendo il pid")
-            self.pid.start()
-            time.sleep(8)  # Piccola pausa per stabilizzarsi dopo la svolta
-            self.pid.stop()
-            print("🚗 Manovra completata")
 
     def execute_drop(self):
         """
@@ -196,27 +131,6 @@ class ManueverController:
         """
         with self._wheel_lock:
             self.wheels.move_for(v, w, duration)
-
-    def pass_crossing(self):
-        """ continuo ad andare indietro finchè non mi imbatto nell'incrocio, poi continuo per altri 2 secondi per superarlo completamente """
-
-        print("coninuo ad andare indietro", self.redis_client.get_sensor_data("body_memory").get("maneuver_state"))
-        #self.wheels.move(-0.05,0)
-        crossing = False
-
-        while not crossing:
-            brain_memory = self.redis_client.get_sensor_data("brain_memory")
-
-            crossing = brain_memory.get("am_i_in_a_node")
-
-            print("sto passando l'incrocio?", crossing)
-            time.sleep(0.05)
-
-        # superato l'incrocio, continuo per altri 2 secondi
-        print("superato l'incrocio, continuo per altri 2 secondi", self.redis_client.get_sensor_data("body_memory").get("maneuver_state"))
-        time.sleep(2)
-
-
 
 
     def stop(self):

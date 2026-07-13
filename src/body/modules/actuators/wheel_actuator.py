@@ -73,8 +73,8 @@ class WheelsActuator(GenericActuator):
             )
 
             # Nel PID controller, se hai accesso a sim e robot_handle (anche solo per debug)
-            orientation = self.sim.getObjectOrientation(self.robot_handle, -1)  # [alpha, beta, gamma] in radianti, terna -1 = mondo assoluto
-            yaw_deg = math.degrees(orientation[2])  # tipicamente l'asse rilevante per un AGV planare è gamma (z)
-            print(f"[PID-heading] yaw={yaw_deg:.2f}°")
+            #orientation = self.sim.getObjectOrientation(self.robot_handle, -1)  # [alpha, beta, gamma] in radianti, terna -1 = mondo assoluto
+            #yaw_deg = math.degrees(orientation[2])  # tipicamente l'asse rilevante per un AGV planare è gamma (z)
+            #print(f"[PID-heading] yaw={yaw_deg:.2f}°")
         except Exception as e:
             print(f"❌ [ACTUATOR] Errore nell'invio simultaneo via script: {e}")

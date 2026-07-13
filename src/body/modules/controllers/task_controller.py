@@ -227,7 +227,7 @@ class TaskController:
                 #Se non sto già eseguendo una manovra, posso iniziarne una nuova
                 if manuever_state == "NONE":
 
-                    print(f"🧠 [TaskController] Inizio retromarcia")
+                    print(f"🧠 [TaskController] Inizio svolta prima della retromarcia")
                     self.redis_client.update_sensor_data(self.BODY_MEMORY, {"maneuver_state": "IN_PROGRESS"})
                     time.sleep(0.1) #Piccola pausa 
                     self.maneuver.execute_maneuver(command_type, command, retro = True, pid=self.pid)
@@ -260,7 +260,8 @@ class TaskController:
                 if not pid_active:
                     print(f"🧠 [TaskController] PID non attivo. Attivo il PID e rimango in FOLLOWING")
                     self.redis_client.update_sensor_data(self.BODY_MEMORY, {"pid_active": True})
-                    self.pid.start(reverse=True)
+                    #self.pid.start(reverse=True)
+                    print(f"🧠 [TaskController] PID in retromarciaattivo. Sto seguendo la linea fino al nodo target")
 
 
                 if in_node and target_node == current_position:

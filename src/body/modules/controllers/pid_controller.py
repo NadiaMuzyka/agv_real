@@ -83,14 +83,14 @@ class PIDController:
             dt = now - last_time
             if dt <= 0: continue
 
-            t0 = time.time()
+            #t0 = time.time()
             
             # 1. Lettura diretta dalla RAM dei sensori
             l_rgb = self.sensors['left'].last_color
             c_rgb = self.sensors['center'].last_color
             r_rgb = self.sensors['right'].last_color
 
-            t1 = time.time()
+            #t1 = time.time()
             
             #if reverse:
                 # Bang-bang stop-rotate-go su booleani grezzi (vedi _reverse_step):
@@ -156,10 +156,10 @@ class PIDController:
             delta_v = max(-max_delta_v, min(max_delta_v, delta_v))
             self.v = self.v + delta_v
             blk = [self._is_black(l_rgb), self._is_black(c_rgb), self._is_black(r_rgb)]
-            print(f"[PID] blk={blk} err={error:+.2f} target_w={target_w:+.4f} w_filtrato={self.w:+.4f} v={self.v:.3f} dt={dt:.3f}")
+            #print(f"[PID] blk={blk} err={error:+.2f} target_w={target_w:+.4f} w_filtrato={self.w:+.4f} v={self.v:.3f} dt={dt:.3f}")
             self.prev_error = error
 
-            t2 = time.time()
+            #t2 = time.time()
 
             # 4. COMANDO AI MOTORI (Nuova chiamata)
             if reverse:
@@ -167,9 +167,9 @@ class PIDController:
             else:
                 self.manuever_controller.set_velocity(self.v, self.w)  # Usa il metodo del ManueverController per muovere i motori
             #self.actuator.move(self.v, self.w)
-            t3 = time.time()
+            #t3 = time.time()
 
-            print(f"[PID-timing] sensori={t1-t0:.3f}s calcolo={t2-t1:.3f}s set_velocity={t3-t2:.3f}s totale_loop={t3-t0:.3f}s dt_atteso={dt:.3f}")
+            #print(f"[PID-timing] sensori={t1-t0:.3f}s calcolo={t2-t1:.3f}s set_velocity={t3-t2:.3f}s totale_loop={t3-t0:.3f}s dt_atteso={dt:.3f}")
 
 
             last_time = now
