@@ -252,16 +252,14 @@ class TaskController:
 
                 #print(f"🧠 [TaskController] Sto facendo retromarcia fino al target")
 
-                #1) supera l'incrocio
-                #2) continua a seguire la linea finché non arrivo al nodo target
 
                 pid_active = self.redis_client.get_sensor_data(self.BODY_MEMORY).get("pid_active")
 
                 if not pid_active:
                     print(f"🧠 [TaskController] PID non attivo. Attivo il PID e rimango in FOLLOWING")
                     self.redis_client.update_sensor_data(self.BODY_MEMORY, {"pid_active": True})
-                    #self.pid.start(reverse=True)
-                    print(f"🧠 [TaskController] PID in retromarciaattivo. Sto seguendo la linea fino al nodo target")
+                    self.pid.start(reverse=True)
+                    print(f"🧠 [TaskController] PID in retromarcia attivo. Sto seguendo la linea fino al nodo target")
 
 
                 if in_node and target_node == current_position:
