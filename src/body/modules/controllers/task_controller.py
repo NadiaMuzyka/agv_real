@@ -106,7 +106,7 @@ class TaskController:
                 #Se ho un comando di movimento e non sono in un nodo, seguo la linea
 
                 #print(f"🧠 [TaskController] Sto in IDLE.")
-                if in_node:
+                if in_node and command_type != None:
                     print(f"🧠 [TaskController] Ho rilevato un incrocio. Sto in NODE. La mia posizione è: {current_position}")
 
                     self.current_state = NODE_STATE    
@@ -123,6 +123,8 @@ class TaskController:
                     elif(command_type in ["PICKUP", "DROP"]):
                         print(f"🧠 [TaskController] Comando PICKUP/DROP ricevuto ma non sono nel nodo finale. Sto in ERROR_STATE")
                         self.current_state = ERROR_STATE
+                else:
+                    print(f"🧠 [TaskController] Nessun comando attivo. Rimango in IDLE")
                 
                     
 
@@ -136,8 +138,8 @@ class TaskController:
                         print(f"🧠 [TaskController] Devo eseguire una manovra di svolta. Sto in MANEUVERING")
                         self.current_state = MANEUVERING_STATE
                     elif command_type in ["PICKUP", "DROP"]:
-                        print(f"🧠 [TaskController] Non sto nel nodo finale. Sto in ERROR_STATE")
-                        self.current_state = ERROR_STATE
+                        print(f"🧠 [TaskController] Non sto nel nodo finale. Devo eseguire una manovra. Vado in manuevering")
+                        self.current_state = MANEUVERING_STATE
 
                 
             elif self.current_state == FOLLOWING_STATE:
@@ -181,13 +183,11 @@ class TaskController:
 
                     next_node = self.redis_client.get_sensor_data(self.BRAIN_MEMORY).get("next_node")
                     target_node = self.redis_client.get_sensor_data(self.BRAIN_MEMORY).get("current_target")
+                    current_position = self.redis_client.get_sensor_data(self.BRAIN_MEMORY).get("current_position")
 
                     #print(f"🧠 [TaskController] Stato attuale: Next node: {next_node}, Target node: {target_node}")
             
-
-                    #print(f"🧠 [TaskController] Il prossimo non è il target? {next_node == target_node}")
-                    
-                    if next_node == target_node:
+                    if next_node == target_node and current_position != target_node:
                         print(f"🧠 [TaskController] Il prossimo nodo è il target. Faccio retromarcia.Sto in REVERSE_STATE")
                         self.current_state = REVERSE_STATE
                         continue
@@ -212,6 +212,11 @@ class TaskController:
 
                         print(f"🧠 [TaskController] Ho ricevuto il comando di interruzione della manovra. Sto in ERROR")
                         self.current_state = ERROR_STATE
+                elif manuever_state == "COMPLETED" and command_type in ["PICKUP", "DROP"]:
+                    command_type = None
+                    self.redis_client.update_sensor_data(self.BODY_MEMORY, {"maneuver_state": "NONE"})
+                    print(f"🧠 [TaskController] Manovra completata. Sto in IDLE")
+                    self.current_state = IDLE_STATE
 
                 elif manuever_state == "COMPLETED":
                     self.redis_client.update_sensor_data(self.BODY_MEMORY, {"maneuver_state": "NONE"})
@@ -273,8 +278,14 @@ class TaskController:
 
 
             elif self.current_state == TARGET_STATE:
-                print(f"🧠 [TaskController] Sono nel nodo target. Aspetto comandi di PICKUP/DROP")
 
+                if command_type in ["PICKUP", "DROP"]:
+                    print(f"🧠 [TaskController] Comando PICKUP/DROP ricevuto. Sto in MANEUVERING")
+                    self.current_state = MANEUVERING_STATE
+                else:
+                    print(f"🧠 [TaskController] Vado in IDLE_STATE")
+                    self.current_state = IDLE_STATE                
+                
 
             time.sleep(self.frequenza_loop)
 

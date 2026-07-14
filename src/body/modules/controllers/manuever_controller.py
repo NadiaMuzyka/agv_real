@@ -3,6 +3,7 @@ import time
 from modules.connection.redis_interface import RedisInterface
 from modules.actuators.wheel_actuator import WheelsActuator
 from modules.controllers.path_controller import PathController
+from modules.actuators.cart_actuator import CartActuator
 
 class ManueverController:
     # Costanti dei sensori
@@ -15,9 +16,11 @@ class ManueverController:
         self.redis_client = redis_client
         self.wheels = WheelsActuator()
         self.path_controller = PathController()
+        self.cart = CartActuator()
 
         # Lock per evitare race condition su wheel_actuator
         self._wheel_lock = threading.Lock()
+        self._cart_lock = threading.Lock()  # Lock per evitare race condition
 
     def execute_maneuver(self, command_type, command_data=None, retro = False, pid = None):
         """
@@ -69,11 +72,24 @@ class ManueverController:
 
         elif command_type == "DROP":
 
-            self.execute_drop()
+            self.set_cart_open()
             print(f"✅ Manovra DROP completata.")
 
             # Segnala il completamento della manovra
-            self.redis_client.update_sensor_data("body_memory", {"maneuver_state": "COMPLETED"})
+            #self.redis_client.update_sensor_data("body_memory", {"maneuver_state": "COMPLETED"})
+            #self.redis_client.update_sensor_data("brain_memory", {"is_load": False})
+
+            #self.stop()
+
+        elif command_type == "PICKUP":
+            self.set_cart_close()
+            print(f"✅ Manovra PICKUP completata.")
+
+            # Segnala il completamento della manovra
+            #self.redis_client.update_sensor_data("body_memory", {"maneuver_state": "COMPLETED"})
+            #self.redis_client.update_sensor_data("brain_memory", {"is_load": True})
+
+            #self.stop()
 
 
 
@@ -105,16 +121,6 @@ class ManueverController:
         self.set_velocity_for(0.03*direction, 0.0, 2)  # Avanza leggermente per riagganciare il pid
 
 
-    def execute_drop(self):
-        """
-        Esegue la manovra di DROP.
-        Per ora è un placeholder che simula il drop con una pausa.
-        """
-        print("🔄 Esecuzione manovra DROP...")
-        self.set_velocity(0, 0)  # Ferma il robot durante il drop
-        time.sleep(2)  # Simula il tempo necessario per il drop
-        self.stop()
-
     def set_velocity(self, v, w):
         """
         Comanda i wheel in modo thread-safe.
@@ -132,6 +138,22 @@ class ManueverController:
         with self._wheel_lock:
             self.wheels.move_for(v, w, duration)
 
+    def set_cart_open(self):
+        """
+        Comanda l'apertura del carrello in modo thread-safe.
+        Usato sia da PID che da TaskController/Maneuver.
+        """
+        with self._cart_lock:
+            self.cart.open()
+
+    def set_cart_close(self):
+        """
+        Comanda la chiusura del carrello in modo thread-safe.
+        Usato sia da PID che da TaskController/Maneuver.
+        """
+        with self._cart_lock:
+            self.cart.close()
+
 
     def stop(self):
         """
@@ -140,7 +162,5 @@ class ManueverController:
         """
         with self._wheel_lock:
             self.wheels.move(0, 0)
-        if self.redis_client:
-            self.redis_client.update_sensor_data("body_memory", {"maneuver_state": "NONE"})
 
 
