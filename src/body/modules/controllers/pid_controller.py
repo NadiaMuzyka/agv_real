@@ -1,6 +1,7 @@
 import math
 import threading
 import time
+from modules.connection.coppelia_connector import CoppeliaConnector
 
 from modules.controllers.manuever_controller import ManueverController
 
@@ -11,6 +12,12 @@ class PIDController:
         """
         self.sensors = sensors_dict
         self.base_speed = base_speed
+        # Connessione ZMQ dedicata e isolata (come i sensori), NON la connessione
+        # condivisa del thread principale: i socket ZMQ non sono thread-safe, e
+        # condividerla con main_body.py (che chiama step() in continuazione)
+        # causa "Operation cannot be accomplished in current state".
+        self.connector = CoppeliaConnector(name="pid_controller")
+        self.sim = self.connector.get_sim()
 
         self.manuever_controller = ManueverController(None) 
         
@@ -47,12 +54,16 @@ class PIDController:
 
     def _loop_controllo(self, reverse=False):
         """Metodo privato che gira in background nel thread."""
-        last_time = time.time()
+        #last_time = time.time()
+        last_time = self.sim.getSimulationTime()  # Usa il tempo di simulazione di CoppeliaSim
         
         while self._running:
-            now = time.time()
+            #now = time.time()
+            now = self.sim.getSimulationTime()  # Usa il tempo di simulazione di CoppeliaSim
             dt = now - last_time
-            if dt <= 0: continue
+            if dt <= 0: 
+                time.sleep(0.001)  # Piccola pausa per evitare loop troppo veloce
+                continue  # Evita divisione per zero o loop troppo veloce
 
             #t0 = time.time()
             

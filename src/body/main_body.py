@@ -49,6 +49,8 @@ class RobotController:
         
         self.sim.startSimulation()
 
+        #Usiamo il tempo di coppelia per sincronizzare i sensori e il loop principale, invece del tempo di sistema (che può essere diverso)
+        self.sim.setStepping(True)
 
         #Hanno connessioni isolate a CoppeliaSim grazie al Multiton CoppeliaConnector
         self.left_sensor = ColorSensor(self.LEFT_SENSOR_NAME)
@@ -96,7 +98,9 @@ class RobotController:
 
         # Loop principale: usa l'Event invece di sleep puro
         # wait() si sblocca immediatamente quando _stop_event viene settato
+        #dobbiamo comunque agganciarci al tempo di coppelia, quindi usiamo il loop_delay come timeout
         while not self._stop_event.is_set():
+            self.sim.step()  # Avanza la simulazione di un passo
             self._stop_event.wait(timeout=loop_delay)
 
         # Quando esce dal loop, fa il cleanup
