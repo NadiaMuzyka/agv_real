@@ -22,7 +22,7 @@ class PIDController:
         self.manuever_controller = ManueverController(None) 
         
         # Parametri PID (sensori discreti = no Kd)
-        self.kp = 0.15  # Aumentato per ridurre settling distance
+        self.kp = 0.35  # Aumentato per ridurre settling distance
         self.ki = 0.0   # Disabilitato per evitare drift
         self.kd = 0.0  # Disabilitato: amplifica il rumore discreto
         
@@ -39,7 +39,7 @@ class PIDController:
         self._thread = None
 
         self.heading_est = 0.0        # stima yaw relativo, azzerato quando confermi allineamento
-        self.kh = 0.5                # guadagno del termine di richiamo heading, da tarare
+        self.kh = 1.3             # guadagno del termine di richiamo heading, da tarare
         self.centered_streak_fwd = 0  # debounce per confermare "vero" centrato prima di azzerare la stima
 
 
@@ -74,13 +74,13 @@ class PIDController:
 
             #t1 = time.time()
 
-            alpha = 0.65
+            alpha = 0.25
 
             error = self._calculate_error(l_rgb, c_rgb, r_rgb)
 
             self.heading_est += self.w * dt
             self.heading_est *= 0.98  # leaky integrator: decade sempre un po', non solo quando centrato
-            max_heading_est = math.radians(8)  # tara questo valore
+            max_heading_est = math.radians(9)  # tara questo valore
             self.heading_est = max(-max_heading_est, min(max_heading_est, self.heading_est))
 
             if error == 0.0:
