@@ -31,7 +31,7 @@ class ColorSensor(GenericSensor):
         self.frequenza_lettura = 0.05 # 20 Hz
         self._running = False
         self._thread = None
-        self.last_color = [255, 255, 255] # Default bianco
+        self.last_color = 0.0 
 
     def start(self):
         """Avvia il thread del sensore."""
@@ -49,15 +49,32 @@ class ColorSensor(GenericSensor):
 
     def read(self):
         """Legge i dati, struttura il dizionario e aggiorna Redis."""
-        color_val = self.read_rgb255()
+        color_val = self.get_black_percentage()
         self.last_color = color_val #Aggiorno l'ultimo colore letto, accessibile da fuori (es. PIDController)
         
         sensor_data = {self.name: color_val}
-
         
         # Aggiorna il Belief State su Redis
         self.redis_client.update_sensor_data(SENSORS_KEY, sensor_data)
         return color_val 
+    
+    def get_black_percentage(self):
+
+        res, p1, p2 = self.sim.handleVisionSensor(self.handle)
+
+        img, res = self.sim.getVisionSensorImg(self.handle)
+
+        count = 0
+        total_pixels = res[0] * res[1]
+
+        for i in range(total_pixels):
+            r = img[i*3]
+            g = img[i*3 + 1]
+            b = img[i*3 + 2]
+            if r <= 30 and g <= 30 and b <= 30:
+                count += 1
+
+        return (count / total_pixels) if total_pixels > 0 else 0
 
     def read_normalized(self):
         """Legge dal sensore e restituisce i valori RGB normalizzati (0.0 - 1.0)."""

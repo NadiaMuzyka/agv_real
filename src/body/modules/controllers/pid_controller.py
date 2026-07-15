@@ -78,6 +78,8 @@ class PIDController:
 
             error = self._calculate_error(l_rgb, c_rgb, r_rgb)
 
+            print(f"[PID] errore: {error}")
+
             self.heading_est += self.w * dt
             self.heading_est *= 0.98  # leaky integrator: decade sempre un po', non solo quando centrato
             max_heading_est = math.radians(9)  # tara questo valore
@@ -103,7 +105,7 @@ class PIDController:
             delta_v = v_target - self.v
             delta_v = max(-max_delta_v, min(max_delta_v, delta_v))
             self.v = self.v + delta_v
-            blk = [self._is_black(l_rgb), self._is_black(c_rgb), self._is_black(r_rgb)]
+            #blk = [self._is_black(l_rgb), self._is_black(c_rgb), self._is_black(r_rgb)]
             #print(f"[PID] blk={blk} err={error:+.2f} target_w={target_w:+.4f} w_filtrato={self.w:+.4f} v={self.v:.3f} dt={dt:.3f}")
             self.prev_error = error
 
@@ -125,21 +127,10 @@ class PIDController:
             # Pausa per rispettare la frequenza
             time.sleep(self.frequenza_controllo)
 
-    @staticmethod
-    def _is_black(rgb):
-        return all(abs(val - 22) < 15 for val in rgb) if rgb else False
 
     def _calculate_error(self, l, c, r):
         """Mappatura discreta -> Errore continuo."""
-        blk = [self._is_black(l), self._is_black(c), self._is_black(r)]
-        
-        if blk == [False, True, False]: return 0.0   # Centro
-        if blk == [True, False, False]: return -1.0  # Sinistra
-        if blk == [False, False, True]: return 1.0   # Destra
-        if blk == [True, True, False]:  return -0.5  # Centro-Sinistra
-        if blk == [False, True, True]:  return 0.5   # Centro-Destra
-        
-        return self.prev_error # Mantiene l'ultimo errore se perde la linea
+        return (r-l)
 
     def stop(self):
         """Ferma il thread in modo pulito."""
