@@ -106,7 +106,7 @@ class TaskController:
                 #Se ho un comando di movimento e non sono in un nodo, seguo la linea
 
                 #print(f"🧠 [TaskController] Sto in IDLE.")
-                if in_node and command_type != None:
+                if in_node:
                     print(f"🧠 [TaskController] Ho rilevato un incrocio. Sto in NODE. La mia posizione è: {current_position}")
 
                     self.current_state = NODE_STATE    

@@ -130,9 +130,9 @@ class PIDController:
         # out_min/out_max: mettete i limiti fisici reali della vostra w prima di
         # usare Ki != 0, altrimenti l'anti-windup non ha niente su cui agire.
         self.pid = DiscretePID(
-            kp=0.25,
+            kp=0.45,
             ki=0.0,
-            kd=0.25,
+            kd=0.45,
             ts=self.frequenza_controllo,
             n_filter=10.0,
             out_min=None,
