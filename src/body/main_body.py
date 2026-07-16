@@ -54,7 +54,7 @@ class RobotController:
 
         #Hanno connessioni isolate a CoppeliaSim grazie al Multiton CoppeliaConnector
         self.left_sensor = ColorSensor(self.LEFT_SENSOR_NAME)
-        self.central_sensor = ColorSensor(self.CENTRAL_SENSOR_NAME)
+        #self.central_sensor = ColorSensor(self.CENTRAL_SENSOR_NAME)
         self.right_sensor = ColorSensor(self.RIGHT_SENSOR_NAME)
         self.vision_sensor = VisionSensor(self.VISION_SENSOR_NAME)
         self.sensor_manager = SensorManager()
@@ -62,7 +62,9 @@ class RobotController:
         self.lidar_sensor = LidarSensor(self.LIDAR_SENSOR_NAME)
         # self.high_lidar_sensor = LidarSensor(self.HIGH_LIDAR_SENSOR_NAME)
 
-        self.pid = PIDController({"left": self.left_sensor, "center": self.central_sensor, "right": self.right_sensor})
+        #self.pid = PIDController({"left": self.left_sensor, "center": self.central_sensor, "right": self.right_sensor})
+        self.pid = PIDController({"left": self.left_sensor, "right": self.right_sensor})
+
 
         self.task_controller = TaskController(pid=self.pid)
 
@@ -82,7 +84,7 @@ class RobotController:
 
         #Avvio i thread dei sensori (che leggono e aggiornano Redis in background)
         self.left_sensor.start()
-        self.central_sensor.start()
+        #self.central_sensor.start()
         self.right_sensor.start()
         #self.sensor_manager.start()
         self.apriltag_sensor.start()
@@ -108,17 +110,45 @@ class RobotController:
                 
 
     def cleanup(self):
-        """Pulizia ordinata di tutte le risorse."""
-        self.left_sensor.stop()
-        self.central_sensor.stop()
-        self.right_sensor.stop()
-        self.apriltag_sensor.stop()
-        self.lidar_sensor.stop()
-        #self.sensor_manager.stop()
-        self.task_controller.stop()
-        self.sim.stopSimulation()
+        """Pulizia ordinata di tutte le risorse.
 
-        print("✅ Sto in cleanup: fermo i thread dei sensori...")
+        Siamo in modalità stepping (setStepping(True)): la simulazione avanza
+        SOLO quando chiamiamo self.sim.step(). Se smettiamo di steppare non
+        appena il loop principale esce, i comandi che i controller mandano in
+        stop (es. WheelsActuator.stop() -> callScriptFunction) restano bloccati
+        in attesa di uno step che non arriva più, finché CoppeliaSim non mostra
+        il dialogo "abort execution" sullo script del server ZMQ e blocca tutto.
+        Per questo continuiamo a steppare (in un thread a parte, sulla
+        connessione 'main') finché i controller/sensori - che usano le loro
+        connessioni isolate - non hanno finito di fermarsi.
+        """
+        print("✅ Sto in cleanup: fermo i thread dei sensori e i controller...")
+
+        keep_stepping = threading.Event()
+        keep_stepping.set()
+        loop_delay = 1.0 / self.LOOP_HZ
+
+        def _stepper():
+            while keep_stepping.is_set():
+                self.sim.step()
+                time.sleep(loop_delay)
+
+        stepper_thread = threading.Thread(target=_stepper, daemon=True)
+        stepper_thread.start()
+
+        try:
+            self.task_controller.stop()
+            self.left_sensor.stop()
+            #self.central_sensor.stop()
+            self.right_sensor.stop()
+            self.apriltag_sensor.stop()
+            self.lidar_sensor.stop()
+            #self.sensor_manager.stop()
+        finally:
+            keep_stepping.clear()
+            stepper_thread.join(timeout=1.0)
+
+        self.sim.stopSimulation()
 
 
 def main():

@@ -68,6 +68,7 @@ class ManueverController:
 
             # Segnala il completamento della manovra
             self.redis_client.update_sensor_data("body_memory", {"maneuver_state": "COMPLETED"})
+            print(f"🧠 [ManeuverController] Manovra completata")
 
         elif command_type == "DROP":
 
@@ -100,7 +101,7 @@ class ManueverController:
         print("🔄 Inizio svolta SINISTRA...")
         direction = 1 if not reversed else -1
 
-        self.set_velocity_for(0.0, 0.2, 7.5)  # Ruota a sinistra (w positivo)
+        self.set_velocity_for(0.0, 0.2, 7.7)  # Ruota a sinistra (w positivo)
 
         self.set_velocity_for(0.0, 0.0, 0.5)  # Ferma il robot dopo la svolta
 
@@ -113,7 +114,7 @@ class ManueverController:
         """
         print("🔄 Inizio svolta DESTRA...")
         direction = 1 if not reversed else -1
-        self.set_velocity_for(0.0, -0.2, 7.5)  # Ruota a destra (w negativo)
+        self.set_velocity_for(0.0, -0.2, 7.7)  # Ruota a destra (w negativo)
 
         self.set_velocity_for(0.0, 0.0, 0.5)  # Ferma il robot dopo la svolta
 

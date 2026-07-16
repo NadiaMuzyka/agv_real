@@ -143,6 +143,8 @@ class PIDController:
         self.v = 0.0
         self.w = 0.0
 
+        self.reverse = False
+
         # Gestione Thread
         self._running = False
         self._thread = None
@@ -159,6 +161,7 @@ class PIDController:
     def _loop_controllo(self, reverse=False):
         """Metodo privato che gira in background nel thread."""
         last_time = self.sim.getSimulationTime()  # Usa il tempo di simulazione di CoppeliaSim
+        self.reverse = reverse
 
         while self._running:
             now = self.sim.getSimulationTime()
@@ -169,12 +172,12 @@ class PIDController:
 
             # 1. Lettura diretta dalla RAM dei sensori
             l_rgb = self.sensors['left'].last_color
-            c_rgb = self.sensors['center'].last_color
+            #c_rgb = self.sensors['center'].last_color
             r_rgb = self.sensors['right'].last_color
 
-            error = self._calculate_error(l_rgb, c_rgb, r_rgb)
+            error = self._calculate_error(l_rgb, r_rgb)
 
-            print(f"[PID] errore: {error}")
+            #print(f"[PID] errore: {error}")
 
             # 2. PID discreto (modello Matlab, forma parallela, ForwardEuler).
             # Il segno "-" mantiene la stessa convenzione della versione precedente
@@ -200,7 +203,7 @@ class PIDController:
             last_time = now
             time.sleep(self.frequenza_controllo)
 
-    def _calculate_error(self, l, c, r):
+    def _calculate_error(self, l, r):
         """Mappatura discreta -> Errore continuo."""
         return (r - l)
 
@@ -208,6 +211,8 @@ class PIDController:
         """Ferma il thread in modo pulito."""
         self._running = False
         try:
+            direction = -1 if self.reverse else 1
+            self.manuever_controller.set_velocity_for(0.05*direction, 0.0, 0.46)
             self.manuever_controller.set_velocity(0.0, 0.0)  # Con lock, safe
             print("[PID] Thread fermato e motori bloccati.")
         except Exception as e:

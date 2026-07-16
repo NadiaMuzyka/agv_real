@@ -325,15 +325,15 @@ class LogicController:
             "next_node": target_next_node,  # Usiamo la variabile locale appena calcolata!
             "current_position": self.blackboard.current_position, 
             "previous_node": target_previous_node,
-            "am_i_in_a_node": self.blackboard.am_i_in_a_node 
+            #"am_i_in_a_node": self.blackboard.am_i_in_a_node 
         }
 
-        if self.blackboard.am_i_in_a_node:
-            print(f"[LogicController] Partenza verso nodo {target_next_node} (target finale: {target_node}).")
-        else:
+        #if not self.blackboard.am_i_in_a_node:
+            #print(f"[LogicController] Partenza verso nodo {target_next_node} (target finale: {target_node}).")
+        #else:
             # Opzionale, decommentalo se vuoi loggare il transito continuo
             # print(f"[LogicController] In transito verso {target_next_node}...")
-            pass
+            #pass
         self.send_command(comando)
         return "RUNNING"
 

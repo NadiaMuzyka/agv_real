@@ -105,6 +105,8 @@ class TaskController:
                 #Se ho un comando di movimento e sono in un nodo, faccio la manovra
                 #Se ho un comando di movimento e non sono in un nodo, seguo la linea
 
+                print(f"[IDLE_STATE] Sono in un nodo? {in_node} ")
+
                 #print(f"🧠 [TaskController] Sto in IDLE.")
                 if in_node:
                     print(f"🧠 [TaskController] Ho rilevato un incrocio. Sto in NODE. La mia posizione è: {current_position}")
@@ -140,6 +142,8 @@ class TaskController:
                     elif command_type in ["PICKUP", "DROP"]:
                         print(f"🧠 [TaskController] Non sto nel nodo finale. Devo eseguire una manovra. Vado in manuevering")
                         self.current_state = MANEUVERING_STATE
+                else:
+                    print(f"🧠 [TaskController] Nessun comando attivo. Rimango in NODE")
 
                 
             elif self.current_state == FOLLOWING_STATE:
@@ -179,6 +183,8 @@ class TaskController:
 
             elif self.current_state == MANEUVERING_STATE:
 
+                manuever_state = self.redis_client.get_sensor_data(self.BODY_MEMORY).get("maneuver_state")
+
                 if command_type in self.commands:
 
                     next_node = self.redis_client.get_sensor_data(self.BRAIN_MEMORY).get("next_node")
@@ -186,13 +192,19 @@ class TaskController:
                     current_position = self.redis_client.get_sensor_data(self.BRAIN_MEMORY).get("current_position")
 
                     #print(f"🧠 [TaskController] Stato attuale: Next node: {next_node}, Target node: {target_node}")
-            
-                    if next_node == target_node and current_position != target_node:
+
+                    if manuever_state == "COMPLETED" and command_type in ["PICKUP", "DROP"]:
+                        command_type = None
+                        self.redis_client.update_sensor_data(self.BODY_MEMORY, {"maneuver_state": "NONE"})
+                        print(f"🧠 [TaskController] Manovra completata. Sto in IDLE")
+                        self.current_state = IDLE_STATE
+                
+                    elif next_node == target_node and current_position != target_node:
                         print(f"🧠 [TaskController] Il prossimo nodo è il target. Faccio retromarcia.Sto in REVERSE_STATE")
                         self.current_state = REVERSE_STATE
                         continue
 
-                manuever_state = self.redis_client.get_sensor_data(self.BODY_MEMORY).get("maneuver_state")
+                
                 
                 #Se non sto già eseguendo una manovra, posso iniziarne una nuova
                 if manuever_state == "NONE":
@@ -212,11 +224,7 @@ class TaskController:
 
                         print(f"🧠 [TaskController] Ho ricevuto il comando di interruzione della manovra. Sto in ERROR")
                         self.current_state = ERROR_STATE
-                elif manuever_state == "COMPLETED" and command_type in ["PICKUP", "DROP"]:
-                    command_type = None
-                    self.redis_client.update_sensor_data(self.BODY_MEMORY, {"maneuver_state": "NONE"})
-                    print(f"🧠 [TaskController] Manovra completata. Sto in IDLE")
-                    self.current_state = IDLE_STATE
+                
 
                 elif manuever_state == "COMPLETED":
                     self.redis_client.update_sensor_data(self.BODY_MEMORY, {"maneuver_state": "NONE"})
@@ -259,7 +267,7 @@ class TaskController:
 
 
                 pid_active = self.redis_client.get_sensor_data(self.BODY_MEMORY).get("pid_active")
-                print(f"🧠 [TaskController - go target state] PID attivo: {pid_active}")
+                #print(f"🧠 [TaskController - go target state] PID attivo: {pid_active}")
 
                 if not pid_active:
                     print(f"🧠 [TaskController] PID non attivo. Attivo il PID e rimango in FOLLOWING")
@@ -270,7 +278,8 @@ class TaskController:
 
                 if in_node and target_node == current_position:
                     
-                    print(f"🧠 [TaskController] Sono arrivato al nodo target.")
+                    print(f"🧠 [TaskController - go target state] Sono arrivato al nodo target.")
+                    print(f"🧠 [TaskController - go target state] Disattivo il PID e vado in TARGET_STATE")
                     self.redis_client.update_sensor_data(self.BODY_MEMORY, {"pid_active": False})
                     self.pid.stop()
                     self.current_state = TARGET_STATE
@@ -298,6 +307,10 @@ class TaskController:
         self._running = False
         if self._thread:
             self._thread.join()
-        self.pid.stop()
+        
+        pid_active = self.redis_client.get_sensor_data(self.BODY_MEMORY).get("pid_active")
+        if pid_active:
+            self.pid.stop()
+        
         self.maneuver.stop()
         print("🧠 [TaskController] Navigazione interrotta.")
