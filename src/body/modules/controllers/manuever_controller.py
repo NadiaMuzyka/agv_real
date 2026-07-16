@@ -105,7 +105,7 @@ class ManueverController:
 
         self.set_velocity_for(0.0, 0.0, 0.5)  # Ferma il robot dopo la svolta
 
-        self.set_velocity_for(0.03*direction, 0.0, 2)  # Avanza leggermente per riagganciare il pid
+        self.set_velocity_for(0.03*direction, 0.0, 3)  # Avanza leggermente per riagganciare il pid
 
     def _execute_right_turn(self, reversed = False, pid = None):
         """
@@ -118,7 +118,7 @@ class ManueverController:
 
         self.set_velocity_for(0.0, 0.0, 0.5)  # Ferma il robot dopo la svolta
 
-        self.set_velocity_for(0.03*direction, 0.0, 2)  # Avanza leggermente per riagganciare il pid
+        self.set_velocity_for(0.03*direction, 0.0, 3)  # Avanza leggermente per riagganciare il pid
 
 
     def set_velocity(self, v, w):
