@@ -55,7 +55,6 @@ class ManueverController:
 
             if maneuver_direction == "STRAIGHT":
                 self.set_velocity_for(0.05, 0, 2)
-                self.stop()
                 print(f"✅ Manovra STRAIGHT completata.")
 
             elif (maneuver_direction == "LEFT" and not retro) or (maneuver_direction == "RIGHT" and retro):
@@ -76,8 +75,8 @@ class ManueverController:
             print(f"✅ Manovra DROP completata.")
 
             # Segnala il completamento della manovra
-            #self.redis_client.update_sensor_data("body_memory", {"maneuver_state": "COMPLETED"})
-            #self.redis_client.update_sensor_data("brain_memory", {"is_load": False})
+            self.redis_client.update_sensor_data("body_memory", {"maneuver_state": "COMPLETED"})
+            self.redis_client.update_sensor_data("brain_memory", {"is_load": False})
 
             #self.stop()
 
@@ -86,8 +85,8 @@ class ManueverController:
             print(f"✅ Manovra PICKUP completata.")
 
             # Segnala il completamento della manovra
-            #self.redis_client.update_sensor_data("body_memory", {"maneuver_state": "COMPLETED"})
-            #self.redis_client.update_sensor_data("brain_memory", {"is_load": True})
+            self.redis_client.update_sensor_data("body_memory", {"maneuver_state": "COMPLETED"})
+            self.redis_client.update_sensor_data("brain_memory", {"is_load": True})
 
             #self.stop()
 

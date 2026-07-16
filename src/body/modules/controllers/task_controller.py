@@ -259,6 +259,7 @@ class TaskController:
 
 
                 pid_active = self.redis_client.get_sensor_data(self.BODY_MEMORY).get("pid_active")
+                print(f"🧠 [TaskController - go target state] PID attivo: {pid_active}")
 
                 if not pid_active:
                     print(f"🧠 [TaskController] PID non attivo. Attivo il PID e rimango in FOLLOWING")
