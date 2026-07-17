@@ -180,6 +180,11 @@ def main():
         controller_ref[0].run()
     except Exception as e:
         print(f"Chiusura forzata: {e}")
+        if controller_ref[0]:
+            try:
+                controller_ref[0].cleanup()
+            except Exception as cleanup_err:
+                print(f"Errore anche durante il cleanup di emergenza: {cleanup_err}")
 
 if __name__ == "__main__":
     main()
