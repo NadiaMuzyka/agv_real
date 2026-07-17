@@ -61,7 +61,7 @@ class RobotController:
         self.right_sensor = ColorSensor(self.RIGHT_SENSOR_NAME, self.clock)
         self.vision_sensor = VisionSensor(self.VISION_SENSOR_NAME)  # non tocca Coppelia, nessuna clock
         self.sensor_manager = SensorManager()
-        self.apriltag_sensor = AprilTagSensor(self.APRILTAG_SENSOR_NAME, self.clock)  # non tocca Coppelia, nessuna clock
+        self.apriltag_sensor = AprilTagSensor(self.APRILTAG_SENSOR_NAME, self.clock)  
         self.lidar_sensor = LidarSensor(self.LIDAR_SENSOR_NAME)  # ancora vecchio schema, vedi nota sopra
         # self.high_lidar_sensor = LidarSensor(self.HIGH_LIDAR_SENSOR_NAME)
 
