@@ -464,7 +464,7 @@ class LogicController:
         #controllo se ho un carico da trasportare a bordo,
         # se si,mi trovo in un nodo e il targhet sarà la destinazione
         # dove devo consegnare il carico
-        if self.blackboard.is_load and self.blackboard.am_i_in_a_node: 
+        if self.blackboard.is_load: 
             nodo_partenza = self.blackboard.current_position
             primo_elemento_missione = self.blackboard.mission_queue[0] if len(self.blackboard.mission_queue)>0 else None
 

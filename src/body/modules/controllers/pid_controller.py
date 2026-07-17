@@ -163,6 +163,8 @@ class PIDController:
             delta_v = max(-max_delta_v, min(max_delta_v, v_target - self.v))
             self.v += delta_v
 
+            print(f"[PID] step={actual} error={error:.4f} w={self.w:.4f} v={self.v:.4f}")
+
             if reverse:
                 self.manuever_controller.set_velocity(-self.v, -self.w)
             else:
