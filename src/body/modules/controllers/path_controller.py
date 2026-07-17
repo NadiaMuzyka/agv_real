@@ -64,8 +64,8 @@ class PathController:
             "I5": {"I7": "LEFT", "EC": "STRAIGHT", "I3": "RIGHT"},
         },
         "I7": {
-            "I2": {"ER": "RIGHT", "I6": "STRAIGHT"},
-            "ER": {"I2": "LEFT", "I6": "RIGHT"},
+            "I2": {"ER": "LEFT", "I6": "STRAIGHT"},
+            "ER": {"I2": "RIGHT", "I6": "LEFT"},
             "I6": {"I2": "STRAIGHT", "ER": "LEFT"},
         },
         "E1": {

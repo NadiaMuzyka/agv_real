@@ -49,6 +49,11 @@ class TaskController:
         self.maneuver = ManueverController(self.redis_client, clock)
         self.pid = pid
 
+        # Sincronizzazione sul SimClock: NON gating (la FSM non scrive
+        # attuatori direttamente, solo tramite pid/maneuver, già gated).
+        self.clock = clock
+        self.STEPS_PER_LOOP = max(1, round(self.frequenza_loop / self.maneuver.physical_dt))
+
         # Memorizza l'ultimo comando per ignorare i duplicati
         self.last_command = None
 
@@ -66,8 +71,13 @@ class TaskController:
         
         command = None
         command_type = None
+        next_step = self.clock.current_step + self.STEPS_PER_LOOP
 
         while self._running:
+            actual = self.clock.wait_until(next_step)
+            if not self._running:
+                break
+
             # 1. Legge l'obiettivo dal Brain (NON bloccante)
             message = self.pubsub.get_message()
 
@@ -297,7 +307,7 @@ class TaskController:
                     self.current_state = IDLE_STATE                
                 
 
-            time.sleep(self.frequenza_loop)
+            next_step = actual + self.STEPS_PER_LOOP
 
                 
 
