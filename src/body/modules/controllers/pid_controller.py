@@ -119,7 +119,7 @@ class PIDController:
         self._physical_dt = self.manuever_controller.physical_dt
 
         self.pid = DiscretePID(
-            kp=0.45, ki=0.0, kd=0.45,
+            kp=0.35, ki=0.0, kd=0.35,
             ts=self._physical_dt,
             n_filter=10.0,
             out_min=None, out_max=None,
@@ -180,7 +180,7 @@ class PIDController:
         self.clock.unregister("pid_controller")
         try:
             direction = -1 if self.reverse else 1
-            self.manuever_controller.set_velocity_for(0.05*direction, 0.0, 0.46)
+            self.manuever_controller.set_velocity_for(0.05*direction, 0.0, 0.3 if not self.reverse else 0.4)
             self.manuever_controller.stop()
             print("[PID] Thread fermato e motori bloccati.")
         except Exception as e:

@@ -107,7 +107,7 @@ class ManueverController:
         print("🔄 Inizio svolta SINISTRA...")
         direction = 1 if not reversed else -1
 
-        self.set_velocity_for(0.0, 0.2, 7.7)  # Ruota a sinistra (w positivo)
+        self.set_velocity_for(0.0, 0.2, 7.85)  # Ruota a sinistra (w positivo)
 
         self.set_velocity_for(0.0, 0.0, 0.5)  # Ferma il robot dopo la svolta
 
@@ -120,7 +120,7 @@ class ManueverController:
         """
         print("🔄 Inizio svolta DESTRA...")
         direction = 1 if not reversed else -1
-        self.set_velocity_for(0.0, -0.2, 7.7)  # Ruota a destra (w negativo)
+        self.set_velocity_for(0.0, -0.2, 7.85)  # Ruota a destra (w negativo)
 
         self.set_velocity_for(0.0, 0.0, 0.5)  # Ferma il robot dopo la svolta
 
