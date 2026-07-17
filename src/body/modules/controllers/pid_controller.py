@@ -135,14 +135,13 @@ class PIDController:
         if not self._running:
             self._running = True
             self.pid.reset()
-            self.clock.register("pid_controller", self.STEPS_PER_CONTROL)
-            self._thread = threading.Thread(target=self._loop_controllo, args=(reverse,), daemon=True)
+            next_step = self.clock.register("pid_controller", self.STEPS_PER_CONTROL)
+            self._thread = threading.Thread(target=self._loop_controllo, args=(reverse, next_step), daemon=True)
             self._thread.start()
             print("[PID] Thread avviato.")
 
-    def _loop_controllo(self, reverse=False):
+    def _loop_controllo(self, reverse=False, next_step=None):
         self.reverse = reverse
-        next_step = self.clock.current_step + self.STEPS_PER_CONTROL
         last_step = next_step - self.STEPS_PER_CONTROL
 
         while self._running:

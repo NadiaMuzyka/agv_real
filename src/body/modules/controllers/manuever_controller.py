@@ -137,31 +137,9 @@ class ManueverController:
             self.wheels.move(v, w)
 
     def set_velocity_for(self, v, w, duration, participant_name="maneuver"):
-        """
-        Comanda i wheel per una durata deterministica, espressa in secondi
-        come prima (nessun cambio per i chiamanti), ma internamente convertita
-        in un numero fisso di step del SimClock (duration / passo fisico) e
-        riasserita ad ogni tick.
-
-        Si registra come partecipante gating: il main loop (in main_body.py)
-        non chiama il prossimo sim.step() finché questo metodo non ha
-        confermato (ack) di aver applicato il comando per lo step corrente.
-        Questo garantisce che la transizione di velocità avvenga sempre a un
-        tick preciso e noto, mai in una finestra temporale variabile legata
-        allo scheduling reale dei thread.
-
-        ATTENZIONE: questo metodo assume che PID e manovra non siano MAI
-        attivi contemporaneamente sulla stessa istanza — garantito oggi dalla
-        FSM in task_controller.py (pid.stop() completa prima che parta
-        MANEUVERING_STATE). Se in futuro si modifica la FSM per gestire
-        l'interruzione di una manovra a metà (vedi i TODO su ERROR_STATE),
-        va rivalidata questa assunzione prima di riusare lo stesso
-        participant_name da percorsi potenzialmente concorrenti.
-        """
         duration_steps = max(1, round(duration / self.physical_dt))
-        self.clock.register(participant_name, 1)
+        next_step = self.clock.register(participant_name, 1)
         try:
-            next_step = self.clock.current_step + 1
             for _ in range(duration_steps):
                 actual = self.clock.wait_until(next_step)
                 with self._wheel_lock:

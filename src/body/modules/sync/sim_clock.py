@@ -9,21 +9,37 @@ class SimClock:
     def __init__(self):
         self._step = 0
         self._cond = threading.Condition()
-        self._participants = {}   # nome -> periodo in step
+        self._participants = {}   # nome -> (periodo, primo_step_dovuto)
         self._acked = set()
 
     def register(self, name, period_steps):
+        """
+        Registra un partecipante gating. Calcola e RITORNA atomicamente il
+        primo step per cui sarà richiesto il suo ack (step_corrente + periodo).
+        Il chiamante DEVE usare questo valore come primo target di
+        wait_until(), invece di rileggere current_step separatamente: una
+        lettura separata introdurrebbe di nuovo la finestra di race condition
+        che causava il deadlock (il main loop può considerare il partecipante
+        "dovuto" già per lo step in corso, mentre il thread si preparava ad
+        aspettare quello successivo).
+        """
         with self._cond:
-            self._participants[name] = period_steps
+            first_due_step = self._step + period_steps
+            self._participants[name] = (period_steps, first_due_step)
             self._cond.notify_all()
+            return first_due_step
 
     def unregister(self, name):
         with self._cond:
             self._participants.pop(name, None)
-            self._cond.notify_all()   # può sbloccare una barrier in attesa
+            self._cond.notify_all()
 
     def _due_now(self):
-        return {n for n, p in self._participants.items() if self._step % p == 0}
+        due = set()
+        for n, (period, first_due) in self._participants.items():
+            if self._step >= first_due and (self._step - first_due) % period == 0:
+                due.add(n)
+        return due
 
     def advance(self):
         """SOLO da chi chiama sim.step() (main loop e stepper di cleanup)."""
@@ -50,8 +66,7 @@ class SimClock:
             self._cond.notify_all()
 
     def wait_barrier(self, timeout=None):
-        """SOLO il main loop. due_now() ricalcolato ad ogni check: se un
-        partecipante fa unregister() mentre siamo in attesa, si sblocca subito."""
+        """SOLO il main loop."""
         with self._cond:
             ok = self._cond.wait_for(
                 lambda: self._due_now().issubset(self._acked), timeout=timeout

@@ -28,13 +28,12 @@ class ColorSensor(GenericSensor):
     def start(self):
         if not self._running:
             self._running = True
-            self.clock.register(self.name, self.STEPS_PER_READ)
-            self._thread = threading.Thread(target=self._loop_lettura, daemon=True)
+            next_step = self.clock.register(self.name, self.STEPS_PER_READ)
+            self._thread = threading.Thread(target=self._loop_lettura, args=(next_step,), daemon=True)
             self._thread.start()
             print(f"[{self.name}] Thread avviato.")
 
-    def _loop_lettura(self):
-        next_step = self.clock.current_step + self.STEPS_PER_READ
+    def _loop_lettura(self, next_step):
         while self._running:
             actual = self.clock.wait_until(next_step)
             if not self._running:
