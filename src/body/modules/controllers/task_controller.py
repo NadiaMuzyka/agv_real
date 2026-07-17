@@ -17,7 +17,7 @@ GO_TARGET_STATE = "GO_TARGET"
 ERROR_STATE = "ERROR"
 
 class TaskController:
-    def __init__(self, pid: PIDController):
+    def __init__(self, pid: PIDController, clock):
         """
         Classe che legge i comandi dal Brain e delega la gestione della manovra
         """
@@ -46,7 +46,7 @@ class TaskController:
         self.commands = ["MOVE_TO", "STOP", "PICKUP", "DROP", "SHUTDOWN"]
         self.pubsub = self.redis_client.subscribe_to_commands()
         
-        self.maneuver = ManueverController(self.redis_client)
+        self.maneuver = ManueverController(self.redis_client, clock)
         self.pid = pid
 
         # Memorizza l'ultimo comando per ignorare i duplicati

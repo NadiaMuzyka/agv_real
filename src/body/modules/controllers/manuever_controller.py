@@ -12,8 +12,9 @@ class ManueverController:
     RIGHT_SENSOR_NAME = "/Robot/rightColorSensor"
     BLACK_TARGET = [22, 22, 22]
 
-    def __init__(self, redis_client: RedisInterface):
+    def __init__(self, redis_client: RedisInterface, clock):
         self.redis_client = redis_client
+        self.clock = clock
         self.wheels = WheelsActuator()
         self.path_controller = PathController()
         self.cart = CartActuator()
@@ -21,6 +22,11 @@ class ManueverController:
         # Lock per evitare race condition su wheel_actuator
         self._wheel_lock = threading.Lock()
         self._cart_lock = threading.Lock()  # Lock per evitare race condition
+
+        # Passo fisico della simulazione: usato per convertire le durate in
+        # secondi (API esistente, invariata) in un numero deterministico di
+        # step del SimClock.
+        self.physical_dt = self.wheels.sim.getSimulationTimeStep()
 
     def execute_maneuver(self, command_type, command_data=None, retro = False, pid = None):
         """
@@ -124,19 +130,46 @@ class ManueverController:
     def set_velocity(self, v, w):
         """
         Comanda i wheel in modo thread-safe.
-        Usato sia da PID che da TaskController/Maneuver.
+        Scrittura 'nuda': va chiamata SOLO da dentro un loop già gated
+        sul SimClock (es. il PID, che fa il proprio ack subito dopo).
         """
-
         with self._wheel_lock:
             self.wheels.move(v, w)
 
-    def set_velocity_for(self, v, w, duration):
+    def set_velocity_for(self, v, w, duration, participant_name="maneuver"):
         """
-        Comanda i wheel in modo thread-safe.
-        Usato sia da PID che da TaskController/Maneuver.
+        Comanda i wheel per una durata deterministica, espressa in secondi
+        come prima (nessun cambio per i chiamanti), ma internamente convertita
+        in un numero fisso di step del SimClock (duration / passo fisico) e
+        riasserita ad ogni tick.
+
+        Si registra come partecipante gating: il main loop (in main_body.py)
+        non chiama il prossimo sim.step() finché questo metodo non ha
+        confermato (ack) di aver applicato il comando per lo step corrente.
+        Questo garantisce che la transizione di velocità avvenga sempre a un
+        tick preciso e noto, mai in una finestra temporale variabile legata
+        allo scheduling reale dei thread.
+
+        ATTENZIONE: questo metodo assume che PID e manovra non siano MAI
+        attivi contemporaneamente sulla stessa istanza — garantito oggi dalla
+        FSM in task_controller.py (pid.stop() completa prima che parta
+        MANEUVERING_STATE). Se in futuro si modifica la FSM per gestire
+        l'interruzione di una manovra a metà (vedi i TODO su ERROR_STATE),
+        va rivalidata questa assunzione prima di riusare lo stesso
+        participant_name da percorsi potenzialmente concorrenti.
         """
-        with self._wheel_lock:
-            self.wheels.move_for(v, w, duration)
+        duration_steps = max(1, round(duration / self.physical_dt))
+        self.clock.register(participant_name, 1)
+        try:
+            next_step = self.clock.current_step + 1
+            for _ in range(duration_steps):
+                actual = self.clock.wait_until(next_step)
+                with self._wheel_lock:
+                    self.wheels.move(v, w)
+                self.clock.ack(participant_name)
+                next_step = actual + 1
+        finally:
+            self.clock.unregister(participant_name)
 
     def set_cart_open(self):
         """
@@ -158,9 +191,8 @@ class ManueverController:
     def stop(self):
         """
         Ferma il robot immediatamente.
-        Thread-safe grazie al lock.
+        Stessa garanzia di set_velocity_for: un solo tick gated, così anche
+        l'arresto avviene in modo sincronizzato e non in una finestra
+        temporale variabile.
         """
-        with self._wheel_lock:
-            self.wheels.move(0, 0)
-
-
+        self.set_velocity_for(0.0, 0.0, self.physical_dt, participant_name="maneuver_stop")

@@ -105,6 +105,89 @@ class DiscretePID:
 
 
 class PIDController:
+    STEPS_PER_CONTROL = 1
+
+    def __init__(self, sensors_dict, clock, base_speed=0.05):
+        self.sensors = sensors_dict
+        self.clock = clock
+        self.base_speed = base_speed
+
+        self.manuever_controller = ManueverController(None, clock)
+
+        self._left_name = sensors_dict["left"].name
+        self._right_name = sensors_dict["right"].name
+        self._physical_dt = self.manuever_controller.physical_dt
+
+        self.pid = DiscretePID(
+            kp=0.45, ki=0.0, kd=0.45,
+            ts=self._physical_dt,
+            n_filter=10.0,
+            out_min=None, out_max=None,
+        )
+
+        self.v = 0.0
+        self.w = 0.0
+        self.reverse = False
+        self._running = False
+        self._thread = None
+
+    def start(self, reverse=False):
+        if not self._running:
+            self._running = True
+            self.pid.reset()
+            self.clock.register("pid_controller", self.STEPS_PER_CONTROL)
+            self._thread = threading.Thread(target=self._loop_controllo, args=(reverse,), daemon=True)
+            self._thread.start()
+            print("[PID] Thread avviato.")
+
+    def _loop_controllo(self, reverse=False):
+        self.reverse = reverse
+        next_step = self.clock.current_step + self.STEPS_PER_CONTROL
+        last_step = next_step - self.STEPS_PER_CONTROL
+
+        while self._running:
+            actual = self.clock.wait_until(next_step)
+            if not self._running:
+                break
+
+            self.clock.wait_for([self._left_name, self._right_name], actual)
+
+            dt = (actual - last_step) * self._physical_dt
+
+            l_rgb = self.sensors['left'].last_color
+            r_rgb = self.sensors['right'].last_color
+            error = self._calculate_error(l_rgb, r_rgb)
+
+            self.w = -self.pid.step(error, dt)
+            v_target = self.base_speed * max(0.2, 1 - abs(error))
+            max_delta_v = 0.01
+            delta_v = max(-max_delta_v, min(max_delta_v, v_target - self.v))
+            self.v += delta_v
+
+            if reverse:
+                self.manuever_controller.set_velocity(-self.v, -self.w)
+            else:
+                self.manuever_controller.set_velocity(self.v, self.w)
+
+            self.clock.ack("pid_controller")
+            last_step = actual
+            next_step = actual + self.STEPS_PER_CONTROL
+
+    def _calculate_error(self, l, r):
+        return (r - l)
+
+    def stop(self):
+        self._running = False
+        self.clock.unregister("pid_controller")
+        try:
+            direction = -1 if self.reverse else 1
+            self.manuever_controller.set_velocity_for(0.05*direction, 0.0, 0.46)
+            self.manuever_controller.stop()
+            print("[PID] Thread fermato e motori bloccati.")
+        except Exception as e:
+            print(f"⚠️ [PID] Errore in stop: {e}")
+        if self._thread:
+            self._thread.join(timeout=0.5)
     def __init__(self, sensors_dict, base_speed=0.05):
         """
         :param sensors_dict: Dizionario con le istanze dei sensori {'left': obj, 'center': obj, 'right': obj}

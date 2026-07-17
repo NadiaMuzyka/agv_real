@@ -4,6 +4,8 @@ import signal
 import threading
 import sys
 
+from modules.sync.sim_clock import SimClock
+
 from modules.sensors.sensor_manager import SensorManager
 from modules.connection.coppelia_connector import CoppeliaConnector
 from modules.sensors.color_sensor import ColorSensor
@@ -52,21 +54,21 @@ class RobotController:
         #Usiamo il tempo di coppelia per sincronizzare i sensori e il loop principale, invece del tempo di sistema (che può essere diverso)
         self.sim.setStepping(True)
 
+        self.clock = SimClock()
+
         #Hanno connessioni isolate a CoppeliaSim grazie al Multiton CoppeliaConnector
-        self.left_sensor = ColorSensor(self.LEFT_SENSOR_NAME)
-        #self.central_sensor = ColorSensor(self.CENTRAL_SENSOR_NAME)
-        self.right_sensor = ColorSensor(self.RIGHT_SENSOR_NAME)
-        self.vision_sensor = VisionSensor(self.VISION_SENSOR_NAME)
+        self.left_sensor = ColorSensor(self.LEFT_SENSOR_NAME, self.clock)
+        self.right_sensor = ColorSensor(self.RIGHT_SENSOR_NAME, self.clock)
+        self.vision_sensor = VisionSensor(self.VISION_SENSOR_NAME)  # non tocca Coppelia, nessuna clock
         self.sensor_manager = SensorManager()
         self.apriltag_sensor = AprilTagSensor(self.APRILTAG_SENSOR_NAME)
-        self.lidar_sensor = LidarSensor(self.LIDAR_SENSOR_NAME)
+        self.lidar_sensor = LidarSensor(self.LIDAR_SENSOR_NAME)  # ancora vecchio schema, vedi nota sopra
         # self.high_lidar_sensor = LidarSensor(self.HIGH_LIDAR_SENSOR_NAME)
 
         #self.pid = PIDController({"left": self.left_sensor, "center": self.central_sensor, "right": self.right_sensor})
-        self.pid = PIDController({"left": self.left_sensor, "right": self.right_sensor})
+        self.pid = PIDController({"left": self.left_sensor, "right": self.right_sensor}, clock=self.clock)
 
-
-        self.task_controller = TaskController(pid=self.pid)
+        self.task_controller = TaskController(pid=self.pid, clock=self.clock)
 
 
 
@@ -74,7 +76,6 @@ class RobotController:
 
         """Ciclo di vita principale."""
         print(f"Main loop avviato a {self.LOOP_HZ}Hz.")
-        loop_delay = 1.0 / self.LOOP_HZ
         
         # RIMUOVI il file di ready all'avvio, se esiste (da un avvio precedente)
         ready_file = "/tmp/body_ready"
@@ -98,12 +99,15 @@ class RobotController:
         print(f"✅ Body completamente avviato. File di ready creato: {ready_file}")
 
 
-        # Loop principale: usa l'Event invece di sleep puro
-        # wait() si sblocca immediatamente quando _stop_event viene settato
-        #dobbiamo comunque agganciarci al tempo di coppelia, quindi usiamo il loop_delay come timeout
+        # Loop principale: il ritmo logico è dato interamente dal SimClock
+        # (sim.step() -> clock.advance() -> wait_barrier()), non più da un
+        # timeout reale: il main loop non avanza finché tutti i partecipanti
+        # gating (sensori colore, PID, eventuali manovre) non hanno confermato
+        # per lo step corrente.
         while not self._stop_event.is_set():
             self.sim.step()  # Avanza la simulazione di un passo
-            self._stop_event.wait(timeout=loop_delay)
+            self.clock.advance()  # Sblocca i thread in attesa di questo tick
+            self.clock.wait_barrier(timeout=5.0)  # Attende che tutti i partecipanti gating abbiano fatto ack (timeout = watchdog di debug)
 
         # Quando esce dal loop, fa il cleanup
         self.cleanup()
@@ -121,6 +125,12 @@ class RobotController:
         Per questo continuiamo a steppare (in un thread a parte, sulla
         connessione 'main') finché i controller/sensori - che usano le loro
         connessioni isolate - non hanno finito di fermarsi.
+
+        Continuiamo anche ad avanzare il SimClock (clock.advance()) durante
+        questo stepping di cortesia: senza, qualunque set_velocity_for/stop()
+        gated (es. quello chiamato da PIDController.stop() dentro
+        task_controller.stop()) resterebbe bloccato in eterno ad aspettare
+        un tick che non arriverebbe più, e l'intero shutdown si impallerebbe.
         """
         print("✅ Sto in cleanup: fermo i thread dei sensori e i controller...")
 
@@ -131,6 +141,7 @@ class RobotController:
         def _stepper():
             while keep_stepping.is_set():
                 self.sim.step()
+                self.clock.advance()
                 time.sleep(loop_delay)
 
         stepper_thread = threading.Thread(target=_stepper, daemon=True)
