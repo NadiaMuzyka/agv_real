@@ -129,7 +129,7 @@ class AprilTagSensor(GenericSensor):
                             "am_i_in_a_node": True,
                             "current_position": node_name
                         })
-                        print(f"[AprilTag] step={self.clock.current_step} tag_id={tag_id} nodo={node_name}")
+                        #print(f"[AprilTag] step={self.clock.current_step} tag_id={tag_id} nodo={node_name}")
                         #print(f"[{self.name}] Rilevato AprilTag ID: {tag_id} (Nodo: {node_name})")
                     #else:
                         #print(f"[{self.name}] Tag ID {tag_id} non trovato nella mappa")

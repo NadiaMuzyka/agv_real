@@ -125,8 +125,12 @@ class TaskController:
 
                 elif command_type in self.commands:
                     if command_type == "MOVE_TO" and not in_node:
-                        print(f"🧠 [TaskController] Devo continuare a seguire la linea. Sto in FOLLOWING")
-                        self.current_state = FOLLOWING_STATE
+                        if next_node != target_node:
+                            print(f"🧠 [TaskController] Devo continuare a seguire la linea. Sto in FOLLOWING")
+                            self.current_state = FOLLOWING_STATE
+                        else:
+                            print(f"🧠 [TaskController] Il prossimo nodo è il target. Faccio retromarcia.Sto in REVERSE_STATE")
+                            self.current_state = REVERSE_STATE
                     if command_type == "STOP":
                         #print(f"🧠 [TaskController] Ho ricevuto il comando di stop. Sto in IDLE")
                         self.current_state = IDLE_STATE
@@ -138,8 +142,6 @@ class TaskController:
                 else:
                     print(f"🧠 [TaskController] Nessun comando attivo. Rimango in IDLE")
                 
-                    
-
             elif self.current_state == NODE_STATE:
 
                 if command_type in self.commands:
@@ -155,7 +157,6 @@ class TaskController:
                 else:
                     print(f"🧠 [TaskController] Nessun comando attivo. Rimango in NODE")
 
-                
             elif self.current_state == FOLLOWING_STATE:
                 #Se arrivo ad un nodo, passo a NODE_STATE
                 #Se ricevo un comando di STOP, mi fermo e passo a IDLE
@@ -189,8 +190,6 @@ class TaskController:
                     elif command_type == "MOVE_TO" and not in_node:
                         self.current_state = FOLLOWING_STATE
                 
-
-
             elif self.current_state == MANEUVERING_STATE:
 
                 manuever_state = self.redis_client.get_sensor_data(self.BODY_MEMORY).get("maneuver_state")
@@ -213,8 +212,6 @@ class TaskController:
                         print(f"🧠 [TaskController] Il prossimo nodo è il target. Faccio retromarcia.Sto in REVERSE_STATE")
                         self.current_state = REVERSE_STATE
                         continue
-
-                
                 
                 #Se non sto già eseguendo una manovra, posso iniziarne una nuova
                 if manuever_state == "NONE":
@@ -223,17 +220,6 @@ class TaskController:
                     self.redis_client.update_sensor_data(self.BODY_MEMORY, {"maneuver_state": "IN_PROGRESS"})
                     time.sleep(0.1) #Piccola pausa per assicurarsi che il PID abbia letto lo stato aggiornato
                     self.maneuver.execute_maneuver(command_type, command)
-                    
-                #Se la sto eseguendo, gestisco i comandi che mi arrivano durante l'esecuzione
-                elif manuever_state == "IN_PROGRESS":
-
-                    if command_type == "STOP":
-                        #Se ricevo un comando di STOP, mi fermo e vado in ERROR (perché non posso interrompere una manovra a metà)
-                        
-                        #TODO:Gestire meglio questa situazione
-
-                        print(f"🧠 [TaskController] Ho ricevuto il comando di interruzione della manovra. Sto in ERROR")
-                        self.current_state = ERROR_STATE
                 
 
                 elif manuever_state == "COMPLETED":
@@ -241,8 +227,6 @@ class TaskController:
                     print(f"🧠 [TaskController] Manovra completata. Sto in IDLE")
                     self.current_state = IDLE_STATE
 
-
-    
             elif self.current_state == REVERSE_STATE:
                 
                 manuever_state = self.redis_client.get_sensor_data(self.BODY_MEMORY).get("maneuver_state")
@@ -254,17 +238,6 @@ class TaskController:
                     self.redis_client.update_sensor_data(self.BODY_MEMORY, {"maneuver_state": "IN_PROGRESS"})
                     time.sleep(0.1) #Piccola pausa 
                     self.maneuver.execute_maneuver(command_type, command, retro = True, pid=self.pid)
-                    
-                #Se la sto eseguendo, gestisco i comandi che mi arrivano durante l'esecuzione
-                elif manuever_state == "IN_PROGRESS":
-
-                    if command_type == "STOP":
-                        #Se ricevo un comando di STOP, mi fermo e vado in ERROR (perché non posso interrompere una manovra a metà)
-                        
-                        #TODO:Gestire meglio questa situazione
-
-                        print(f"🧠 [TaskController] Ho ricevuto il comando di interruzione della manovra. Sto in ERROR")
-                        self.current_state = ERROR_STATE
 
                 elif manuever_state == "COMPLETED":
                     self.redis_client.update_sensor_data(self.BODY_MEMORY, {"maneuver_state": "NONE"})
@@ -272,8 +245,6 @@ class TaskController:
                     self.current_state = GO_TARGET_STATE
 
             elif self.current_state == GO_TARGET_STATE:
-
-                #print(f"🧠 [TaskController] Sto facendo retromarcia fino al target")
 
 
                 pid_active = self.redis_client.get_sensor_data(self.BODY_MEMORY).get("pid_active")
@@ -294,8 +265,14 @@ class TaskController:
                     self.pid.stop()
                     self.current_state = TARGET_STATE
 
-
-
+                elif command_type in self.commands:
+                    if command_type == "STOP":
+                        #Se ricevo un comando di STOP, mi fermo e rimango in IDLE
+                        print(f"🧠 [TaskController] Ho ricevuto il comando di stop")
+                        self.redis_client.update_sensor_data(self.BODY_MEMORY, {"pid_active": False})
+                        self.pid.stop()
+                        self.current_state = IDLE_STATE
+                        print(f"🧠 [TaskController] Sto in IDLE")
 
             elif self.current_state == TARGET_STATE:
 
@@ -306,10 +283,7 @@ class TaskController:
                     print(f"🧠 [TaskController] Vado in IDLE_STATE")
                     self.current_state = IDLE_STATE                
                 
-
             next_step = actual + self.STEPS_PER_LOOP
-
-                
 
 
     def stop(self):
