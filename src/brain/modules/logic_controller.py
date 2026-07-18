@@ -611,3 +611,16 @@ class LogicController:
         else:
             if self.blackboard.current_position != sensor_data.get("current_position", None):
                 self.blackboard.temp["position"] = self.blackboard.current_position
+
+    def execute_stop(self) -> bool:
+        """
+        Metodo che invia il comando di arresto immediato ai motori.
+        Restituisce True se il comando è stato inviato correttamente, False altrimenti.
+        """
+        try:
+            self.send_command({"type": "STOP"})
+            print("[LogicController] Comando STOP inviato ai motori.")
+            return True
+        except Exception as e:
+            print(f"[LogicController] Errore nell'invio del comando STOP: {e}")
+            return False
