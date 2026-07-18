@@ -236,6 +236,6 @@ while is_running:
             complete_action()
 
     # --- SIMULAZIONE PERSONE ---
-    simulate_person()
+    #simulate_person()
 
     time.sleep(0.05)  # Ritmo del loop
