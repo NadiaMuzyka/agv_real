@@ -17,6 +17,27 @@ async def go_to_dock(robot):
     #result = await robot.dock()
     #print(f'Risultato docking: {result}')
     print('Fatto, mi disconnetto.')
-    robot._loop.stop()  # Ferma il loop così che play() ritorni da solo, senza bisogno di Ctrl+C.
+    try:
+        await robot.stop()
+        await robot.disconnect()
+        await robot._backend.disconnect()
+    except Exception as e:
+        # bleak/dbus-fast a volte sollevano EOFError (o simili) durante la
+        # disconnessione BLE da BlueZ: è un bug noto lato bleak, non nostro
+        # (es. https://github.com/hbldh/bleak/issues/1698). A questo punto
+        # il lavoro utile è già fatto, quindi ignoriamo e usciamo comunque.
+        print(f'Disconnessione BLE non pulita (ignorato): {e!r}')
+    finally:
+        # go_to_dock gira come task a sé (creato da _main()): un'eccezione
+        # qui non risalirebbe mai al try/except di robot.play() qui sotto,
+        # quindi il try/except sopra e questo finally devono stare per forza
+        # dentro la coroutine stessa.
+        robot._run = False  # Fa sì che _finished() salti la sua disconnessione.
+        robot._loop.stop()  # Ferma il loop così che play() ritorni da solo, senza Ctrl+C.
 
-robot.play()
+try:
+    robot.play()
+except RuntimeError:
+    # robot._loop.stop() ferma il loop prima che _main() finisca:
+    # asyncio solleva sempre questo errore in quel caso, ma è innocuo.
+    pass
