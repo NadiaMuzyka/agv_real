@@ -127,7 +127,7 @@ class Create3Connector:
         return self.run_coro(self._robot.dock(), timeout = 65)
 
     def undock(self):
-        return self.run_coro(self._robot.undock(), timeout = 65)
+        return self.run_coro(self._robot.undock(), timeout = 35)
 
     # --- Ciclo di vita della connessione ----------------------------------
 
