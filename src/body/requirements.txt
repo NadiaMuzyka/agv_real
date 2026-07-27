@@ -1,7 +1,0 @@
-redis
-numpy
-coppeliasim-zmqremoteapi-client
-pupil_apriltags
-opencv-python-headless
-simple-pid
-irobot-edu-sdk
