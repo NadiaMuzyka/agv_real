@@ -137,35 +137,21 @@ class RedisInterface:
     def initialize_body_memory(self):
         """Initialize the Body memory with its default state.
 
-        The method loads the node-to-AprilTag mapping from
-        ``docs/node_map_id.json`` and stores the default maneuver, PID, and
-        node mapping values under the ``body_memory`` Redis key.
-
         Returns:
             None. No initialization is performed when Redis is unavailable.
-
-        Raises:
-            OSError: If the node mapping file cannot be opened.
-            json.JSONDecodeError: If the node mapping file is invalid JSON.
         """
         if not self.db:
             print(f"[{self.__class__.__name__}] ❌ Redis non disponibile per l'inizializzazione!")
             return
-        
-        # Carica il mapping nodo → tag_id dal file JSON
-        node_map_path = Path(__file__).resolve().parents[2] / "docs" / "node_map_id.json"
-        with open(node_map_path, "r", encoding="utf-8") as f:
-            node_map = json.load(f)
-            
+
         initial_state = {
-            # "current_position": "ER",
             "maneuver_state": "NONE",  # Può essere "NONE", "IN_PROGRESS", "COMPLETED"
-            "pid_active": False,
-            "node_id": json.dumps(node_map)     # ID dei nodi per AprilTags
         }
-        
+
         self.set_sensor_data("body_memory", initial_state)
         print(f"[{self.__class__.__name__}] ✅ Body memory inizializzata con stato di default.")
+
+
 
     def initialize_brain_memory(self):
         """Initialize the Brain memory with its default state.
