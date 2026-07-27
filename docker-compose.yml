@@ -53,20 +53,23 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    # network_mode host: bleak parla con bluetoothd dell'host via D-Bus,
+    # stesso motivo di docker-compose.ble-test.yml — non è opzionale per il BLE.
+    network_mode: host
+    privileged: true
     stop_signal: SIGTERM
     stop_grace_period: 30s
     volumes:
       - ./src/body:/app
-      # MONTAGGIO ZMQ: Montiamo la cartella radice delle librerie esterne.
-      #- ./external_libs:/usr/local/lib/python3.10/dist-packages/
+      - /var/run/dbus:/var/run/dbus
+    devices:
+      - "/dev/video0:/dev/video0"   # webcam per color_zone_sensor
     environment:
-      - REDIS_HOST=agv_redis
-      - COPPELIA_HOST=host.docker.internal # Indica al codice dove cercare Coppelia
+      # Con network_mode host, "agv_redis" non è risolvibile via DNS del
+      # bridge: Redis è raggiungibile su localhost perché la porta è
+      # pubblicata (vedi "6379:6379" nel servizio redis).
+      - REDIS_HOST=localhost
       - PYTHONPATH=/app
-    networks:
-      - agv_net
     command: ["python", "-u", "main_body.py"]
     healthcheck:
       test: ["CMD", "test", "-f", "/tmp/body_ready"]
