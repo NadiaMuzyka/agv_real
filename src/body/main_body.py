@@ -4,15 +4,12 @@ import signal
 import threading
 
 
-from modules.sync.sim_clock import SimClock
 from modules.sensors.sensor_manager import SensorManager
-from modules.connection.coppelia_connector import CoppeliaConnector
-from modules.sensors.color_sensor import ColorSensor
+from modules.connection.create3_connector import Create3Connector
 from modules.controllers.task_controller import TaskController
 from modules.sensors.vision_sensor import VisionSensor
-from modules.sensors.apriltag_sensor import AprilTagSensor
+from modules.sensors.color_zone_sensor import ColorZoneSensor
 from modules.sensors.lidar_sensor import LidarSensor
-from modules.sensors.position_sensor import PositionSensor
 
 class RobotController:
     """
@@ -20,9 +17,7 @@ class RobotController:
     """
     
     # --- COSTANTI DI CONFIGURAZIONE ---
-    VISION_SENSOR_NAME = "/Robot/visionSensor"
-    APRILTAG_SENSOR_NAME = "/Robot/aprilTagSensor"
-    LIDAR_SENSOR_NAME = "/Robot/lidarSensor"
+    VISION_SENSOR_NAME = "vision"
     LOOP_HZ = 20
 
     queue = ["RIGHT", "LEFT", "STOP"] #simulazione coda di navigazione (Redis/Brain)
@@ -43,28 +38,20 @@ class RobotController:
 
         self._stop_event = threading.Event()
         
-        # 1. Connessioni
-        #Mi connetto a CoppeliaSim tramite il Multiton CoppeliaConnector, che gestisce la connessione condivisa a CoppeliaSim.
-        self.sim = CoppeliaConnector().get_sim()
+        # 1. Connessione al robot reale (singleton BLE, thread+loop asyncio propri)
+        self.connector = Create3Connector()
 
-        if not self.sim:
-            print("Impossibile connettersi a Coppelia.")
-            raise ConnectionError("Coppelia err")
-        
-        self.sim.startSimulation()
+        # 2. Origine delle coordinate: azzerata qui.
+        #    DECISIONE VOSTRA: se il robot parte sempre agganciato al dock,
+        #    aggiungete self.connector.undock() PRIMA di reset_navigation().
+        #    Se lo posizionate a mano sul banco, saltate l'undock.
+        self.connector.reset_navigation()
 
-        #Usiamo il tempo di coppelia per sincronizzare i sensori e il loop principale, invece del tempo di sistema (che può essere diverso)
-        self.sim.setStepping(True)
+        self.vision_sensor = VisionSensor(self.VISION_SENSOR_NAME)  # invariato, legge solo Redis
+        self.color_zone_sensor = ColorZoneSensor(self.connector)
+        self.lidar_sensor = LidarSensor(self.connector)
 
-        self.clock = SimClock()
-
-        #Hanno connessioni isolate a CoppeliaSim grazie al Multiton CoppeliaConnector
-        self.vision_sensor = VisionSensor(self.VISION_SENSOR_NAME)  # non tocca Coppelia, nessuna clock
-        self.position = PositionSensor(self.APRILTAG_SENSOR_NAME, self.clock)
-        self.apriltag_sensor = AprilTagSensor(self.APRILTAG_SENSOR_NAME, self.clock)  
-        self.lidar_sensor = LidarSensor(self.LIDAR_SENSOR_NAME)  # ancora vecchio schema, vedi nota sopra
-
-        self.task_controller = TaskController(clock=self.clock)
+        self.task_controller = TaskController(self.connector)
 
 
 
@@ -91,27 +78,21 @@ class RobotController:
             print(f"⚠️  File di ready precedente rimosso: {ready_file}")
 
         #Avvio i thread dei sensori (che leggono e aggiornano Redis in background)
-        self.apriltag_sensor.start()
+        self.color_zone_sensor.start()
         self.lidar_sensor.start()
-        self.position.start()
 
         self.task_controller.start()
-        
+
         # TUTTI I THREAD SONO PRONTI - Creiamo un file di segnalazione per il health check
         ready_file = "/tmp/body_ready"
         open(ready_file, 'a').close()
         print(f"✅ Body completamente avviato. File di ready creato: {ready_file}")
 
 
-        # Loop principale: il ritmo logico è dato interamente dal SimClock
-        # (sim.step() -> clock.advance() -> wait_barrier()), non più da un
-        # timeout reale: il main loop non avanza finché tutti i partecipanti
-        # gating (sensori colore, PID, eventuali manovre) non hanno confermato
-        # per lo step corrente.
+        # Ogni thread è autonomo (proprio time.sleep interno): qui basta restare
+        # vivi finché non arriva lo stop, nessun clock da far girare.
         while not self._stop_event.is_set():
-            self.sim.step()  # Avanza la simulazione di un passo
-            self.clock.advance()  # Sblocca i thread in attesa di questo tick
-            self.clock.wait_barrier(timeout=5.0)  # Attende che tutti i partecipanti gating abbiano fatto ack (timeout = watchdog di debug)
+            time.sleep(1.0 / self.LOOP_HZ)
 
         # Quando esce dal loop, fa il cleanup
         self.cleanup()
@@ -134,38 +115,10 @@ class RobotController:
             None.
         """
         print("✅ Sto in cleanup: fermo i thread dei sensori e i controller...")
-
-        keep_stepping = threading.Event()
-        keep_stepping.set()
-        loop_delay = 1.0 / self.LOOP_HZ
-
-        def _stepper():
-            """Advance CoppeliaSim while the controller threads shut down.
-
-            Args:
-                None.
-
-            Returns:
-                None.
-            """
-            while keep_stepping.is_set():
-                self.sim.step()
-                self.clock.advance()
-                time.sleep(loop_delay)
-
-        stepper_thread = threading.Thread(target=_stepper, daemon=True)
-        stepper_thread.start()
-
-        try:
-            self.task_controller.stop()
-            self.apriltag_sensor.stop()
-            self.lidar_sensor.stop()
-            self.position.stop()
-        finally:
-            keep_stepping.clear()
-            stepper_thread.join(timeout=1.0)
-
-        self.sim.stopSimulation()
+        self.task_controller.stop()
+        self.color_zone_sensor.stop()
+        self.lidar_sensor.stop()
+        self.connector.disconnect()
 
 
 def main():
