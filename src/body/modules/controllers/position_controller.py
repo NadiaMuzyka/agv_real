@@ -1,20 +1,13 @@
 class PositionController:
-
+    # Coordinate (x, y) in centimetri per l'odometria del Create 3
     POSITION_TABLE = {
-        "E1": [3.75, 3.6],
-        "E2": [5.85, 3.6],
-        "E3": [3.75, 8.325],
-        "E4": [5.85, 8.325],
-        "EC": [9.175, 6.675],
-        "ER": [9.425, 4.3],
-        "I1": [3.75, 2],
-        "I2": [5.85, 2],
-        "I3": [1.65, 6.675],
-        "I4": [3.75, 6.675],
-        "I5": [5.85, 6.675],
-        "I6": [7.9, 6.675],
-        "I7": [7.9, 4.3]
+        "ER": [0, 0],
+        "I7": [0, 200],
+        "I2": [100, 200],
+        "I1": [200, 200],
+        "E2": [100, 0],
+        "E1": [200, 0]
     }
 
     def get_position(self, tag: str):
-        return self.POSITION_TABLE.get(tag)
+        return self.POSITION_TABLE.get(tag.upper())
