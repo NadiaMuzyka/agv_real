@@ -71,12 +71,11 @@ class Create3Connector:
             self._stopped_event.set()
             print("[Create3Connector] Loop del robot terminato.")
 
-    def run_coro(self, coro):
-        """Esegue una coroutine sul loop del robot da un altro thread e ne attende il risultato."""
+    def run_coro(self, coro, timeout=None):
         if self._stopped_event.is_set():
             raise ConnectionError("Create3Connector: la connessione al robot non è più attiva.")
         future = asyncio.run_coroutine_threadsafe(coro, self._loop)
-        return future.result(timeout=self.CALL_TIMEOUT)
+        return future.result(timeout=timeout if timeout is not None else self.CALL_TIMEOUT)
 
     # --- Comandi base ----------------------------------------------------
 
@@ -85,7 +84,7 @@ class Create3Connector:
         return self.run_coro(self._robot.get_battery_level())
 
     def move(self, distance):
-        """Muove il robot in linea retta: distanza in mm (negativa per andare indietro)."""
+        """Muove il robot in linea retta: distanza in cm (negativa per andare indietro)."""
         return self.run_coro(self._robot.move(distance))
 
     def turn_left(self, angle):
@@ -103,12 +102,32 @@ class Create3Connector:
     def stop(self):
         """Ferma il robot (reset velocità), senza chiudere la connessione BLE."""
         return self.run_coro(self._robot.stop())
+    
+    def navigate_to(self, x, y, heading=None):
+        """Naviga alle coordinate assolute (x, y) in cm, opzionale heading finale in gradi."""
+        margine = int((abs(x) + abs(y)) / 10) + 10
+        return self.run_coro(self._robot.navigate_to(x, y, heading), timeout=self.CALL_TIMEOUT + margine)
+
+    def get_position(self):
+        """Ritorna (x_cm, y_cm, heading_deg) rispetto all'ultimo reset_navigation()."""
+        return self.run_coro(self._robot.get_position())
+
+    def reset_navigation(self):
+        """Azzera l'origine a (0,0,90°) nel punto in cui si trova ora il robot."""
+        return self.run_coro(self._robot.reset_navigation())
+
+    def set_lights_on_rgb(self, red, green, blue):
+        return self.run_coro(self._robot.set_lights_on_rgb(red, green, blue))
+
+    def get_ir_proximity(self):
+        """7 valori grezzi di prossimità IR (solo Create3): più alto = oggetto più vicino."""
+        return self.run_coro(self._robot.get_ir_proximity())
 
     def dock(self):
-        return self.run_coro(self._robot.dock())
+        return self.run_coro(self._robot.dock(), timeout = 65)
 
     def undock(self):
-        return self.run_coro(self._robot.undock())
+        return self.run_coro(self._robot.undock(), timeout = 65)
 
     # --- Ciclo di vita della connessione ----------------------------------
 
