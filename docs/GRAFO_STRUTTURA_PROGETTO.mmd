@@ -1,0 +1,121 @@
+graph TD
+    %% DEFINIZIONE STILI
+    classDef brain fill:#fff3e0,stroke:#e65100,stroke-width:2px;
+    classDef body fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+    classDef redis fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px;
+    classDef sim fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,stroke-dasharray: 5 5;
+
+    
+        
+    subgraph BRAIN_CONTAINER [<b>Container BRAIN - Logic</b>]
+        BT[<b>BEHAVIOR TREE</b><br/>Manager]:::brain
+        LOGIC[<b>LOGIC CONTROLLER</b><br/>]:::brain
+        BLACKBOARD[<b>BLACKBOARD</b><br/>]:::brain
+    end
+    style BRAIN_CONTAINER fill:#fff3e0,stroke:#e65100,stroke-width:2px
+
+    subgraph REDIS_CONTAINER [<b>Container REDIS</b>]
+        MESSAGER_SERVER[(<b>REDIS MESSAGER SERVER</b>)]:::redis
+        BRAIN_MEMORY[(<b>BRAIN MEMORY</b>)]:::redis
+        BODY_MEMORY[(<b>BODY MEMORY</b>)]:::redis
+    end
+    style REDIS_CONTAINER fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+
+    subgraph BODY_CONTAINER [<b>Container BODY - Sensors, Controllers, Actuators</b>]
+        %%-- SENSORS
+        subgraph SENSORS [SENSORS MODULE]
+            SENSOR_MANAGER[<b>SENSOR MANAGER</b><br/>Elabora i dati grezzi dei sensori per fornirli al BRAIN e servire i controllori.Implementa <b>Perception</b>]:::body
+            COLOR_SENSOR_LEFT[<b>COLOR SENSOR LEFT</br></b>Legge dai sensori e scrive su Redis in attesa di rielaborazione]:::body
+            COLOR_SENSOR_RIGHT[<b>COLOR SENSOR RIGHT</br></b>Legge dai sensori e scrive su Redis in attesa di rielaborazione]:::body
+            COLOR_SENSOR_CENTER[<b>COLOR SENSOR CENTER</b><br/>Legge dai sensori e scrive su Redis in attesa di rielaborazione]:::body
+        end
+        style SENSORS fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+
+        %%-- CONTROLLERS
+        subgraph CONTROLLER [CONTROLLER MODULE]
+            TASK_CONTROLLER[<b>TASK CONTROLLER</b><br/> legge dall'alto i comandi provenienti dal BRAIN]:::body
+            PATH_CTR[<b>PATH CONTROLLER</b>]:::body
+            DELIVERY_CTR[<b>DELIVERY CONTROLLER</b>]:::body
+            MANEUVER_CTR[<b>MANEUVER CONTROLLER</b>]:::body
+            PID[<b>PID CONTROLLER</b>]:::body
+            style CONTROLLER fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+        end
+
+        %%-- ACTUATORS
+        subgraph ACTUATORS [ACTUATORS MODULE]
+            WHEEL_ACT[<b>WHEEL ACTUATOR</b>]:::body
+            DELIVERY_ACT[<b>DELIVERY ACTUATOR</b>]:::body
+        end
+        style ACTUATORS fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+        
+        %%-- CONNETTORI_COPPELIASIM
+        subgraph CONNECTORS [CoppeliaSim Connectors]
+            CONNECT_COLOR_LEFT[<b>Coppelia Connector Color Left</b><br/>ZMQ]:::body
+            CONNECT_COLOR_RIGHT[<b>Coppelia Connector Color Right</b><br/>ZMQ]:::body
+            CONNECT_COLOR_CENTER[<b>Coppelia Connector Color Center</b><br/>ZMQ]:::body
+            CONNECT_WHEEL_ACT[<b>Coppelia Connector Wheel Actuator</b><br/>ZMQ]:::body
+            CONNECT_DELIVERY_ACT[<b>Coppelia Connector Delivery Actuator</b><br/>ZMQ]:::body
+        end
+        style CONNECTORS fill:#e1fffe,stroke:#01579b,stroke-width:2px,stroke-dasharray: 5 5
+    end
+
+    subgraph SIMULATOR [CoppeliaSim]
+        SIM_SENSOR_COLOR_LEFT(<b>Simulated Sensor</b><br/>):::sim
+        SIM_SENSOR_COLOR_RIGHT(<b>Simulated Sensor</b><br/>):::sim
+        SIM_SENSOR_COLOR_CENTER(<b>Simulated Sensor</b><br/>):::sim
+        SIM_ACTUATOR_WHEEL(<b>Simulated Actuator Wheel</b><br/>):::sim
+        SIM_ACTUATOR_DELIVERY(<b>Simulated Actuator Delivery</b><br/>):::sim
+    end
+    style SIMULATOR fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,stroke-dasharray: 5 5
+
+    %%-- FLUSSO DATI (PLAN)
+    BT-->LOGIC
+    BLACKBOARD --> BT
+    LOGIC --> BLACKBOARD
+    
+
+    %% --- FLUSSO DATI (SENSE) ---
+    COLOR_SENSOR_LEFT -.-> BODY_MEMORY
+    COLOR_SENSOR_RIGHT -.-> BODY_MEMORY
+    COLOR_SENSOR_CENTER -.-> BODY_MEMORY
+
+    COLOR_SENSOR_LEFT -.-> PID
+    COLOR_SENSOR_RIGHT -.-> PID
+    COLOR_SENSOR_CENTER -.-> PID
+
+    BODY_MEMORY -.-> SENSOR_MANAGER
+
+    SENSOR_MANAGER -.-> |"Dati sensori elaborati"|BRAIN_MEMORY
+    SENSOR_MANAGER -->CONTROLLER
+    SIM_SENSOR_COLOR_LEFT -- "Dati Grezzi (ZMQ)" --> CONNECT_COLOR_LEFT
+    SIM_SENSOR_COLOR_RIGHT -- "Dati Grezzi (ZMQ)" --> CONNECT_COLOR_RIGHT
+    SIM_SENSOR_COLOR_CENTER -- "Dati Grezzi (ZMQ)" --> CONNECT_COLOR_CENTER
+
+    CONNECT_COLOR_LEFT -.-> COLOR_SENSOR_LEFT
+    CONNECT_COLOR_RIGHT -.-> COLOR_SENSOR_RIGHT
+    CONNECT_COLOR_CENTER -.-> COLOR_SENSOR_CENTER
+
+
+    BRAIN_MEMORY -. "GET 'sensor_data'" .-> LOGIC
+
+    %% --- FLUSSO DATI (ACT) ---
+    LOGIC -."PUBLISH 'cmd_action'".-> MESSAGER_SERVER
+    MESSAGER_SERVER -.-> |"SUBSCRIBE 'cmd_action'"| TASK_CONTROLLER
+
+        %%--- FLUSSO MANEUVER
+        TASK_CONTROLLER --> PATH_CTR
+        PATH_CTR --> MANEUVER_CTR
+        MANEUVER_CTR --> PID
+        MANEUVER_CTR --> WHEEL_ACT
+        PID --> WHEEL_ACT
+        WHEEL_ACT --> CONNECT_WHEEL_ACT
+        CONNECT_WHEEL_ACT --> SIM_ACTUATOR_WHEEL
+
+        %%--- FLUSSO DELIVERY
+        TASK_CONTROLLER --> DELIVERY_CTR
+        DELIVERY_CTR --> DELIVERY_ACT
+        DELIVERY_ACT --> CONNECT_DELIVERY_ACT
+        CONNECT_DELIVERY_ACT --> SIM_ACTUATOR_DELIVERY
+    
+ 
+

@@ -1,0 +1,6 @@
+redis
+py_trees
+numpy
+opencv-python
+pytest
+networkx

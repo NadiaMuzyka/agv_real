@@ -1,0 +1,181 @@
+import time
+import py_trees
+from py_trees.common import Status
+
+# =============================================================================
+# 4. NODI OPERATIVI (RITIRO E CONSEGNA)
+# =============================================================================
+
+
+class ENodoDiPrelievo(py_trees.behaviour.Behaviour):
+    """
+    Condizione: Verifica se l'AGV è fisicamente arrivato su un nodo di prelievo (PICKUP).
+    """
+    def __init__(self):
+        super(ENodoDiPrelievo, self).__init__(name="E' Nodo di Prelievo?")
+        self.blackboard = py_trees.blackboard.Client(name=self.name)
+        self.blackboard.register_key(key="mission_queue", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="current_position", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="am_i_in_a_node", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="is_load", access=py_trees.common.Access.READ)
+
+    def setup(self):
+        print("Setup ENodoDiPrelievo")
+        return True
+
+    def initialise(self):
+        pass
+
+    def update(self):
+        try:
+            target = self.blackboard.mission_queue[0].get('pick_up_position') if self.blackboard.mission_queue else None
+            pos_attuale = self.blackboard.current_position
+            am_i_in_a_node = self.blackboard.am_i_in_a_node
+            is_load = self.blackboard.is_load
+        except KeyError:
+            return py_trees.common.Status.FAILURE
+
+        if target is None:
+            return py_trees.common.Status.FAILURE
+
+        #print(f"[ENodoDiPrelievo] Valuto il target: {target['id']} (Azione: {target.get('tipo_azione')})")
+        
+        if is_load:
+            return py_trees.common.Status.FAILURE
+        
+        #NOTA: se qui lavoriamo con current_target,invece di mission_queue[pick_up_position]
+        #poi dobbiamo aggiornare current_target 
+        if pos_attuale == target and am_i_in_a_node:
+            #print(f"[ENodoDiPrelievo] ✅ CONFERMATO: Siamo fisicamente sul nodo di prelievo {target.get('id')}.")
+            return py_trees.common.Status.SUCCESS
+        
+        return py_trees.common.Status.FAILURE
+
+
+class EseguiPrelievo(py_trees.behaviour.Behaviour):
+    """
+    Azione: Invia il comando di PICKUP al Body e attende il feedback dai sensori.
+    """
+    def __init__(self):
+        super(EseguiPrelievo, self).__init__(name="Esegui Prelievo")
+        self.blackboard = py_trees.blackboard.Client(name=self.name)
+        
+        # Registriamo le chiavi in lettura
+        self.blackboard.register_key(key="current_target", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="logic_controller", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="is_load", access=py_trees.common.Access.READ)
+
+    def setup(self):
+        print(f"Setup {self.name}")
+        return True
+
+    def initialise(self):
+        """ Eseguito UNA SOLA VOLTA quando il nodo parte. Invio del comando. """
+        try:
+            lc = self.blackboard.logic_controller
+            print(f"[{self.name}] 📦 Invio comando di PICKUP ai motori...")
+            
+            lc.esegui_prelievo()  # Metodo che imposta il comando di PICKUP sul DB, da cui il Mock Body leggerà
+            
+        except KeyError:
+            print(f"[{self.name}] ERRORE: Logic Controller non trovato sulla Blackboard!")
+            pass # Non possiamo restituire FAILURE qui, lo farà l'update al prossimo tick
+
+    def update(self):
+        """ Eseguito CONTINUAMENTE finché restituisce RUNNING. Lettura sensori. """
+        try:
+            is_load = self.blackboard.is_load # In questo caso, il feedback che ci interessa è se il carico è stato sollevato, non tanto lo stato delle forche
+        except KeyError:
+            return py_trees.common.Status.FAILURE
+        
+        # 1. Se le forche non sono ancora alzate, stiamo in silenzio e aspettiamo
+        if not is_load:
+            return py_trees.common.Status.RUNNING
+        print(f"[{self.name}] ✅ Feedback ricevuto: Forche alzate con successo, carico a bordo!")
+        return py_trees.common.Status.SUCCESS
+           
+
+
+class ENodoDiConsegna(py_trees.behaviour.Behaviour):
+    """
+    Condizione: Verifica se il nodo attuale è un punto di consegna (Delivery).
+    """
+    def __init__(self):
+        super(ENodoDiConsegna, self).__init__(name="È Nodo di Consegna")
+        self.blackboard = py_trees.blackboard.Client(name=self.name)
+        self.blackboard.register_key(key="mission_queue", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="current_position", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="am_i_in_a_node", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="is_load", access=py_trees.common.Access.READ)
+    
+    def setup(self):
+        print("Setup ENodoDiConsegna")
+        return True
+
+    def initialise(self):
+        pass
+
+    def update(self):
+        try:
+            target = self.blackboard.mission_queue[0].get('destination') if self.blackboard.mission_queue else None
+            pos_attuale = self.blackboard.current_position
+            am_i_in_a_node = self.blackboard.am_i_in_a_node
+            is_load = self.blackboard.is_load
+        except KeyError:
+            return py_trees.common.Status.FAILURE
+
+        if target is None:
+            return py_trees.common.Status.FAILURE
+
+        #print(f"[ENodoDiConsegna] Valuto il target: {target['id']} (Azione: {target.get('tipo_azione')})")
+        
+        if not is_load:
+            return py_trees.common.Status.FAILURE
+        
+        if pos_attuale == target and am_i_in_a_node:
+            #print(f"[ENodoDiConsegna] ✅ CONFERMATO: Siamo fisicamente sul nodo di consegna {target.get('id')}.")
+            return py_trees.common.Status.SUCCESS
+        
+        return py_trees.common.Status.FAILURE
+
+
+class EseguiConsegna(py_trees.behaviour.Behaviour):
+    """
+    Azione: Invia il comando di DROP al Body e attende il feedback dai sensori.
+    """
+    def __init__(self):
+        super(EseguiConsegna, self).__init__(name="Esegui Consegna")
+        self.blackboard = py_trees.blackboard.Client(name=self.name)
+        
+        self.blackboard.register_key(key="logic_controller", access=py_trees.common.Access.READ)
+        self.blackboard.register_key(key="is_load", access=py_trees.common.Access.READ)
+
+    def setup(self):
+        print(f"Setup {self.name}")
+        return True
+
+    def initialise(self):
+        """ Eseguito UNA SOLA VOLTA quando il nodo parte. Invio del comando. """
+        try:
+            lc = self.blackboard.logic_controller
+            print(f"[{self.name}] 📦 Invio comando di DROP ai motori...")
+            
+            lc.esegui_consegna()  # Metodo che imposta il comando di DROP sul DB, da cui il Mock Body leggerà
+            
+        except KeyError:
+            print(f"[{self.name}] ERRORE: Logic Controller non trovato sulla Blackboard!")
+
+    def update(self):
+        """ Eseguito CONTINUAMENTE finché restituisce RUNNING. Lettura sensori. """
+        try:
+            is_load = self.blackboard.is_load
+            lc = self.blackboard.logic_controller
+        except KeyError:
+            return py_trees.common.Status.FAILURE
+         
+        #Finchè abbiamo il carico a bordo, l'azione di DROP è ancora in corso, aspettiamo che venga rilasciato
+        if is_load:
+            return py_trees.common.Status.RUNNING
+        print(f"[{self.name}] ✅ Feedback ricevuto: Forche abbassate con successo, carico rilasciato!")
+        return py_trees.common.Status.SUCCESS        
+            
