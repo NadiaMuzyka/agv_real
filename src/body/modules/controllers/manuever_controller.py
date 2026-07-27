@@ -23,12 +23,12 @@ class ManueverControllerCreate3:
         print(f"🧭 [move_to] Tratta: {current_position} -> {next_node} (da {previous_node})")
 
         # 1. Rotazione topologica all'incrocio (Fase 1)
-        turn = self.path_controller.get_next_step2(current_position, next_node, previous_node)[cite: 1, 2]
-        angle = self.TURN_ANGLES.get(turn, 0.0)[cite: 1]
+        turn = self.path_controller.get_next_step2(current_position, next_node, previous_node)
+        angle = self.TURN_ANGLES.get(turn, 0.0)
         
         if angle != 0.0:
             print(f"🔄 Rotazione odometrica: {turn} ({angle}°)")
-            await self.execute_turn(angle)[cite: 1]
+            await self.execute_turn(angle)
 
         # 2. Calcolo odometrico della distanza lineare
         pos_curr = self.position_controller.get_position(current_position)
