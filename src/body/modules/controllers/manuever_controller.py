@@ -1,50 +1,63 @@
-import math
-from modules.controllers.path_controller import PathController
+import threading
 from modules.controllers.position_controller import PositionController
 
-class ManueverControllerCreate3:
-    def __init__(self, robot, redis_client):
-        self.robot = robot  # Istanza del robot Create3
+
+class ManueverController:
+    def __init__(self, connector, redis_client):
+        self.connector = connector  # Create3Connector: BLE/asyncio già gestiti dentro
         self.redis_client = redis_client
-        self.path_controller = PathController()
         self.position_controller = PositionController()
+        self._stop_requested = threading.Event()
 
-        self.TURN_ANGLES = {"LEFT": 90.0, "RIGHT": -90.0, "STRAIGHT": 0.0}
+    def execute_maneuver(self, command_type, command_data=None):
+        """Avvia la manovra in un thread daemon, come nella versione originale."""
+        maneuver_thread = threading.Thread(
+            target=self._execute_maneuver_thread,
+            args=(command_type, command_data),
+            daemon=True
+        )
+        maneuver_thread.start()
 
-    async def execute_turn(self, delta_degrees):
-        """Usa il giroscopio e gli encoder interni per ruotare di un angolo esatto."""
-        if delta_degrees > 0:
-            await self.robot.turn_left(abs(delta_degrees))
-        elif delta_degrees < 0:
-            await self.robot.turn_right(abs(delta_degrees))
+    def request_stop(self):
+        """
+        Stop non più cooperativo per fasi: navigate_to() è un comando atomico,
+        non possiamo più distinguere "sto girando" da "sto avanzando" come nel
+        vecchio PID a due fasi. Fermo subito, fisicamente, e basta.
+        """
+        self._stop_requested.set()
+        try:
+            self.connector.stop()
+        except Exception as e:
+            print(f"⚠️ [request_stop] Errore nell'arresto: {e}")
 
-    async def move_to(self, current_position, next_node, previous_node):
-        """Esegue il movimento tra due nodi leggendo la distanza dalla tabella odometrica."""
-        print(f"🧭 [move_to] Tratta: {current_position} -> {next_node} (da {previous_node})")
+    def _execute_maneuver_thread(self, command_type, command_data):
+        self._stop_requested.clear()
+        print(f"🚀 Esecuzione manovra: {command_type} con dati: {command_data}")
 
-        # 1. Rotazione topologica all'incrocio (Fase 1)
-        turn = self.path_controller.get_next_step2(current_position, next_node, previous_node)
-        angle = self.TURN_ANGLES.get(turn, 0.0)
-        
-        if angle != 0.0:
-            print(f"🔄 Rotazione odometrica: {turn} ({angle}°)")
-            await self.execute_turn(angle)
+        if command_type == "MOVE_TO":
+            next_node = (command_data or {}).get("next_node")
+            target = self.position_controller.get_position(next_node) if next_node else None
+            if target:
+                x, y = target
+                print(f"🧭 [move_to] navigate_to({x}, {y})")
+                try:
+                    self.connector.navigate_to(x, y)
+                except Exception as e:
+                    print(f"⚠️ [move_to] navigate_to interrotta/fallita: {e}")
+            else:
+                print(f"⚠️ [move_to] Nodo sconosciuto o mancante: {next_node}")
 
-        # 2. Calcolo odometrico della distanza lineare
-        pos_curr = self.position_controller.get_position(current_position)
-        pos_next = self.position_controller.get_position(next_node)
+        elif command_type == "PICKUP":
+            self.connector.set_lights_on_rgb(0, 255, 0)  # verde = carico agganciato
+            self.redis_client.update_sensor_data("brain_memory", {"is_load": True})
 
-        if pos_curr and pos_next:
-            dx = pos_next[0] - pos_curr[0]
-            dy = pos_next[1] - pos_curr[1]
-            distanza_cm = math.hypot(dx, dy)  # Teorema di Pitagora
-            
-            print(f"⬆️ Avanzamento odometrico: {distanza_cm:.1f} cm")
-            # Il robot avanza controllando gli encoder ruota fino al cm esatto
-            await self.robot.move(distanza_cm)
-        else:
-            print(f"⚠️ Coordinate non trovate nella tabella per: {current_position} -> {next_node}")
+        elif command_type == "DROP":
+            self.connector.set_lights_on_rgb(255, 64, 0)  # arancione = carico rilasciato
+            self.redis_client.update_sensor_data("brain_memory", {"is_load": False})
 
-    async def stop(self):
-        """Arresto immediato tramite comando nativo."""
-        await self.robot.stop()
+        self.redis_client.update_sensor_data("body_memory", {"maneuver_state": "COMPLETED"})
+        print(f"🧠 [ManeuverController] Manovra completata")
+
+    def stop(self):
+        """Usato anche da TaskController.stop() in fase di shutdown."""
+        self.connector.stop()
