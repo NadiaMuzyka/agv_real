@@ -16,7 +16,7 @@ GO_TARGET_STATE = "GO_TARGET"
 ERROR_STATE = "ERROR"
 
 class TaskController:
-    def __init__(self, clock):
+    def __init__(self, connector):
         """
         Classe che legge i comandi dal Brain e delega la gestione della manovra
         """
@@ -45,12 +45,7 @@ class TaskController:
         self.commands = ["MOVE_TO", "STOP", "PICKUP", "DROP", "SHUTDOWN"]
         self.pubsub = self.redis_client.subscribe_to_commands()
         
-        self.maneuver = ManueverController(self.redis_client, clock)
-
-        # Sincronizzazione sul SimClock: NON gating (la FSM non scrive
-        # attuatori direttamente, solo tramite maneuver, già gated).
-        self.clock = clock
-        self.STEPS_PER_LOOP = max(1, round(self.frequenza_loop / self.maneuver.physical_dt))
+        self.maneuver = ManueverController(connector, self.redis_client)
 
         # Memorizza l'ultimo comando per ignorare i duplicati
         self.last_command = None
@@ -70,10 +65,8 @@ class TaskController:
         command = None
         command_type = None
         dispatched_command = None  # copia del comando davvero passato a execute_maneuver
-        next_step = self.clock.current_step + self.STEPS_PER_LOOP
 
         while self._running:
-            actual = self.clock.wait_until(next_step)
             if not self._running:
                 break
 
@@ -215,7 +208,7 @@ class TaskController:
                     print(f"🧠 [TaskController] Vado in IDLE_STATE")
                     self.current_state = IDLE_STATE                
                 
-            next_step = actual + self.STEPS_PER_LOOP
+            time.sleep(self.frequenza_loop)
 
 
     def stop(self):
