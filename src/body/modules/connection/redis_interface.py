@@ -2,7 +2,6 @@ import os
 import redis
 import json
 import threading
-from pathlib import Path
 
 class RedisInterface:
     """Provide shared access to Redis state and pub/sub channels.
