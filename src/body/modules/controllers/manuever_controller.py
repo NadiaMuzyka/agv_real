@@ -55,6 +55,13 @@ class ManueverController:
             self.connector.set_lights_on_rgb(255, 64, 0)  # arancione = carico rilasciato
             self.redis_client.update_sensor_data("brain_memory", {"is_load": False})
 
+        elif command_type == "SHUTDOWN":
+            print("🅿️ [SHUTDOWN] Rientro al dock...")
+            try:
+                self.connector.dock()
+            except Exception as e:
+                print(f"⚠️ [SHUTDOWN] Docking interrotto/fallito: {e}")
+
         self.redis_client.update_sensor_data("body_memory", {"maneuver_state": "COMPLETED"})
         print(f"🧠 [ManeuverController] Manovra completata")
 

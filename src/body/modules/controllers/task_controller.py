@@ -16,7 +16,7 @@ GO_TARGET_STATE = "GO_TARGET"
 ERROR_STATE = "ERROR"
 
 class TaskController:
-    def __init__(self, connector):
+    def __init__(self, connector, stop_event=None):
         """
         Classe che legge i comandi dal Brain e delega la gestione della manovra
         """
@@ -49,6 +49,7 @@ class TaskController:
 
         # Memorizza l'ultimo comando per ignorare i duplicati
         self.last_command = None
+        self.stop_event = stop_event 
 
 
     def start(self):
@@ -198,6 +199,12 @@ class TaskController:
                     self.redis_client.update_sensor_data(self.BODY_MEMORY, {"maneuver_state": "NONE"})
                     print(f"🧠 [TaskController] Manovra completata. Sto in IDLE")
                     self.current_state = IDLE_STATE
+
+                    if dispatched_command and dispatched_command.get("type") == "SHUTDOWN":
+                        print("🔌 [TaskController] SHUTDOWN completato (dock incluso). Fermo il Body.")
+                        self._running = False
+                        if self.stop_event:
+                            self.stop_event.set()  # ← sblocca il loop → va in cleanup()
 
             elif self.current_state == TARGET_STATE:
 
