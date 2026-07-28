@@ -50,7 +50,7 @@ class RobotController:
         self.color_zone_sensor = ColorZoneSensor(self.connector, use_color=False)  # test odometria pura, telecamera non a bordo
         self.lidar_sensor = LidarSensor(self.connector)
 
-        self.task_controller = TaskController(self.connector)
+        self.task_controller = TaskController(self.connector, self._stop_event)  # legge i comandi dal Brain e li esegue tramite ManueverController
 
 
 
