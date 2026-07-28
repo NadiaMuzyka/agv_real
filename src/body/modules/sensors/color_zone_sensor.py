@@ -21,7 +21,7 @@ class ColorZoneSensor:
     COLOR_MATCH_THRESHOLD = 0.5    # frazione dell'immagine (0-1) che deve essere di quel colore
     POSITION_TOLERANCE_CM = 15.0   # PLACEHOLDER: adattate alla dimensione dei fogli A4
 
-    def __init__(self, connector, camera_index=0):
+    def __init__(self, connector, camera_index=0, use_color=True):
         self.connector = connector
         self.redis_client = RedisInterface()
         if not self.redis_client.db:
@@ -40,15 +40,27 @@ class ColorZoneSensor:
 
         self.frequenza_lettura = 0.05  # ~20 Hz
 
+        #variabile di calsse per capire se il check dei colori è attivo
+        self.use_color = use_color
+
     def start(self):
         if not self._running:
-            self.webcam = cv2.VideoCapture(self.camera_index)
+            if self.use_color:
+                self.webcam = cv2.VideoCapture(self.camera_index)
             self._running = True
             self._thread = threading.Thread(target=self._loop_lettura, daemon=True)
             self._thread.start()
-            print("[color_zone] Sensore colore avviato.")
+            print(f"[color_zone] Sensore avviato (use_color={self.use_color}).")
 
     def _loop_lettura(self):
+        if not self.use_color:
+            # Nessuna telecamera a bordo: confermo l'arrivo al nodo solo con
+            # l'odometria del Create3, senza nessun controllo colore.
+            while self._running:
+                self._read_position_only()
+                time.sleep(self.frequenza_lettura)
+            return
+
         while self._running and self.webcam.isOpened():
             ret, frame = self.webcam.read()
             if ret:
@@ -73,6 +85,20 @@ class ColorZoneSensor:
 
         except Exception as e:
             print(f"[color_zone] Errore elaborazione colore: {e}")
+
+    def _read_position_only(self):
+    """Come read(), ma senza controllo colore: usato quando use_color=False."""
+    try:
+        candidato = self._nodo_candidato()
+        if candidato is None:
+            self.redis_client.update_sensor_data(self.BRAIN_KEY, {"am_i_in_a_node": False})
+            return
+        self.redis_client.update_sensor_data(self.BRAIN_KEY, {
+            "am_i_in_a_node": True,
+            "current_position": candidato,
+        })
+    except Exception as e:
+        print(f"[color_zone] Errore elaborazione posizione: {e}")
 
     def _nodo_candidato(self):
         """Nodo più vicino secondo l'odometria del Create3, entro tolleranza.

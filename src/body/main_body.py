@@ -48,7 +48,7 @@ class RobotController:
         self.connector.reset_navigation()
 
         self.vision_sensor = VisionSensor(self.VISION_SENSOR_NAME)  # invariato, legge solo Redis
-        self.color_zone_sensor = ColorZoneSensor(self.connector)
+        self.color_zone_sensor = ColorZoneSensor(self.connector, use_color=False)  # test odometria pura, telecamera non a bordo
         self.lidar_sensor = LidarSensor(self.connector)
 
         self.task_controller = TaskController(self.connector)
@@ -79,7 +79,7 @@ class RobotController:
 
         #Avvio i thread dei sensori (che leggono e aggiornano Redis in background)
         self.color_zone_sensor.start()
-        self.lidar_sensor.start()
+        #self.lidar_sensor.start()
 
         self.task_controller.start()
 
