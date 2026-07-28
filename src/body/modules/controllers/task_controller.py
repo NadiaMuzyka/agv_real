@@ -136,18 +136,22 @@ class TaskController:
 
                 if command_type in self.commands:
                     if command_type == "STOP":
-                        print(f"🧠 [TaskController] Ho ricevuto il comando di stop. Sto in IDLE")
+                        print(f"[TaskController] Ho ricevuto il comando di stop. Sto in IDLE")
                         self.current_state = IDLE_STATE
 
                     elif command_type == "MOVE_TO":
-                        print(f"🧠 [TaskController] Devo andare al target. Sto in MANEUVERING")
+                        print(f"[TaskController] Devo andare al target. Sto in MANEUVERING")
                         self.current_state = MANEUVERING_STATE
 
                     elif command_type in ["PICKUP", "DROP"]:
-                        print(f"🧠 [TaskController] Non sto nel nodo finale. Devo eseguire una manovra. Vado in manuevering")
+                        print(f"[TaskController] Non sto nel nodo finale. Devo eseguire una manovra. Vado in manuevering")
+                        self.current_state = MANEUVERING_STATE
+
+                    elif command_type == "SHUTDOWN":
+                        print(f"[TaskController] Comando di spegnimento ricevuto. Vado in MANEUVERING per il dock.")
                         self.current_state = MANEUVERING_STATE
                 else:
-                    print(f"🧠 [TaskController] Nessun comando attivo. Rimango in NODE")
+                    print(f"[TaskController] Nessun comando attivo. Rimango in NODE")
                 
             elif self.current_state == MANEUVERING_STATE:
 
@@ -208,11 +212,11 @@ class TaskController:
 
             elif self.current_state == TARGET_STATE:
 
-                if command_type in ["PICKUP", "DROP"]:
-                    print(f"🧠 [TaskController] Comando PICKUP/DROP ricevuto. Sto in MANEUVERING")
+                if command_type in ["PICKUP", "DROP", "SHUTDOWN"]:
+                    print(f"[TaskController] Comando PICKUP/DROP/SHUTDOWN ricevuto. Sto in MANEUVERING")
                     self.current_state = MANEUVERING_STATE
                 else:
-                    print(f"🧠 [TaskController] Vado in IDLE_STATE")
+                    print(f"[TaskController] Vado in IDLE_STATE")
                     self.current_state = IDLE_STATE                
                 
             time.sleep(self.frequenza_loop)
