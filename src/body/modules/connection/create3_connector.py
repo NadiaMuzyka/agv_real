@@ -110,7 +110,8 @@ class Create3Connector:
 
     def get_position(self):
         """Ritorna (x_cm, y_cm, heading_deg) rispetto all'ultimo reset_navigation()."""
-        return self.run_coro(self._robot.get_position())
+        pose = self.run_coro(self._robot.get_position())
+        return (pose.x, pose.y, pose.heading) if pose else None
 
     def reset_navigation(self):
         """Azzera l'origine a (0,0,90°) nel punto in cui si trova ora il robot."""
