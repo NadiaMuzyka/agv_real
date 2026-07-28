@@ -87,18 +87,18 @@ class ColorZoneSensor:
             print(f"[color_zone] Errore elaborazione colore: {e}")
 
     def _read_position_only(self):
-    """Come read(), ma senza controllo colore: usato quando use_color=False."""
-    try:
-        candidato = self._nodo_candidato()
-        if candidato is None:
-            self.redis_client.update_sensor_data(self.BRAIN_KEY, {"am_i_in_a_node": False})
-            return
-        self.redis_client.update_sensor_data(self.BRAIN_KEY, {
-            "am_i_in_a_node": True,
-            "current_position": candidato,
-        })
-    except Exception as e:
-        print(f"[color_zone] Errore elaborazione posizione: {e}")
+        """Come read(), ma senza controllo colore: usato quando use_color=False."""
+        try:
+            candidato = self._nodo_candidato()
+            if candidato is None:
+                self.redis_client.update_sensor_data(self.BRAIN_KEY, {"am_i_in_a_node": False})
+                return
+            self.redis_client.update_sensor_data(self.BRAIN_KEY, {
+                "am_i_in_a_node": True,
+                "current_position": candidato,
+            })
+        except Exception as e:
+            print(f"[color_zone] Errore elaborazione posizione: {e}")
 
     def _nodo_candidato(self):
         """Nodo più vicino secondo l'odometria del Create3, entro tolleranza.
