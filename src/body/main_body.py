@@ -44,6 +44,7 @@ class RobotController:
         # 2. Origine delle coordinate: azzerata qui.
         #    
         self.connector.undock()
+        self.connector.move(10) #vado avanti di 10 cm cosi ER è staccato un pò dalla dock e riesco ad avere dock() corretto
         self.connector.reset_navigation()
 
         self.vision_sensor = VisionSensor(self.VISION_SENSOR_NAME)  # invariato, legge solo Redis
