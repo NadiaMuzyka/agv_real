@@ -42,9 +42,8 @@ class RobotController:
         self.connector = Create3Connector()
 
         # 2. Origine delle coordinate: azzerata qui.
-        #    DECISIONE VOSTRA: se il robot parte sempre agganciato al dock,
-        #    aggiungete self.connector.undock() PRIMA di reset_navigation().
-        #    Se lo posizionate a mano sul banco, saltate l'undock.
+        #    
+        self.connector.undock()
         self.connector.reset_navigation()
 
         self.vision_sensor = VisionSensor(self.VISION_SENSOR_NAME)  # invariato, legge solo Redis
