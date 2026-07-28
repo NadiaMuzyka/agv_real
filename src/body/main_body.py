@@ -146,11 +146,17 @@ def main():
         if controller_ref[0]:
             controller_ref[0]._stop_event.set()  # ← sblocca il loop → va in cleanup()
 
-    signal.signal(signal.SIGTERM, spegnimento_sicuro)
-    signal.signal(signal.SIGINT, spegnimento_sicuro)
-
     try:
         controller_ref[0] = RobotController()
+
+        # La SDK (irobot_edu_sdk) registra i propri gestori per SIGINT/SIGTERM
+        # dentro Robot.__init__() (creato sopra, tramite Create3Connector),
+        # sovrascrivendo i nostri. Li rimettiamo qui, DOPO, così restano
+        # attivi i nostri e lo shutdown pulito (disconnessione BLE inclusa)
+        # funziona davvero.
+        signal.signal(signal.SIGTERM, spegnimento_sicuro)
+        signal.signal(signal.SIGINT, spegnimento_sicuro)
+
         controller_ref[0].run()
     except Exception as e:
         print(f"Chiusura forzata: {e}")
